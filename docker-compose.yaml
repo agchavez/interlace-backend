@@ -1,18 +1,17 @@
 version: '3.3'
 services:
   db:
-    image: mcr.microsoft.com/azure-sql-edge
-    container_name: sqlserver
+    container_name: reimpress-mssql
     environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=${DB_PASSWORD}
+        - ACCEPT_EULA=Y
+        - MSSQL_SA_PASSWORD=${DB_PASSWORD}
     ports:
-      - ${DB_PORT}:1433
+        - ${DB_PORT}:1433
     user: root
+    image: 'mcr.microsoft.com/mssql/server:2019-latest'
+    restart: always
     volumes:
-      - ../data:/var/opt/mssql/data
-    networks:
-      - mynetwork
+        - ./data:/var/opt/mssql/data
 
   web:
     build: .
@@ -23,9 +22,7 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    networks:
-      - mynetwork
-
-networks:
-  mynetwork:
-    driver: bridge
+    environment:
+      - DB_HOST=db
+    depends_on:
+      - db
