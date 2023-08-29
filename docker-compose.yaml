@@ -1,0 +1,15 @@
+version: '3.3'
+services:
+  db:
+      # iMAGEN DE SQL SERVER
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
+    ports:
+      - ${DB_PORT}:1433
+    user: root
+    volumes:
+      - ../data:/var/opt/mssql/data
+
