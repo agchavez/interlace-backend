@@ -1,15 +1,31 @@
 version: '3.3'
 services:
   db:
-      # iMAGEN DE SQL SERVER
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/azure-sql-edge
     container_name: sqlserver
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
+      - SA_PASSWORD=${DB_PASSWORD}
     ports:
       - ${DB_PORT}:1433
     user: root
     volumes:
       - ../data:/var/opt/mssql/data
+    networks:
+      - mynetwork
 
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - mynetwork
+
+networks:
+  mynetwork:
+    driver: bridge
