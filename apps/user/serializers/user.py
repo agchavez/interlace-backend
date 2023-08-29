@@ -1,12 +1,9 @@
 # Rest_framework
-import json
-
 from rest_framework import serializers
-from django.contrib.auth.hashers import make_password
 
 # Models
 from apps.user.models import UserModel
-
+from apps.maintenance.models.centro_distribucion import CentroDistribucion
 # Grupos y permisos
 from django.contrib.auth.models import Group, Permission, ContentType, UserManager
 
@@ -25,7 +22,27 @@ class UserDJSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     list_groups = serializers.SerializerMethodField()
     list_permissions = serializers.SerializerMethodField()
+    # centro de distribucion un id
+    centro_distribucion = serializers.PrimaryKeyRelatedField(
+        queryset=CentroDistribucion.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    centro_distribucion_name = serializers.ReadOnlyField(source='centro_distribucion.nombre')
 
+
+    # validacion al registrar que si hay un grupo seleccionado, verificar si requiere acceso o no
+    def validate(self, data):
+        if 'groups' in data:
+            for group in data['groups']:
+                group = Group.objects.get(id=group.id)
+                if group.detail_group.requiered_access and not data['centro_distribucion']:
+                    raise serializers.ValidationError(
+                        {
+                            "mensage": "El grupo seleccionado requiere que se le asigne un centro de distribucion",
+                            "error_code": "required_access_group"
+                        })
+        return data
     @staticmethod
     def get_list_groups(obj):
         return obj.groups.values_list('name', flat=True)

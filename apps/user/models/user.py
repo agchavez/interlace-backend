@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 import uuid
 
 from rest_framework.exceptions import ValidationError
-
+from apps.maintenance.models.centro_distribucion import CentroDistribucion
 
 class DetailGroup(models.Model):
     requiered_access = models.BooleanField(
@@ -20,7 +20,9 @@ class DetailGroup(models.Model):
         Group,
         on_delete=models.CASCADE,
         verbose_name=_('group'),
-        related_name='detail_group'
+        related_name='detail_group',
+        null=True,
+        blank=True
     )
     class Meta:
         db_table = "auth_group_detail"
@@ -62,6 +64,18 @@ class UserModel(AbstractUser):
             'unique': 'El email ya existe'
         }
     )
+
+    centro_distribucion = models.ForeignKey(
+        CentroDistribucion,
+        # si se elimina el centro de distribución, el usuario queda null
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('centro de distribución'),
+        related_name='user_centro_distribucion'
+    )
+
+
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']

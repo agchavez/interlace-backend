@@ -58,8 +58,6 @@ class UserViewSet(mixins.CreateModelMixin,
     filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ('username', 'email', 'first_name', 'last_name')
 
-    permission_classes = [CustomAccessPermission]
-
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['view_usermodel'],
