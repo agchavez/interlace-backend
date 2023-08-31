@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, IsAuthentic
 from rest_framework.response import Response
 
 # Models
-from apps.user.models import UserModel
+from apps.user.models import UserModel, DetailGroup
 from django.contrib.auth.models import Group, Permission
 
 from django.contrib.auth import get_user_model
@@ -17,7 +17,7 @@ from django.contrib.admin.models import LogEntry
 
 # Serializers
 from apps.user.serializers import (UserSerializer,
-                                   LogEntrySerializer)
+                                   LogEntrySerializer, DetailGroupSerializer)
 
 # filters
 from django_filters.rest_framework import DjangoFilterBackend
@@ -111,3 +111,13 @@ class LogEntryViewSet(mixins.RetrieveModelMixin,
     filterset_class = LogEntryFilter
     search_fields = ('user__username', 'content_type__model', 'action_flag', 'change_message')
     ordering_fields = ('user__username', 'content_type__model', 'action_flag', 'change_message')
+
+# ViewSets by DetailGroup
+class DetailGroupViewSet(mixins.RetrieveModelMixin,
+                            mixins.ListModelMixin,
+                            viewsets.GenericViewSet):
+        queryset = DetailGroup.objects.all()
+        serializer_class = DetailGroupSerializer
+        filter_backends = (SearchFilter, OrderingFilter)
+        search_fields = ('group__name')
+        ordering_fields = ('group__name')

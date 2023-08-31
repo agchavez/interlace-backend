@@ -1,1 +1,1 @@
-from .user import UserSerializer, PermissionSerializer, GroupSerializer, LogEntrySerializer
+from .user import UserSerializer, PermissionSerializer, GroupSerializer, LogEntrySerializer, DetailGroupSerializer

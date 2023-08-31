@@ -1,1 +1,1 @@
-from .user import UserViewSet, LogEntryViewSet
+from .user import UserViewSet, LogEntryViewSet, DetailGroupViewSet

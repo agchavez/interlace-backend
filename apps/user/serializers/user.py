@@ -2,7 +2,7 @@
 from rest_framework import serializers
 
 # Models
-from apps.user.models import UserModel
+from apps.user.models import UserModel, DetailGroup
 from apps.maintenance.models.centro_distribucion import CentroDistribucion
 # Grupos y permisos
 from django.contrib.auth.models import Group, Permission, ContentType, UserManager
@@ -81,6 +81,15 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
+        fields = '__all__'
+
+
+# Serializers (DetailGroup)
+class DetailGroupSerializer(serializers.ModelSerializer):
+    group = GroupSerializer()
+
+    class Meta:
+        model = DetailGroup
         fields = '__all__'
 
 
