@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 import uuid
 
 from rest_framework.exceptions import ValidationError
-from apps.maintenance.models.centro_distribucion import CentroDistribucion
+from apps.maintenance.models.distributor_center import DistributorCenter
 
 class DetailGroup(models.Model):
     requiered_access = models.BooleanField(
@@ -34,12 +34,6 @@ class UserModel(AbstractUser):
         ordering = ['-created_at']
         db_table = "auth_user"
 
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-
     first_name = models.CharField(
         'first name',
         max_length=60,
@@ -66,7 +60,7 @@ class UserModel(AbstractUser):
     )
 
     centro_distribucion = models.ForeignKey(
-        CentroDistribucion,
+        DistributorCenter,
         # si se elimina el centro de distribución, el usuario queda null
         on_delete=models.SET_NULL,
         null=True,
@@ -75,7 +69,16 @@ class UserModel(AbstractUser):
         related_name='user_centro_distribucion'
     )
 
-
+    # Numero de empleado valor numerico, unico pero opcional
+    codigo_empleado = models.IntegerField(
+        _('numero de empleado'),
+        unique=True,
+        null=True,
+        blank=True,
+        error_messages={
+            'unique': 'El numero de empleado ya existe, debe ser unico'
+        }
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']

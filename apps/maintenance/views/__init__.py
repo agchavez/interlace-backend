@@ -1,1 +1,3 @@
-from .centro_distribucion import  CentroDistribucionViewSet
+from .centro_distribucion import CentroDistribucionViewSet, RouteModelViewSet, LocationModelViewSet
+from .operator import OperatorModelViewSet
+from .trailer import TrailerModelViewSet, TransporterModelViewSet

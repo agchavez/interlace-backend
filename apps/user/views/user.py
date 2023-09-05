@@ -45,6 +45,15 @@ class CustomAccessPermission(BasePermission):
         return request.user.has_perms(required_permissions)
 
 
+class UserFilter(django_filters.FilterSet):
+    class Meta:
+        model = UserModel
+        fields = {
+            'is_active': ['exact'],
+            'is_staff': ['exact'],
+            'is_superuser': ['exact'],
+            'groups': ['exact'],
+        }
 
 # ViewSets by UserModel
 class UserViewSet(mixins.CreateModelMixin,
@@ -55,8 +64,9 @@ class UserViewSet(mixins.CreateModelMixin,
                   viewsets.GenericViewSet):
     queryset = UserModel.objects.all()
     serializer_class = UserSerializer
-    filter_backends = (SearchFilter, OrderingFilter)
+    filter_backends = (SearchFilter, DjangoFilterBackend)
     search_fields = ('username', 'email', 'first_name', 'last_name')
+    filterset_class = UserFilter 
 
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {

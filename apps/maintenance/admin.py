@@ -1,5 +1,14 @@
 from django.contrib import admin
-from apps.maintenance.models.centro_distribucion import CentroDistribucion
+from apps.maintenance.models.distributor_center import DistributorCenter, RouteModel, LocationModel
+from apps.maintenance.models.operator import OperatorModel
+from apps.maintenance.models.trailer import TransporterModel, TrailerModel
 # Register your models her
 
-admin.site.register(CentroDistribucion)
+admin.site.register(DistributorCenter)
+admin.site.register(RouteModel)
+admin.site.register(LocationModel)
+admin.site.register(OperatorModel)
+admin.site.register(TransporterModel)
+admin.site.register(TrailerModel)
+
+

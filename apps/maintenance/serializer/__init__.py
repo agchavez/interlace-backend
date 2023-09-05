@@ -1,1 +1,3 @@
-from .centro_distribucion import CentroDistribucionSerializer
+from .centro_distribucion import DistributorCenterSerializer,RouteModelSerializer, LocationModelSerializer
+from .operator import OperatorModelSerializer
+from .trailer import TrailerModelSerializer, TransporterModelSerializer

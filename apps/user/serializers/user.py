@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 # Models
 from apps.user.models import UserModel, DetailGroup
-from apps.maintenance.models.centro_distribucion import CentroDistribucion
+from apps.maintenance.models.distributor_center import DistributorCenter
 # Grupos y permisos
 from django.contrib.auth.models import Group, Permission, ContentType, UserManager
 
@@ -24,7 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
     list_permissions = serializers.SerializerMethodField()
     # centro de distribucion un id
     centro_distribucion = serializers.PrimaryKeyRelatedField(
-        queryset=CentroDistribucion.objects.all(),
+        queryset=DistributorCenter.objects.all(),
         required=False,
         allow_null=True
     )
