@@ -22,6 +22,9 @@ class UserDJSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     list_groups = serializers.SerializerMethodField()
     list_permissions = serializers.SerializerMethodField()
+    date_joined = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    last_login = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     # centro de distribucion un id
     centro_distribucion = serializers.PrimaryKeyRelatedField(
         queryset=DistributorCenter.objects.all(),
