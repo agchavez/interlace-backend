@@ -2,3 +2,4 @@ from .centro_distribucion import DistributorCenterSerializer, RouteModelSerializ
 from .operator import OperatorModelSerializer
 from .trailer import TrailerModelSerializer, TransporterModelSerializer
 from .product import ProductModelSerializer
+from .driver import DriverModelSerializer

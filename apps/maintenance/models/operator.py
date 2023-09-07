@@ -23,6 +23,12 @@ class OperatorModel(BaseModel):
     def __str__(self):
         return self.first_name + " " + self.last_name + " - " + self.distributor_center.name
 
+
+    def save(self, *args, **kwargs):
+        self.first_name = self.first_name.upper()
+        self.last_name = self.last_name.upper()
+        return super(OperatorModel, self).save(*args, **kwargs)
+
     class Meta:
         db_table = "operator"
         verbose_name = "Operador"

@@ -16,6 +16,7 @@ class ProductFilter(django_filters.FilterSet):
         fields = {
             'name': ['exact'],
             'bar_code': ['exact'],
+            'id': ['exact'],
         }
 
 

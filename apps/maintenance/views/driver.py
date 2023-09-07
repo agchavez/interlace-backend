@@ -4,26 +4,25 @@ from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 # Models
-from ..models import OperatorModel
+from ..models import DriverModel
 
 # Serializers
-from ..serializer import OperatorModelSerializer
+from ..serializer import DriverModelSerializer
 
 
-class OperatorFilter(django_filters.FilterSet):
+class DriverFilter(django_filters.FilterSet):
     class Meta:
-        model = OperatorModel
+        model = DriverModel
         fields = {
-            'distributor_center': ['exact'],
             'id': ['exact'],
         }
 
 
-class OperatorModelViewSet(mixins.ListModelMixin,
+class DriverModelViewSet(mixins.ListModelMixin,
                             mixins.RetrieveModelMixin
                             , viewsets.GenericViewSet):
-     queryset = OperatorModel.objects.all()
-     serializer_class = OperatorModelSerializer
+     queryset = DriverModel.objects.all()
+     serializer_class = DriverModelSerializer
      filter_backends = [filters.SearchFilter, DjangoFilterBackend]
      search_fields = ('first_name', 'last_name')
-     filterset_class = OperatorFilter
+     filterset_class = DriverFilter

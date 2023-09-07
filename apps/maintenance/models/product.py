@@ -30,6 +30,13 @@ class ProductModel(BaseModel):
     def __str__(self):
         return self.name
 
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        self.brand = self.brand.upper()
+        return super(ProductModel, self).save(*args, **kwargs)
+
+
     class Meta:
         db_table = "product"
         verbose_name = "Producto"

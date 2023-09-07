@@ -1,0 +1,1 @@
+from .typeDetailOutput import TypeDetailOutputModel

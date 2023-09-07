@@ -10,13 +10,23 @@ from ..models import DistributorCenter, LocationModel, RouteModel
 # Serializers
 from ..serializer import DistributorCenterSerializer, RouteModelSerializer, LocationModelSerializer
 
+
+class CentroDistribucionFilter(django_filters.FilterSet):
+    class Meta:
+        model = DistributorCenter
+        fields = {
+            'country_code': ['exact'],
+            'id': ['exact'],
+        }
+
 class CentroDistribucionViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin
                                 , viewsets.GenericViewSet):
     queryset = DistributorCenter.objects.all()
     serializer_class = DistributorCenterSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filter_fields = ('nombre', 'direccion')
+    filter_backends = (DjangoFilterBackend, filters.SearchFilter)
+    search_fields = ('name')
+    filterset_class = CentroDistribucionFilter
     # Quitar la paginacion
     pagination_class = None
 
@@ -26,6 +36,7 @@ class RouteFilter(django_filters.FilterSet):
         fields = {
             'distributor_center': ['exact'],
             'location': ['exact'],
+            'id': ['exact'],
         }
 
 class RouteModelViewSet(mixins.ListModelMixin,
@@ -42,6 +53,7 @@ class LocationFilter(django_filters.FilterSet):
         model = LocationModel
         fields = {
             'distributor_center': ['exact'],
+            'id': ['exact'],
         }
 class LocationModelViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin

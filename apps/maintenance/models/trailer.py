@@ -30,6 +30,10 @@ class TransporterModel(BaseModel):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        return super(TransporterModel, self).save(*args, **kwargs)
+
     class Meta:
         db_table = "transporter"
         verbose_name = "Transportista"

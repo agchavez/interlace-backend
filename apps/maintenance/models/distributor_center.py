@@ -16,6 +16,11 @@ class DistributorCenter(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        self.direction = self.direction.upper()
+        return super(DistributorCenter, self).save(*args, **kwargs)
+
     class Meta:
         db_table = "distributor_center"
         verbose_name = "Centro de Distribución"
@@ -36,6 +41,10 @@ class LocationModel(BaseModel):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        return super(LocationModel, self).save(*args, **kwargs)
 
     class Meta:
         db_table = "location"
