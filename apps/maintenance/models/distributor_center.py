@@ -32,12 +32,24 @@ class LocationModel(BaseModel):
     name = models.CharField(
         "Nombre",
         max_length=50)
-    distributor_center = models.ForeignKey(
+    distributor_center = models.OneToOneField(
         DistributorCenter,
         on_delete=models.SET_NULL,
         verbose_name="Centro de Distribución",
+        related_name="location_distributor_center",
         null=True,
         blank=True)
+    code = models.CharField(
+        "Código",
+        unique=True,
+        max_length=50,
+        null=True,
+        blank=True,
+        error_messages={
+            "unique": "Ya existe una localización con este código"
+        }
+    )
+
 
     def __str__(self):
         return self.name

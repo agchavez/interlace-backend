@@ -31,7 +31,14 @@ class UserSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    centro_distribucion_name = serializers.ReadOnlyField(source='centro_distribucion.nombre')
+    centro_distribucion_name = serializers.SerializerMethodField("get_centro_distribucion")
+
+    def get_centro_distribucion(self, obj):
+        if obj.centro_distribucion is None:
+            return None
+        if obj.centro_distribucion.location_distributor_center is None:
+            return obj.centro_distribucion.name
+        return obj.centro_distribucion.location_distributor_center.code + " - " + obj.centro_distribucion.name
 
 
     # validacion al registrar que si hay un grupo seleccionado, verificar si requiere acceso o no

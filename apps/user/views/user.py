@@ -63,7 +63,7 @@ class UserViewSet(mixins.CreateModelMixin,
                   mixins.ListModelMixin,
                   viewsets.GenericViewSet):
     # Omitir los superusuarios
-    queryset = UserModel.objects.filter(is_superuser=False)
+    queryset = UserModel.objects.filter()
     serializer_class = UserSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend)
     search_fields = ('username', 'email', 'first_name', 'last_name')
