@@ -1,5 +1,5 @@
 from .centro_distribucion import DistributorCenterSerializer, RouteModelSerializer, LocationModelSerializer
 from .operator import OperatorModelSerializer
 from .trailer import TrailerModelSerializer, TransporterModelSerializer
-from .product import ProductModelSerializer
+from .product import ProductModelSerializer, OutputTypeModelSerializer
 from .driver import DriverModelSerializer

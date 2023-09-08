@@ -88,12 +88,6 @@ class UserModel(AbstractUser):
     def __str__(self):
         return self.email
 
-    def save(self, *args, **kwargs):
-        self.first_name = self.first_name.upper()
-        self.last_name = self.last_name.upper()
-        self.password = make_password(self.password)
-        return super().save(*args, **kwargs)
-
     def deactivate(self):
         self.is_active = False
         self.save()
@@ -120,27 +114,9 @@ class UserModel(AbstractUser):
 
         return self._create_user(email, password, **extra_fields)
 
-class UserManager(BaseUserManager):
+    def save(self, *args, **kwargs):
+        # Contraseña se encripta solo si se esta creando un usuario o si se esta actualizando y la contraseña cambio
+        if not self.pk or self.password != self.__class__.objects.get(pk=self.pk).password:
+            self.password = make_password(self.password)
 
-    def create_user(self, email, password=None):
-
-        if email is None:
-            raise TypeError('Users must have an email address.')
-
-        user = self.model(email=self.normalize_email(email))
-        user.set_password(password)
-        user.save()
-
-        return user
-
-    def create_superuser(self, email, password):
-
-        if password is None:
-            raise TypeError('Superusers must have a password.')
-
-        user = self.create_user(email, password)
-        user.is_superuser = True
-        user.is_staff = True
-        user.save()
-
-        return user
+        return super(UserModel, self).save(*args, **kwargs)

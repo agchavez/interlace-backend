@@ -4,10 +4,10 @@ from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 # Models
-from ..models import ProductModel
+from ..models import ProductModel, OutputTypeModel
 
 # Serializers
-from ..serializer import ProductModelSerializer
+from ..serializer import ProductModelSerializer, OutputTypeModelSerializer
 
 
 class ProductFilter(django_filters.FilterSet):
@@ -28,3 +28,12 @@ class ProductModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ('name', 'sap_code', 'brand')
     filterset_class = ProductFilter
+
+
+class OutputTypeModelViewSet(mixins.ListModelMixin,
+                                mixins.RetrieveModelMixin
+        , viewsets.GenericViewSet):
+        queryset = OutputTypeModel.objects.all()
+        serializer_class = OutputTypeModelSerializer
+        filter_backends = [filters.SearchFilter]
+        search_fields = ('name')

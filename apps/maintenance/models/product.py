@@ -42,3 +42,23 @@ class ProductModel(BaseModel):
         verbose_name = "Producto"
         verbose_name_plural = "Productos"
 
+
+# Modelo para el mantenimiento de los tipos de salida de productos
+class OutputTypeModel(BaseModel):
+    name = models.CharField(
+        "Nombre",
+        max_length=50)
+    required_details = models.BooleanField(
+        "Detalle requeridos",
+        default=False)
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        return super(OutputTypeModel, self).save(*args, **kwargs)
+
+    class Meta:
+        db_table = "output_type"
+        verbose_name = "Tipo de salida"
+        verbose_name_plural = "Tipos de salida"

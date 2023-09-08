@@ -54,6 +54,7 @@ class LocationFilter(django_filters.FilterSet):
         fields = {
             'distributor_center': ['exact'],
             'id': ['exact'],
+            'name': ['icontains'],
         }
 class LocationModelViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin
@@ -61,5 +62,5 @@ class LocationModelViewSet(mixins.ListModelMixin,
     queryset = LocationModel.objects.all()
     serializer_class = LocationModelSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
-    search_fields = ('code')
+    search_fields = ['name', 'code']
     filterset_class = LocationFilter

@@ -2,4 +2,4 @@ from .centro_distribucion import CentroDistribucionViewSet, RouteModelViewSet, L
 from .operator import OperatorModelViewSet
 from .trailer import TrailerModelViewSet, TransporterModelViewSet
 from .driver import DriverModelViewSet
-from .product import ProductModelViewSet
+from .product import ProductModelViewSet, OutputTypeModelViewSet
