@@ -16,6 +16,9 @@ def custom_exception_handler(exc, context):
                     response.data['error_code'] = get_error_code(response.data['detail'])
                 except :
                     pass
+            # Los demas errores que tienen sus propias llaves se agregan al arreglo de errores
+            response.data['detail'] = params
+
     return response
 
 

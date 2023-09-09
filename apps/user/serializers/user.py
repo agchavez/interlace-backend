@@ -52,6 +52,14 @@ class UserSerializer(serializers.ModelSerializer):
                             "mensage": "El grupo seleccionado requiere que se le asigne un centro de distribucion",
                             "error_code": "required_access_group"
                         })
+        if 'employee_number' in data:
+            if UserModel.objects.filter(employee_number=data['employee_number']).exists():
+                raise serializers.ValidationError(
+                    {
+                        "mensage": "El numero de empleado ya esta asignado a otro usuario",
+                        "error_code": "employee_number_exists"
+                    })
+
         return data
     @staticmethod
     def get_list_groups(obj):

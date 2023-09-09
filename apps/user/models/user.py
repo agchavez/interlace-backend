@@ -70,7 +70,7 @@ class UserModel(AbstractUser):
     )
 
     # Numero de empleado valor numerico, unico pero opcional
-    codigo_empleado = models.IntegerField(
+    employee_number = models.IntegerField(
         _('numero de empleado'),
         unique=True,
         null=True,
