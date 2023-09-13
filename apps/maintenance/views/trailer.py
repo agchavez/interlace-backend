@@ -14,7 +14,6 @@ class TrailerFilter(django_filters.FilterSet):
     class Meta:
         model = TrailerModel
         fields = {
-            'transporter': ['exact'],
             'id': ['exact'],
         }
 

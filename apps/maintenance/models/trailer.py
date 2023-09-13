@@ -47,16 +47,9 @@ class TrailerModel(BaseModel):
         max_length=50,
         unique=True)
 
-    # transportista del trailer
-    transporter = models.ForeignKey(
-        TransporterModel,
-        on_delete=models.SET_NULL,
-        verbose_name="Transportista",
-        null=True,
-        blank=True)
 
     def __str__(self):
-        return self.code + " - " + self.transporter.name
+        return self.code
 
     class Meta:
         db_table = "trailer"

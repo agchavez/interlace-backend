@@ -10,7 +10,6 @@ class TransporterModelSerializer(serializers.ModelSerializer):
 
 
 class TrailerModelSerializer(serializers.ModelSerializer):
-    transporter = TransporterModelSerializer()
     class Meta:
         model = TrailerModel
         fields = '__all__'
