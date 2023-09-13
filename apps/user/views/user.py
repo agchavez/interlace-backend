@@ -63,12 +63,12 @@ class UserViewSet(mixins.CreateModelMixin,
                   mixins.ListModelMixin,
                   viewsets.GenericViewSet):
     # Omitir los superusuarios
-    queryset = UserModel.objects.filter()
+    queryset = UserModel.objects.filter(is_superuser=False)
     serializer_class = UserSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend)
     search_fields = ('username', 'email', 'first_name', 'last_name')
     filterset_class = UserFilter 
-
+    permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['view_usermodel'],
@@ -80,6 +80,11 @@ class UserViewSet(mixins.CreateModelMixin,
 
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
+
+    # listar usuarios
+    def list(self, request, *args, **kwargs):
+        print("usuario autenticado: ", request.user)
+        return super().list(request, *args, **kwargs)
 
     # actualizar mi perfil
     @action(methods=['put'], detail=False, permission_classes=[IsAuthenticated], url_path='update-profile')

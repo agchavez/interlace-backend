@@ -3,15 +3,10 @@
 from django.db import models
 # Modelo base con los campos createdAt, updatedAt por hora y por fecha
 class BaseModel(models.Model):
-    created_at_date = models.DateField(
-        "Fecha de Creación",
+    created_at = models.DateTimeField(
+        "Fecha de registro",
         auto_now_add=True,
         null=True)
-    created_at_time = models.TimeField(
-        "Hora de Creación",
-        auto_now_add=True,
-        null=True)
-
 
     class Meta:
         abstract = True

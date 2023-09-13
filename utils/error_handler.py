@@ -14,10 +14,15 @@ def custom_exception_handler(exc, context):
             else:
                 try:
                     response.data['error_code'] = get_error_code(response.data['detail'])
+                    response.data['menssage'] = response.data['detail']
                 except :
                     pass
-            # Los demas errores que tienen sus propias llaves se agregan al arreglo de errores
+            # Los demas errores que tienen sus propias llaves se agregan al arreglo de errores menos error_code
             response.data['detail'] = params
+            response.data['detail'].pop('code', None)
+            response.data['detail'].pop('error_code', None)
+            response.data['detail'].pop('status_code', None)
+
 
     return response
 

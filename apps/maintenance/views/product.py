@@ -8,7 +8,7 @@ from ..models import ProductModel, OutputTypeModel
 
 # Serializers
 from ..serializer import ProductModelSerializer, OutputTypeModelSerializer
-
+from apps.user.views.user import CustomAccessPermission
 
 class ProductFilter(django_filters.FilterSet):
     class Meta:
