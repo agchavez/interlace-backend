@@ -45,3 +45,12 @@ class PalletsExceeded(APIException):
     }
     default_code = 'pallets_exceeded'
 
+# No se puede registrar un tracker con un trailer que ya este en uso (PENDING)
+class TrailerInUse(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'No se puede registrar un seguimiento con un trailer que este aun en revisión',
+        'error_code': 'trailer_in_use'
+    }
+    default_code = 'trailer_in_use'
+

@@ -1,4 +1,5 @@
 from rest_framework import mixins, viewsets
+from rest_framework.decorators import action
 from rest_framework import filters
 from rest_framework.response import Response
 from rest_framework import status
@@ -74,6 +75,14 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         # Sobrescribir metodo patch para dar respuesta solo de un OK
         def partial_update(self, request, *args, **kwargs):
             return super().partial_update(request, *args, **kwargs)
+
+        # listar los trackers de un usuario que esten PENDING
+        @action(detail=False, methods=['get'], url_path='my-trackers')
+        def my_trackers(self, request, *args, **kwargs):
+            user = request.user
+            queryset = TrackerModel.objects.filter(user=user, status='PENDING')
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 class TrackerDetailModelViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin,

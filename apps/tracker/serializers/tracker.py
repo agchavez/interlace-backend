@@ -5,7 +5,7 @@ from rest_framework import serializers
 # Models
 from apps.tracker.models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
 
-from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequired, TrailerRequired, PalletsExceeded
+from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequired, TrailerRequired, PalletsExceeded, TrailerInUse
 from apps.maintenance.serializer import TrailerModelSerializer, TransporterModelSerializer, DistributorCenterSerializer, ProductModelSerializer
 
 
@@ -66,6 +66,11 @@ class TrackerSerializer(serializers.ModelSerializer):
             raise TrailerRequired()
         if not data.get('transporter') and not self.instance:
             raise TransporterRequired()
+
+        # No se puede registrar un tracker con un trailer que ya este en uso (PENDING)
+        if data.get('trailer') and not self.instance:
+            if TrackerModel.objects.filter(trailer=data.get('trailer'), status='PENDING').exists():
+                raise TrailerInUse()
         return data
 
     def create(self, validated_data):
