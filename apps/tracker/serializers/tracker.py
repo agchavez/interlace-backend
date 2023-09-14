@@ -6,7 +6,9 @@ from rest_framework import serializers
 from apps.tracker.models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
 
 from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequired, TrailerRequired, PalletsExceeded, \
-    TrailerInUse
+    TrailerInUse, TrackerCompletedDetail, TrackerCompletedDetailProduct, InputDocumentNumberIsNotNumber, \
+    InputDocumentNumberRegistered
+
 from apps.maintenance.serializer import TrailerModelSerializer, TransporterModelSerializer, DistributorCenterSerializer, \
     ProductModelSerializer
 
@@ -25,6 +27,9 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
         if sum_quantity.get('quantity__sum') and sum_quantity.get('quantity__sum') + quantity > data.get(
                 'tracker_detail').quantity:
             raise PalletsExceeded()
+        tracker_detail = TrackerDetailModel.objects.get(id=data.get('tracker_detail').id)
+        if tracker_detail.tracker.status == 'COMPLETE':
+            raise TrackerCompletedDetailProduct()
         return data
 
 
@@ -33,6 +38,12 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
 class TrackerDetailModelSerializer(serializers.ModelSerializer):
     tracker_product_detail = TrackerDetailProductModelSerializer(many=True, read_only=True)
     product_data = ProductModelSerializer(source='product', read_only=True)
+
+    def validate(self, attrs):
+        tracker = attrs.get('tracker')
+        if tracker.status == 'COMPLETE':
+            raise TrackerCompletedDetail()
+        return attrs
 
     class Meta:
         model = TrackerDetailModel
@@ -71,6 +82,10 @@ class TrackerSerializer(serializers.ModelSerializer):
         if data.get('trailer') and not self.instance:
             if TrackerModel.objects.filter(trailer=data.get('trailer'), status='PENDING').exists():
                 raise TrailerInUse()
+
+        if self.instance and 'status' in data and data['status'] != self.instance.status and self.context.get(
+                'view').action != 'complete':
+            raise serializers.ValidationError("No se puede cambiar el estado del tracker")
         return data
 
     def create(self, validated_data):

@@ -1,3 +1,4 @@
+from django.db.models import Sum
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework import filters
@@ -11,7 +12,9 @@ from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
 from apps.maintenance.models import TrailerModel, TransporterModel
-from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter
+from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
+    TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
+    TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired
 from apps.user.views.user import CustomAccessPermission
 
 
@@ -43,14 +46,14 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ('plate_number', 'input_document_number', 'output_document_number')
     filterset_class = TrackerFilter
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['view_usermodel'],
-        'POST': ['add_usermodel'],
-        'PUT': ['change_usermodel'],
-        'PATCH': ['change_usermodel'],
-        'DELETE': ['delete_usermodel']
+        'GET': ['view_trackermodel'],
+        'POST': ['add_trackermodel'],
+        'PUT': ['change_trackermodel'],
+        'PATCH': ['change_trackermodel'],
+        'DELETE': ['delete_trackermodel'],
     }
 
     def get_required_permissions(self, http_method):
@@ -71,6 +74,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
 
     # Sobrescribir metodo patch para dar respuesta solo de un OK
     def partial_update(self, request, *args, **kwargs):
+        validate_create_tracker(request, self.get_object().id)
         return super().partial_update(request, *args, **kwargs)
 
     # listar los trackers de un usuario que esten PENDING
@@ -80,6 +84,15 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         queryset = TrackerModel.objects.filter(user=user, status='PENDING')
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # Completar un tracker
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, *args, **kwargs):
+        tracker = self.get_object()
+        validate_complete_tracker(tracker)
+        tracker.complete()
+        return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
+
 
 
 class TrackerDetailModelViewSet(mixins.ListModelMixin,
@@ -107,6 +120,10 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
             return Response({'detail': 'Se actualizo la cantidad'}, status=status.HTTP_200_OK)
         return super().create(request, *args, **kwargs)
 
+    def destroy(self, request, *args, **kwargs):
+        if self.get_object().tracker.status == 'COMPLETE':
+            raise TrackerCompletedDetail()
+        return super().destroy(request, *args, **kwargs)
 
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
                                        mixins.RetrieveModelMixin,
@@ -121,10 +138,74 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     permission_classes = []
 
 
-def validate_create_tracker(request):
+    def destroy(self, request, *args, **kwargs):
+        if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
+            raise TrackerCompletedDetailProduct()
+        return super().destroy(request, *args, **kwargs)
+
+
+def validate_create_tracker(request, id=None):
     usuario = request.user
     distribuidor = usuario.centro_distribucion
+    data = request.data
+    instance = None
+    if id is not None:
+        instance = TrackerModel.objects.filter(id=id).first()
+
+    # Validar si el documento de entrada ya esta registrado
+    if data.get('input_document_number') and instance:
+        if TrackerModel.objects.filter(input_document_number=data.get('input_document_number')).exclude(
+                id=instance.id).exists():
+            raise InputDocumentNumberRegistered()
+        # El documento de entrada no debe ser numerico en el caso que lo mande
+        if not data.get('input_document_number').isnumeric():
+            raise InputDocumentNumberIsNotNumber()
+
+    # Validaciones de documento de salida
+    if data.get('output_document_number') and instance:
+        if TrackerModel.objects.filter(output_document_number=data.get('output_document_number')).exclude(
+                id=instance.id).exists():
+            raise InputDocumentNumberRegistered()
+        # El documento de salida no debe ser numerico en el caso que lo mande
+        if not data.get('output_document_number').isnumeric():
+            raise InputDocumentNumberIsNotNumber()
+
+    # Validaciones de numero de traslado
+    if data.get('transfer_number') and instance:
+        if TrackerModel.objects.filter(transfer_number=data.get('transfer_number')).exclude(
+                id=instance.id).exists():
+            raise InputDocumentNumberRegistered()
+        # El numero de traslado no debe ser numerico en el caso que lo mande
+        if not data.get('transfer_number').isnumeric():
+            raise InputDocumentNumberIsNotNumber()
+
+    # Validacion de contabilzado
+    if data.get('accounted') and instance:
+        if not data.get('accounted').isnumeric():
+            raise InputDocumentNumberIsNotNumber()
+
     # Vlidar centro de distribucion del usuario
     if distribuidor is None:
         raise UserWithoutDistributorCenter()
     return (usuario, distribuidor)
+
+
+# Validaciones para marcar completado un tracker
+def validate_complete_tracker(tracker):
+    # Debe exister almenos un detalle de tracker
+    if tracker.tracker_detail.count() == 0:
+        raise TrackerCompletedDetailRequired()
+    # Validar numero de entrada, salida y traslado
+    if not tracker.input_document_number:
+        raise InputDocumentNumberRequired()
+    if not tracker.output_document_number:
+        raise OutputDocumentNumberRequired()
+    if not tracker.transfer_number:
+        raise TransferNumberRequired()
+    # Validar que todos los detalles de tracker tengan la cantidad completa
+    for tracker_detail in tracker.tracker_detail.all():
+        sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=tracker_detail).aggregate(
+            Sum('quantity'))
+        if sum_quantity.get('quantity__sum') != tracker_detail.quantity:
+            raise QuantityRequired()
+    return True

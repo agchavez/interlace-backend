@@ -1,3 +1,5 @@
+from django.core.validators import RegexValidator
+
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
     OperatorModel, OutputTypeModel, DistributorCenter
 from .typeDetailOutput import TypeDetailOutputModel
@@ -6,6 +8,7 @@ from apps.user.models import UserModel
 from django.db import models
 from utils.BaseModel import BaseModel
 
+regex_number = '^[0-9]+$'
 
 # Modelo para los trackers
 
@@ -50,6 +53,7 @@ class TrackerModel(BaseModel):
         unique=True,
         null=True,
         blank=False,
+        validators=[RegexValidator(regex=regex_number, message='El numero de documento de entrada debe ser un numero')],
         error_messages={
             'unique': 'El numero de documento de entrada ya existe, debe ser unico'
         }
@@ -62,6 +66,7 @@ class TrackerModel(BaseModel):
         unique=True,
         null=True,
         blank=False,
+        validators=[RegexValidator(regex=regex_number, message='El numero de documento de salida debe ser un numero')],
         error_messages={
             'unique': 'El numero de documento de salida ya existe, debe ser unico'
         }
@@ -74,15 +79,20 @@ class TrackerModel(BaseModel):
         unique=True,
         null=True,
         blank=False,
+        validators=[RegexValidator(regex=regex_number, message='El numero de traslado debe ser un numero')],
         error_messages={
             'unique': 'El numero de traslado 5001 ya existe, debe ser unico'
         }
     )
 
     # contabilizado
-    accounted = models.IntegerField(
+    accounted = models.CharField(
         "Contabilizado",
-        default=0)
+        max_length=50,
+        null=True,
+        validators=[RegexValidator(regex=regex_number, message='El numero de traslado debe ser un numero')],
+        blank=True)
+
 
     # centro de distribucion
     distributor_center = models.ForeignKey(
