@@ -208,7 +208,7 @@ class TrackerDetailModel(BaseModel):
         TrackerModel,
         on_delete=models.SET_NULL,
         verbose_name="Tracker",
-        related_name='tracker_detail_tracker',
+        related_name='tracker_detail',
         null=True,
         blank=True
     )
