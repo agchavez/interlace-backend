@@ -10,6 +10,7 @@ from utils.BaseModel import BaseModel
 
 regex_number = '^[0-9]+$'
 
+
 # Modelo para los trackers
 
 class TrackerModel(BaseModel):
@@ -92,7 +93,6 @@ class TrackerModel(BaseModel):
         null=True,
         validators=[RegexValidator(regex=regex_number, message='El numero de traslado debe ser un numero')],
         blank=True)
-
 
     # centro de distribucion
     distributor_center = models.ForeignKey(
@@ -195,6 +195,12 @@ class TrackerModel(BaseModel):
         choices=STATUS_CHOICES,
         default='PENDING')
 
+    # Fehca de completado
+    completed_date = models.DateTimeField(
+        "Fecha de completado",
+        null=True,
+        blank=True)
+
     class Meta:
         db_table = "tracker"
         verbose_name = "Tracker"
@@ -202,7 +208,7 @@ class TrackerModel(BaseModel):
 
     def __str__(self):
         # id del tracker
-        return str(self.id) + " - " + str(self.input_document_number) + " - " + str(self.trailer.code)
+        return str(self.id) + " - " + str(self.input_document_number)
 
     # Solo se puede actualizar o eliminar si el estado es PENDING
     def complete(self):
@@ -272,10 +278,41 @@ class TrackerDetailProductModel(BaseModel):
         "Cantidad",
         default=0)
 
-
     class Meta:
         db_table = "tracker_detail_product"
         verbose_name = "Detalle de producto de tracker"
         verbose_name_plural = "Detalles de producto de tracker"
 
 
+# Detalle de salida de tracker
+class TrackerDetailOutputModel(BaseModel):
+    # Tracker
+    tracker = models.ForeignKey(
+        TrackerModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Tracker",
+        related_name='tracker_detail_output',
+        null=True,
+        blank=True
+    )
+
+    # Tipo de producto
+    product = models.ForeignKey(
+        ProductModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Producto",
+        related_name='tracker_detail_output_product',
+        null=True,
+        blank=True
+    )
+
+    # Cantidad
+    quantity = models.IntegerField(
+        "Cantidad",
+        default=0)
+
+    class Meta:
+        db_table = "tracker_detail_output"
+        verbose_name = "Detalle de salida de tracker"
+        verbose_name_plural = "Detalles de salida de tracker"
+        unique_together = ('tracker', 'product')

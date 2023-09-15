@@ -167,6 +167,24 @@ class TransferNumberRequired(APIException):
     }
     default_code = 'transfer_number_required'
 
+# Ingrear la informacion del operador para completar el seguimiento
+class OperatorRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Ingrear la informacion del operador para completar el seguimiento',
+        'error_code': 'operator_required'
+    }
+    default_code = 'operator_required'
+
+# Ingresar el tipo de salida para completar el seguimiento
+class OutputTypeRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Ingresar el tipo de salida para completar el seguimiento',
+        'error_code': 'output_type_required'
+    }
+    default_code = 'output_type_required'
+
 
 
 
