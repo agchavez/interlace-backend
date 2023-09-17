@@ -12,7 +12,7 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequire
 from apps.maintenance.serializer import TrailerModelSerializer, TransporterModelSerializer, DistributorCenterSerializer, \
     ProductModelSerializer, LocationModelSerializer
 
-
+from .typeDetailOutput import TrackerDetailOutputSerializer
 
 
 class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
@@ -59,7 +59,7 @@ class TrackerSerializer(serializers.ModelSerializer):
     user_name = serializers.ReadOnlyField(source='user.get_full_name')
     tracker_detail = TrackerDetailModelSerializer(many=True, read_only=True)
     location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
-
+    tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
     def get_tariler(self, obj):
         return TrailerModelSerializer(obj.trailer).data
 

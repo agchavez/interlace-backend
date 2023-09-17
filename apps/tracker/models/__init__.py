@@ -1,2 +1,2 @@
 from .typeDetailOutput import TypeDetailOutputModel
-from .tracker import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
+from .tracker import TrackerModel, TrackerDetailModel, TrackerDetailProductModel, TrackerDetailOutputModel
