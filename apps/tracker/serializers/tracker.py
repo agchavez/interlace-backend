@@ -32,6 +32,8 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
         else:
             sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=data.get('tracker_detail')).aggregate(
                 Sum('quantity'))
+            if sum_quantity.get('quantity__sum') is None:
+                sum_quantity = {'quantity__sum': 0}
         value = sum_quantity.get('quantity__sum')
         if (value + quantity) > data.get(
                 'tracker_detail').quantity:
