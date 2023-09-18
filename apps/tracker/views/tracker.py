@@ -49,7 +49,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ('plate_number', 'input_document_number', 'output_document_number')
     filterset_class = TrackerFilter
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['view_trackermodel'],
@@ -120,6 +120,9 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
         'DELETE': ['delete_trackermodel'],
     }
 
+    def get_required_permissions(self, http_method):
+        return self.PERMISSION_MAPPING.get(http_method, [])
+
     # Creación de un detalle de tracker
     def create(self, request, *args, **kwargs):
         # Si ya existe un detalle de tracker con el mismo tracker y el mismo producto, se actualiza la cantidad
@@ -159,6 +162,8 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
         'DELETE': ['delete_trackermodel'],
     }
 
+    def get_required_permissions(self, http_method):
+        return self.PERMISSION_MAPPING.get(http_method, [])
     def destroy(self, request, *args, **kwargs):
         if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
             raise TrackerCompletedDetailProduct()

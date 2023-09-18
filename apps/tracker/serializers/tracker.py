@@ -80,7 +80,7 @@ class TrackerSerializer(serializers.ModelSerializer):
 
         # No se puede registrar un tracker con un trailer que ya este en uso (PENDING)
         if data.get('trailer') and not self.instance:
-            if TrackerModel.objects.filter(trailer=data.get('trailer'), status='PENDING').exists():
+            if TrackerModel.objects.filter(trailer=data.get('trailer'), status='PENDING', distributor_center=data.get('distributor_center')).exists():
                 raise TrailerInUse()
 
         if self.instance and 'status' in data and data['status'] != self.instance.status and self.context.get(
