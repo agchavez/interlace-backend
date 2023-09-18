@@ -22,9 +22,18 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         quantity = data.get('quantity')
-        sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=data.get('tracker_detail')).aggregate(
-            Sum('quantity'))
-        if sum_quantity.get('quantity__sum') and sum_quantity.get('quantity__sum') + quantity > data.get(
+        # Omitir la instancia actual en caso de que sea una actualización y si no hay mas registros el valor es 0
+        if self.instance:
+            sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=data.get('tracker_detail')).exclude(
+                id=self.instance.id).aggregate(Sum('quantity'))
+            if sum_quantity.get('quantity__sum') is None:
+                sum_quantity = {'quantity__sum': 0}
+
+        else:
+            sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=data.get('tracker_detail')).aggregate(
+                Sum('quantity'))
+        value = sum_quantity.get('quantity__sum')
+        if (value + quantity) > data.get(
                 'tracker_detail').quantity:
             raise PalletsExceeded()
         tracker_detail = TrackerDetailModel.objects.get(id=data.get('tracker_detail').id)
@@ -86,6 +95,9 @@ class TrackerSerializer(serializers.ModelSerializer):
         if self.instance and 'status' in data and data['status'] != self.instance.status and self.context.get(
                 'view').action != 'complete':
             raise serializers.ValidationError("No se puede cambiar el estado del tracker")
+        # tiempo final no puede ser menor al tiempo inicial y calcular la diferencia de tiempo
+        if data.get('output_date') and data.get('input_date') and data.get('output_date') < data.get('input_date') and self.instance:
+            raise serializers.ValidationError("El tiempo final no puede ser menor al tiempo inicial")
         return data
 
     def create(self, validated_data):

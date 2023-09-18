@@ -14,6 +14,7 @@ from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
 from apps.maintenance.models import TrailerModel, TransporterModel
+from apps.user.models import UserModel as User
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
@@ -32,10 +33,21 @@ class TrackerFilter(django_filters.FilterSet):
         field_name='trailer__id',
         to_field_name='id'
     )
+    user = django_filters.ModelMultipleChoiceFilter(
+        queryset=User.objects.all(),
+        field_name='user__id',
+        to_field_name='id'
+    )
+
+    date = django_filters.DateFromToRangeFilter(
+        field_name='created_at',
+        label='Fecha de creación'
+    )
+
 
     class Meta:
         model = TrackerModel
-        fields = ('transporter', 'trailer', 'status')
+        fields = ('transporter', 'trailer', 'status', 'user', 'date')
 
 
 class TrackerModelViewSet(mixins.ListModelMixin,
@@ -58,6 +70,13 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         'PATCH': ['change_trackermodel'],
         'DELETE': ['delete_trackermodel'],
     }
+
+    # Si el usuario es del grupo solo SUPERVISOR solo puede ver los trackers de su centro de distribucion
+    # def get_queryset(self):
+    #     user = self.request.user
+    #     if user.groups.filter(name='SUPERVISOR').exists():
+    #         return TrackerModel.objects.filter(distributor_center=user.centro_distribucion)
+    #     return TrackerModel.objects.all()
 
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
@@ -98,6 +117,27 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         tracker.completed_date = datetime.now()
         tracker.save()
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
+
+    # Informacion del dashboard por centro de distribucion de usuarios
+    @action(detail=False, methods=['get'], url_path='dashboard')
+    def dashboard(self, request, *args, **kwargs):
+        # Metricas en base al querySet y sus filtros
+        queryset = self.filter_queryset(self.get_queryset())
+        # Total de trackers completados
+        total_trackers_completed = queryset.filter(status='COMPLETE').count()
+        # Total de trackers pendientes
+        total_trackers_pending = queryset.filter(status='PENDING').values('created_at', 'status', 'id').order_by('created_at')[:10]
+        # Tiempo promedio en completar un tracker
+        time_average = queryset.filter(status='COMPLETE').aggregate(Sum('time_invested'))
+        # Tiempo promedio en completar un tracker
+        time_average = time_average.get('time_invested__sum') / total_trackers_completed if total_trackers_completed > 0 else 0
+        return Response({
+            'total_trackers_completed': total_trackers_completed,
+            'total_trackers_pending': total_trackers_pending,
+            'time_average': time_average
+        }, status=status.HTTP_200_OK)
+
+
 
 
 class TrackerDetailModelViewSet(mixins.ListModelMixin,

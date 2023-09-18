@@ -215,6 +215,11 @@ class TrackerModel(BaseModel):
         self.status = 'COMPLETE'
         self.save()
 
+    def save (self, *args, **kwargs):
+        if self.input_date and self.output_date:
+            self.time_invested = (self.output_date - self.input_date).total_seconds()
+        super(TrackerModel, self).save(*args, **kwargs)
+
 
 # Modelo para los detalles de los trackers
 
