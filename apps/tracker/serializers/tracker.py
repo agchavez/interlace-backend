@@ -10,8 +10,10 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequire
     InputDocumentNumberRegistered
 
 from apps.maintenance.serializer import TrailerModelSerializer, TransporterModelSerializer, DistributorCenterSerializer, \
-    ProductModelSerializer
+    ProductModelSerializer, LocationModelSerializer
+
 from .typeDetailOutput import TrackerDetailOutputSerializer
+
 
 class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -67,6 +69,7 @@ class TrackerSerializer(serializers.ModelSerializer):
     distributor_center_data = DistributorCenterSerializer(source='distributor_center', read_only=True)
     user_name = serializers.ReadOnlyField(source='user.get_full_name')
     tracker_detail = TrackerDetailModelSerializer(many=True, read_only=True)
+    location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
     tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
     def get_tariler(self, obj):
         return TrailerModelSerializer(obj.trailer).data
