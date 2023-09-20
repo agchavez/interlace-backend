@@ -13,7 +13,7 @@ import django_filters
 from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
-from apps.maintenance.models import TrailerModel, TransporterModel
+from apps.maintenance.models import TrailerModel, TransporterModel, DistributorCenter
 from apps.user.models import UserModel as User
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
@@ -44,10 +44,16 @@ class TrackerFilter(django_filters.FilterSet):
         label='Fecha de creación'
     )
 
+    distributor_center = django_filters.ModelMultipleChoiceFilter(
+        queryset=DistributorCenter.objects.all(),
+        field_name='distributor_center__id',
+        to_field_name='id'
+    )
+
 
     class Meta:
         model = TrackerModel
-        fields = ('transporter', 'trailer', 'status', 'user', 'date')
+        fields = ('transporter', 'trailer', 'status', 'user', 'date', 'distributor_center')
 
 
 class TrackerModelViewSet(mixins.ListModelMixin,
@@ -121,8 +127,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     # Informacion del dashboard por centro de distribucion de usuarios
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request, *args, **kwargs):
-        # Metricas en base al querySet y sus filtros
+        # Solo para los usuario con centro de distribucion
+        user = request.user
         queryset = self.filter_queryset(self.get_queryset())
+        if user.centro_distribucion:
+            queryset = self.filter_queryset(self.get_queryset()).filter(distributor_center=user.centro_distribucion)
         # Total de trackers completados
         total_trackers_completed = queryset.filter(status='COMPLETE').count()
         # Total de trackers pendientes
