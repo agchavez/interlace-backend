@@ -186,6 +186,16 @@ class OutputTypeRequired(APIException):
     default_code = 'output_type_required'
 
 
+# Ya existe el producto de salida en el tracker
+class ProductOutputRegistered(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Ya existe el producto de salida en el seguimiento',
+        'error_code': 'product_output_registered'
+    }
+    default_code = 'product_output_registered'
+
+
 
 
 

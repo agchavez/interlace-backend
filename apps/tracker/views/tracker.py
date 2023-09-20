@@ -70,11 +70,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['view_trackermodel'],
-        'POST': ['add_trackermodel'],
-        'PUT': ['change_trackermodel'],
-        'PATCH': ['change_trackermodel'],
-        'DELETE': ['delete_trackermodel'],
+        'GET': ['tracker.view_trackermodel'],
+        'POST': ['tracker.add_trackermodel'],
+        'PUT': ['tracker.change_trackermodel'],
+        'PATCH': ['tracker.change_trackermodel'],
+        'DELETE': ['tracker.delete_trackermodel'],
     }
 
     # Si el usuario es del grupo solo SUPERVISOR solo puede ver los trackers de su centro de distribucion
@@ -162,11 +162,11 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
     permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['view_trackermodel'],
-        'POST': ['add_trackermodel'],
-        'PUT': ['change_trackermodel'],
-        'PATCH': ['change_trackermodel'],
-        'DELETE': ['delete_trackermodel'],
+        'GET': ['tracker.view_trackermodel'],
+        'POST': ['tracker.add_trackermodel'],
+        'PUT': ['tracker.change_trackermodel'],
+        'PATCH': ['tracker.change_trackermodel'],
+        'DELETE': ['tracker.delete_trackermodel'],
     }
 
     def get_required_permissions(self, http_method):
@@ -204,11 +204,11 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['view_trackermodel'],
-        'POST': ['add_trackermodel'],
-        'PUT': ['change_trackermodel'],
-        'PATCH': ['change_trackermodel'],
-        'DELETE': ['delete_trackermodel'],
+        'GET': ['tracker.view_trackermodel'],
+        'POST': ['tracker.add_trackermodel'],
+        'PUT': ['tracker.change_trackermodel'],
+        'PATCH': ['tracker.change_trackermodel'],
+        'DELETE': ['tracker.delete_trackermodel'],
     }
 
     def get_required_permissions(self, http_method):
