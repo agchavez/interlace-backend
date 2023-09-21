@@ -3,3 +3,4 @@ from .operator import OperatorModelSerializer
 from .trailer import TrailerModelSerializer, TransporterModelSerializer
 from .product import ProductModelSerializer, OutputTypeModelSerializer
 from .driver import DriverModelSerializer
+from .period import PeriodModelSerializer

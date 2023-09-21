@@ -4,6 +4,7 @@ from apps.maintenance.models.operator import OperatorModel
 from apps.maintenance.models.trailer import TransporterModel, TrailerModel
 from apps.maintenance.models.product import ProductModel, OutputTypeModel
 from apps.maintenance.models.driver import DriverModel
+from apps.maintenance.models.period import PeriodModel
 # Register your models her
 
 admin.site.register(DistributorCenter)
@@ -15,6 +16,7 @@ admin.site.register(TrailerModel)
 admin.site.register(ProductModel)
 admin.site.register(DriverModel)
 admin.site.register(OutputTypeModel)
+admin.site.register(PeriodModel)
 
 
 # Titulo del Panel de Administracion

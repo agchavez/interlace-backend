@@ -10,7 +10,8 @@ from .views import (
         TrailerModelViewSet,
         DriverModelViewSet,
         ProductModelViewSet,
-        OutputTypeModelViewSet)
+        OutputTypeModelViewSet,
+        PeriodViewSet)
 
 # Routers
 router = routers.DefaultRouter()
@@ -23,3 +24,4 @@ router.register(r'trailer', TrailerModelViewSet)
 router.register(r'driver', DriverModelViewSet)
 router.register(r'product', ProductModelViewSet)
 router.register(r'output-type', OutputTypeModelViewSet)
+router.register(r'period', PeriodViewSet)
