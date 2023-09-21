@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, IsAuthentic
 from rest_framework.response import Response
 
 # Models
-from apps.user.models import UserModel
+from apps.user.models import UserModel, DetailGroup
 from django.contrib.auth.models import Group, Permission
 
 from django.contrib.auth import get_user_model
@@ -17,7 +17,7 @@ from django.contrib.admin.models import LogEntry
 
 # Serializers
 from apps.user.serializers import (UserSerializer,
-                                   LogEntrySerializer)
+                                   LogEntrySerializer, DetailGroupSerializer)
 
 # filters
 from django_filters.rest_framework import DjangoFilterBackend
@@ -45,6 +45,15 @@ class CustomAccessPermission(BasePermission):
         return request.user.has_perms(required_permissions)
 
 
+class UserFilter(django_filters.FilterSet):
+    class Meta:
+        model = UserModel
+        fields = {
+            'is_active': ['exact'],
+            'is_staff': ['exact'],
+            'is_superuser': ['exact'],
+            'groups': ['exact'],
+        }
 
 # ViewSets by UserModel
 class UserViewSet(mixins.CreateModelMixin,
@@ -53,13 +62,13 @@ class UserViewSet(mixins.CreateModelMixin,
                   mixins.DestroyModelMixin,
                   mixins.ListModelMixin,
                   viewsets.GenericViewSet):
-    queryset = UserModel.objects.all()
+    # Omitir los superusuarios
+    queryset = UserModel.objects.filter(is_superuser=False)
     serializer_class = UserSerializer
-    filter_backends = (SearchFilter, OrderingFilter)
+    filter_backends = (SearchFilter, DjangoFilterBackend)
     search_fields = ('username', 'email', 'first_name', 'last_name')
-
-    permission_classes = [CustomAccessPermission]
-
+    filterset_class = UserFilter 
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['view_usermodel'],
@@ -71,6 +80,11 @@ class UserViewSet(mixins.CreateModelMixin,
 
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
+
+    # listar usuarios
+    def list(self, request, *args, **kwargs):
+        print("usuario autenticado: ", request.user)
+        return super().list(request, *args, **kwargs)
 
     # actualizar mi perfil
     @action(methods=['put'], detail=False, permission_classes=[IsAuthenticated], url_path='update-profile')
@@ -113,3 +127,13 @@ class LogEntryViewSet(mixins.RetrieveModelMixin,
     filterset_class = LogEntryFilter
     search_fields = ('user__username', 'content_type__model', 'action_flag', 'change_message')
     ordering_fields = ('user__username', 'content_type__model', 'action_flag', 'change_message')
+
+# ViewSets by DetailGroup
+class DetailGroupViewSet(mixins.RetrieveModelMixin,
+                            mixins.ListModelMixin,
+                            viewsets.GenericViewSet):
+        queryset = DetailGroup.objects.all()
+        serializer_class = DetailGroupSerializer
+        filter_backends = (SearchFilter, OrderingFilter)
+        search_fields = ('group__name')
+        ordering_fields = ('group__name')

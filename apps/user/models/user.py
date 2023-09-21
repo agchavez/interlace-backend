@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 import uuid
 
 from rest_framework.exceptions import ValidationError
-
+from apps.maintenance.models.distributor_center import DistributorCenter
 
 class DetailGroup(models.Model):
     requiered_access = models.BooleanField(
@@ -20,7 +20,9 @@ class DetailGroup(models.Model):
         Group,
         on_delete=models.CASCADE,
         verbose_name=_('group'),
-        related_name='detail_group'
+        related_name='detail_group',
+        null=True,
+        blank=True
     )
     class Meta:
         db_table = "auth_group_detail"
@@ -31,12 +33,6 @@ class UserModel(AbstractUser):
         verbose_name_plural = "Usuarios"
         ordering = ['-created_at']
         db_table = "auth_user"
-
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
 
     first_name = models.CharField(
         'first name',
@@ -63,6 +59,27 @@ class UserModel(AbstractUser):
         }
     )
 
+    centro_distribucion = models.ForeignKey(
+        DistributorCenter,
+        # si se elimina el centro de distribución, el usuario queda null
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('centro de distribución'),
+        related_name='user_centro_distribucion'
+    )
+
+    # Numero de empleado valor numerico, unico pero opcional
+    employee_number = models.IntegerField(
+        _('numero de empleado'),
+        unique=True,
+        null=True,
+        blank=True,
+        error_messages={
+            'unique': 'El numero de empleado ya existe, debe ser unico'
+        }
+    )
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
 
@@ -70,12 +87,6 @@ class UserModel(AbstractUser):
 
     def __str__(self):
         return self.email
-
-    def save(self, *args, **kwargs):
-        self.first_name = self.first_name.upper()
-        self.last_name = self.last_name.upper()
-        self.password = make_password(self.password)
-        return super().save(*args, **kwargs)
 
     def deactivate(self):
         self.is_active = False
@@ -103,27 +114,9 @@ class UserModel(AbstractUser):
 
         return self._create_user(email, password, **extra_fields)
 
-class UserManager(BaseUserManager):
+    def save(self, *args, **kwargs):
+        # Contraseña se encripta solo si se esta creando un usuario o si se esta actualizando y la contraseña cambio
+        if not self.pk or self.password != self.__class__.objects.get(pk=self.pk).password:
+            self.password = make_password(self.password)
 
-    def create_user(self, email, password=None):
-
-        if email is None:
-            raise TypeError('Users must have an email address.')
-
-        user = self.model(email=self.normalize_email(email))
-        user.set_password(password)
-        user.save()
-
-        return user
-
-    def create_superuser(self, email, password):
-
-        if password is None:
-            raise TypeError('Superusers must have a password.')
-
-        user = self.create_user(email, password)
-        user.is_superuser = True
-        user.is_staff = True
-        user.save()
-
-        return user
+        return super(UserModel, self).save(*args, **kwargs)

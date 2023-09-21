@@ -1,12 +1,9 @@
 # Rest_framework
-import json
-
 from rest_framework import serializers
-from django.contrib.auth.hashers import make_password
 
 # Models
-from apps.user.models import UserModel
-
+from apps.user.models import UserModel, DetailGroup
+from apps.maintenance.models.distributor_center import DistributorCenter
 # Grupos y permisos
 from django.contrib.auth.models import Group, Permission, ContentType, UserManager
 
@@ -25,7 +22,46 @@ class UserDJSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     list_groups = serializers.SerializerMethodField()
     list_permissions = serializers.SerializerMethodField()
+    date_joined = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    last_login = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    # centro de distribucion un id
+    centro_distribucion = serializers.PrimaryKeyRelatedField(
+        queryset=DistributorCenter.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    centro_distribucion_name = serializers.SerializerMethodField("get_centro_distribucion")
 
+    def get_centro_distribucion(self, obj):
+        if obj.centro_distribucion is None:
+            return None
+        if obj.centro_distribucion.location_distributor_center is None:
+            return obj.centro_distribucion.name
+        return obj.centro_distribucion.location_distributor_center.code + " - " + obj.centro_distribucion.name
+
+
+    # validacion al registrar que si hay un grupo seleccionado, verificar si requiere acceso o no
+    def validate(self, data):
+        if 'groups' in data:
+            for group in data['groups']:
+                group = Group.objects.get(id=group.id)
+                if group.detail_group.requiered_access and not data['centro_distribucion']:
+                    raise serializers.ValidationError(
+                        {
+                            "mensage": "El grupo seleccionado requiere que se le asigne un centro de distribucion",
+                            "error_code": "required_access_group"
+                        })
+        # Si el grupo es SUPERADMIN, se agrega el is_staff en true de lo contrario en false
+        if 'groups' in data:
+            for group in data['groups']:
+                if group.name == 'SUPERADMINISTRADOR':
+                    data['is_staff'] = True
+                    break
+                else:
+                    data['is_staff'] = False
+
+        return data
     @staticmethod
     def get_list_groups(obj):
         return obj.groups.values_list('name', flat=True)
@@ -64,6 +100,15 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
+        fields = '__all__'
+
+
+# Serializers (DetailGroup)
+class DetailGroupSerializer(serializers.ModelSerializer):
+    group = GroupSerializer()
+
+    class Meta:
+        model = DetailGroup
         fields = '__all__'
 
 

@@ -27,8 +27,12 @@ SECRET_KEY = 'django-insecure-bhjfjy4hy_6)c2qv@-yd28b$o&4w0*&%ge*yjy3zk+8svk1b69
 DEBUG = True
 APPEND_SLASH = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
+# cors
+CORS_ALLOWED_ALL_ORIGINS = True
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
 
@@ -37,6 +41,7 @@ LOCAL_APPS = [
     'apps.user',
     'apps.authentication',
     'apps.maintenance',
+    'apps.tracker'
 ]
 
 INSTALLED_APPS = [
@@ -47,6 +52,7 @@ INSTALLED_APPS = [
          'django.contrib.messages',
          'django.contrib.staticfiles',
          'rest_framework',
+         'corsheaders',
          'django_filters',
                  ] + LOCAL_APPS
 
@@ -58,6 +64,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware'
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -91,7 +98,9 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT'),
-        'OPTIONS': {"driver": "ODBC Driver 17 for SQL Server"},
+        'OPTIONS': {
+            "driver": "ODBC Driver 17 for SQL Server",
+        },
     }
 }
 
@@ -107,7 +116,7 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
   "TOKEN_OBTAIN_SERIALIZER": "utils.jwt.MyTokenObtainPairSerializer",
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": True,
 }

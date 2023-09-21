@@ -5,9 +5,13 @@ from django.urls import path, include
 
 from apps.user.url import router as user_router
 from apps.authentication.url import router as auth_router
+from apps.maintenance.url import router as maintenance_router
+from apps.tracker.url import router as tracker_router
 router = DefaultRouter()
 router.registry.extend(user_router.registry)
 router.registry.extend(auth_router.registry)
+router.registry.extend(maintenance_router.registry)
+router.registry.extend(tracker_router.registry)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),

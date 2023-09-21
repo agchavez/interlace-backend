@@ -11,12 +11,26 @@ def custom_exception_handler(exc, context):
             response.data['status_code'] = response.status_code
             if 'code' in params:
                 response.data['error_code'] = params['code']
+                if params['code'] == 'token_not_valid':
+                    response.data['menssage'] = 'El token de autenticación no es válido'
+                    response.data['detail'] = 'El token de autenticación no es válido'
+                    return response
             else:
                 try:
                     response.data['error_code'] = get_error_code(response.data['detail'])
+                    response.data['menssage'] = response.data['detail']
                 except :
                     pass
-    return response
+            # Los demas errores que tienen sus propias llaves se agregan al arreglo de errores menos error_code
+            if 401 == response.status_code:
+                response.data['menssage'] = 'No autorizado'
+                response.data['detail'] = 'No autorizado'
+            else:
+                response.data['detail'] = params
+                response.data['detail'].pop('code', None)
+                response.data['detail'].pop('error_code', None)
+                response.data['detail'].pop('status_code', None)
+        return response
 
 
 def get_error_code(detail):
