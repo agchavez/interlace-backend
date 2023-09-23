@@ -316,6 +316,12 @@ class TrackerDetailOutputModel(BaseModel):
         "Cantidad",
         default=0)
 
+    # Fecha de vencimiento
+    expiration_date = models.DateField(
+        "Fecha de vencimiento",
+        null=True,
+        blank=True)
+
     class Meta:
         db_table = "tracker_detail_output"
         verbose_name = "Detalle de salida de tracker"
