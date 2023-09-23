@@ -1,7 +1,7 @@
 from django.db import models
 from apps.maintenance.models.distributor_center import DistributorCenter
-from datetime import date
-
+from django.utils import timezone
+from apps.maintenance.models.product import ProductModel
 from utils.BaseModel import BaseModel
 
 class PeriodModel(BaseModel):
@@ -18,7 +18,7 @@ class PeriodModel(BaseModel):
     initialDate= models.fields.DateField(
         null=True, 
         blank=True,
-        default=date.today())
+        default= timezone.now().date())
     distributor_center = models.ForeignKey(
         DistributorCenter,
         on_delete=models.SET_NULL,
@@ -26,7 +26,14 @@ class PeriodModel(BaseModel):
         related_name="period_distributor_center",
         null=True,
         blank=True)
-    
+    product = models.ForeignKey(
+        ProductModel,
+        on_delete=models.SET_NULL,
+        verbose_name='Producto',
+        related_name="period_product",
+        null=True,
+        blank=True
+    )
     class Meta:
         db_table = "period"
         verbose_name = "Period"
