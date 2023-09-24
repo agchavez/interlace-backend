@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 
 from django.core.validators import RegexValidator
 
@@ -321,7 +321,7 @@ class TrackerDetailOutputModel(BaseModel):
     # Fecha de vencimiento
     expiration_date = models.DateField(
         "Fecha de vencimiento",
-        default=datetime.now,
+        default= datetime.date.today,
     )
 
     class Meta:
