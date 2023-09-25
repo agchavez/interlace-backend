@@ -188,6 +188,7 @@ class TrackerModel(BaseModel):
     STATUS_CHOICES = (
         ('PENDING', 'PENDING'),
         ('COMPLETE', 'COMPLETE'),
+        ('EDITED', 'EDITED')
     )
 
     # Estados del tracker ['PENDING', 'COMPLETE']
