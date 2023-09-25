@@ -130,6 +130,12 @@ class ProductModel(BaseModel):
     days_not_accept_product = models.IntegerField(
         "Días para no aceptar producto",
         default=0)
+    
+    # producto de salida
+    is_output = models.BooleanField(
+        "Es de Salida",
+        default=False
+    )
 
     def __str__(self):
         return self.name

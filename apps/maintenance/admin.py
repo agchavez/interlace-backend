@@ -43,9 +43,9 @@ class TransporterAdmin(admin.ModelAdmin):
 
 
 class PeriodAdmin(admin.ModelAdmin):
-    list_display = ('id', 'label', 'initialDate', 'distributor_center')
-    search_fields = ['label', 'initialDate']
-    list_filter = ['created_at', 'label', 'distributor_center', 'initialDate']
+    list_display = ('id', 'label', 'initialDate', 'distributor_center', 'product')
+    search_fields = ['label', 'initialDate', 'product']
+    list_filter = ['created_at', 'label', 'distributor_center', 'initialDate', 'product']
 
 
 admin.site.register(TransporterModel, TransporterAdmin)

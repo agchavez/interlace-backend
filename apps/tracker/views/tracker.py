@@ -92,6 +92,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         user, center = validate_create_tracker(request)
         request.data['user'] = user.id
         request.data['distributor_center'] = center.id
+        # Buscar operadores de tracker anteriores para el mismo centro de distribucion
+        tracker = TrackerModel.objects.filter(distributor_center=center, operator_1__isnull=False, operator_2__isnull=False).last()
+        if tracker:
+            request.data['operator_1'] = tracker.operator_1.id
+            request.data['operator_2'] = tracker.operator_2.id
         return super().create(request, *args, **kwargs)
 
     # Sobrescribe el método destroy para verificar que el tracker no este completado

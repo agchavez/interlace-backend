@@ -1,3 +1,5 @@
+import datetime
+
 from django.core.validators import RegexValidator
 
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
@@ -186,6 +188,7 @@ class TrackerModel(BaseModel):
     STATUS_CHOICES = (
         ('PENDING', 'PENDING'),
         ('COMPLETE', 'COMPLETE'),
+        ('EDITED', 'EDITED')
     )
 
     # Estados del tracker ['PENDING', 'COMPLETE']
@@ -315,6 +318,12 @@ class TrackerDetailOutputModel(BaseModel):
     quantity = models.IntegerField(
         "Cantidad",
         default=0)
+
+    # Fecha de vencimiento
+    expiration_date = models.DateField(
+        "Fecha de vencimiento",
+        default= datetime.date.today,
+    )
 
     class Meta:
         db_table = "tracker_detail_output"

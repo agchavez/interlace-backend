@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from apps.user.views.user import CustomAccessPermission
 from rest_framework.exceptions import APIException
-from apps.maintenance.exceptions.maintenance import NoDistributionCenterError, NoPeriodError
+from apps.maintenance.exceptions.maintenance import NoProductError, ProductNoIntegerError
 from datetime import date
 class PeriodViewSet(mixins.ListModelMixin, 
                     mixins.RetrieveModelMixin, 
@@ -28,10 +28,18 @@ class PeriodViewSet(mixins.ListModelMixin,
     def get_last_period(self, request, *args, **kwargs):
         user = request.user
         cd = user.centro_distribucion
+        product_param = request.query_params.get('product')
+        print("product", product_param)
+        if product_param == None:
+            raise NoProductError()
+        try:
+            product_param = int(product_param)
+        except ValueError:
+            raise ProductNoIntegerError()
         period = None
         if cd == None: 
             period = PeriodModel(label="A")
-        periods = PeriodModel.objects.filter(distributor_center = cd).order_by('-initialDate')
+        periods = PeriodModel.objects.filter(distributor_center = cd, product=product_param).order_by('-initialDate')
         if periods.count() <= 0: 
             period = PeriodModel(label="A", distributor_center=cd)
         if period is None:
