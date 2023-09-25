@@ -1,6 +1,6 @@
 from django.db import models
 from apps.maintenance.models.distributor_center import DistributorCenter
-from django.utils import timezone
+import datetime
 from apps.maintenance.models.product import ProductModel
 from utils.BaseModel import BaseModel
 
@@ -18,7 +18,7 @@ class PeriodModel(BaseModel):
     initialDate= models.fields.DateField(
         null=True, 
         blank=True,
-        default= timezone.now().date())
+        default= datetime.date.today)
     distributor_center = models.ForeignKey(
         DistributorCenter,
         on_delete=models.SET_NULL,
