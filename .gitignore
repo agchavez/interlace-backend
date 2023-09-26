@@ -143,4 +143,4 @@ data/
 #celery
 celerybeat-schedule.bak
 celerybeat-schedule.dat
-celerybeat-schedule.directory
+celerybeat-schedule.directory.env
