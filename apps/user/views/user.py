@@ -83,7 +83,7 @@ class UserViewSet(mixins.CreateModelMixin,
 
     # listar usuarios
     def list(self, request, *args, **kwargs):
-        print("usuario autenticado: ", request.user)
+        query = self.filter_queryset(self.get_queryset())
         return super().list(request, *args, **kwargs)
 
     # actualizar mi perfil

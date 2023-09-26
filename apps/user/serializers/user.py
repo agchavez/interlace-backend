@@ -56,7 +56,7 @@ class UserSerializer(serializers.ModelSerializer):
         # Si el grupo es SUPERADMIN, se agrega el is_staff en true de lo contrario en false
         if 'groups' in data:
             for group in data['groups']:
-                if group.name == 'SUPERADMINISTRADOR':
+                if group.name == 'SUPERADMIN':
                     data['is_staff'] = True
                     break
                 else:
