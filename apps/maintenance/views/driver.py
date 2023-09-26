@@ -19,7 +19,10 @@ class DriverFilter(django_filters.FilterSet):
 
 
 class DriverModelViewSet(mixins.ListModelMixin,
-                            mixins.RetrieveModelMixin
+                            mixins.RetrieveModelMixin,
+                            mixins.UpdateModelMixin,
+                            mixins.DestroyModelMixin,
+                            mixins.CreateModelMixin
                             , viewsets.GenericViewSet):
      queryset = DriverModel.objects.all()
      serializer_class = DriverModelSerializer
