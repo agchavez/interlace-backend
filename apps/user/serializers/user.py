@@ -36,10 +36,11 @@ class UserSerializer(serializers.ModelSerializer):
     def get_centro_distribucion(self, obj):
         if obj.centro_distribucion is None:
             return None
-        if obj.centro_distribucion.location_distributor_center is None:
+        if hasattr(obj.centro_distribucion,
+                   'location_distributor_center') and obj.centro_distribucion.location_distributor_center is not None:
+            return obj.centro_distribucion.location_distributor_center.code + " - " + obj.centro_distribucion.name
+        else:
             return obj.centro_distribucion.name
-        return obj.centro_distribucion.location_distributor_center.code + " - " + obj.centro_distribucion.name
-
 
     # validacion al registrar que si hay un grupo seleccionado, verificar si requiere acceso o no
     def validate(self, data):

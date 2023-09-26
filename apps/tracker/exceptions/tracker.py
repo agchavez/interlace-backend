@@ -196,7 +196,48 @@ class ProductOutputRegistered(APIException):
     default_code = 'product_output_registered'
 
 
+# El conductor es obligatorio
+class DriverRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El conductor es obligatorio',
+        'error_code': 'driver_required'
+    }
+    default_code = 'driver_required'
 
+# La placa es obligatoria
+class PlateNumberRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'La placa es obligatoria',
+        'error_code': 'plate_number_required'
+    }
+    default_code = 'plate_number_required'
 
+# La factura es obligatoria
+class InvoiceRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Debe ingresar un numero de factura valido',
+        'error_code': 'invoice_required'
+    }
+    default_code = 'invoice_required'
 
+# El numero del contenedor es obligatorio
+class ContainerNumberRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El numero del contenedor es obligatorio',
+        'error_code': 'container_number_required'
+    }
+    default_code = 'container_number_required'
+
+# la localidad de origen es obligatoria
+class OriginLocationRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'La localidad de origen es obligatoria',
+        'error_code': 'origin_location_required'
+    }
+    default_code = 'origin_location_required'
 

@@ -18,7 +18,8 @@ from apps.user.models import UserModel as User
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
-    OperatorRequired, OutputTypeRequired
+    OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
+    OriginLocationRequired
 from apps.user.views.user import CustomAccessPermission
 
 
@@ -114,7 +115,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     @action(detail=False, methods=['get'], url_path='my-trackers')
     def my_trackers(self, request, *args, **kwargs):
         user = request.user
-        queryset = TrackerModel.objects.filter(user=user, status='PENDING')
+        queryset = TrackerModel.objects.filter(user=user, status='EDITED')
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -278,21 +279,40 @@ def validate_complete_tracker(tracker):
     # Debe exister almenos un detalle de tracker
     if tracker.tracker_detail.count() == 0:
         raise TrackerCompletedDetailRequired()
-    # Validar numero de entrada, salida y traslado
-    if not tracker.input_document_number:
-        raise InputDocumentNumberRequired()
-    if not tracker.output_document_number:
-        raise OutputDocumentNumberRequired()
-    if not tracker.transfer_number:
-        raise TransferNumberRequired()
 
-    # Validar la data del oeperador y las fechas de entrada y salida
-    if not tracker.operator_1 or not tracker.input_date or not tracker.output_date:
-        raise OperatorRequired()
+    # la localidad de origen es requerida
+    if not tracker.origin_location:
+        raise OriginLocationRequired()
 
-    # Validaciones para el tipo de salida del producto
-    if not tracker.output_type:
-        raise OutputTypeRequired()
+    if tracker.type == 'LOCAL':
+        # Validar numero de entrada, salida y traslado
+        if not tracker.input_document_number:
+            raise InputDocumentNumberRequired()
+        if not tracker.output_document_number:
+            raise OutputDocumentNumberRequired()
+        if not tracker.transfer_number:
+            raise TransferNumberRequired()
+
+        # Validar la data del oeperador y las fechas de entrada y salida
+        if not tracker.operator_1 or not tracker.input_date or not tracker.output_date:
+            raise OperatorRequired()
+
+        # Validaciones para el tipo de salida del producto
+        if not tracker.output_type:
+            raise OutputTypeRequired()
+    if tracker.type == 'IMPORT':
+        # Validar numero de factura y numero de contenedor
+        if not tracker.invoice_number:
+            raise InvoiceRequired()
+        if not tracker.container_number:
+            raise ContainerNumberRequired()
+    # validar numero de placa y driver
+    if not tracker.plate_number:
+        raise PlateNumberRequired()
+
+    if not tracker.driver:
+        raise DriverRequired()
+
     # Validar que todos los detalles de tracker tengan la cantidad completa
     for tracker_detail in tracker.tracker_detail.all():
         sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=tracker_detail).aggregate(
