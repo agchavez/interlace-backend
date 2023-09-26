@@ -196,13 +196,44 @@ class TrackerModel(BaseModel):
         "Estado",
         max_length=50,
         choices=STATUS_CHOICES,
-        default='PENDING')
+        default='EDITED')
+
+    TYPES_CHOICES = (
+        ('LOCAL', 'LOCAL'),
+        ('IMPORT', 'IMPORT'),
+    )
+
+    # Tipo de tracker ['LOCAL', 'IMPORT']
+    type = models.CharField(
+        "Tipo",
+        max_length=50,
+        choices=TYPES_CHOICES,
+        default='LOCAL')
 
     # Fehca de completado
     completed_date = models.DateTimeField(
         "Fecha de completado",
         null=True,
         blank=True)
+
+    # numero de contenedor
+    container_number = models.CharField(
+        "Número de contenedor",
+        max_length=50,
+        null=True,
+        blank=True)
+
+    # Factura
+    invoice_number = models.CharField(
+        "Número de factura",
+        max_length=50,
+        null=True,
+        blank=True,
+        unique=True,
+        error_messages={
+            'unique': 'El numero de factura ya existe, debe ser unico'
+        }
+    )
 
     class Meta:
         db_table = "tracker"

@@ -79,14 +79,14 @@ class ProductModel(BaseModel):
     # helectrolitos
     helectrolitos = models.DecimalField(
         "Helectrolitos",
-        max_digits=10,
-        decimal_places=8,
+        max_digits=14,
+        decimal_places=10,
         default=0)
     # HL por unidad
     hl_per_unit = models.DecimalField(
         "HL por unidad",
-        max_digits=10,
-        decimal_places=8,
+        max_digits=14,
+        decimal_places=10,
         default=0,
         blank=True,
     )
@@ -107,8 +107,8 @@ class ProductModel(BaseModel):
     # Lib a ton
     lib_to_ton = models.DecimalField(
         "Lib a ton",
-        max_digits=10,
-        decimal_places=8,
+        max_digits=14,
+        decimal_places=10,
         default=0)
     # Peso
     weight = models.DecimalField(
@@ -119,8 +119,8 @@ class ProductModel(BaseModel):
     # ton
     ton = models.DecimalField(
         "Ton",
-        max_digits=10,
-        decimal_places=9,
+        max_digits=14,
+        decimal_places=10,
         default=0)
     # bloqueo para t1
     block_t1 = models.IntegerField(

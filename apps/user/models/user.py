@@ -115,6 +115,8 @@ class UserModel(AbstractUser):
         return self._create_user(email, password, **extra_fields)
 
     def save(self, *args, **kwargs):
+        self.first_name = self.first_name.upper()
+        self.last_name = self.last_name.upper()
         # Contraseña se encripta solo si se esta creando un usuario o si se esta actualizando y la contraseña cambio
         if not self.pk or self.password != self.__class__.objects.get(pk=self.pk).password:
             self.password = make_password(self.password)

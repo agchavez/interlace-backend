@@ -1,5 +1,5 @@
 # rest_framework
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from rest_framework import serializers
 
 # Models
@@ -94,11 +94,10 @@ class TrackerSerializer(serializers.ModelSerializer):
 
         # No se puede registrar un tracker con un trailer que ya este en uso (PENDING)
         if data.get('trailer') and not self.instance:
-            if TrackerModel.objects.filter(trailer=data.get('trailer'), status='PENDING', distributor_center=data.get('distributor_center')).exists():
+            if TrackerModel.objects.filter(trailer=data.get('trailer'), distributor_center=data.get('distributor_center')).filter(Q(status='PENDING') | Q(status='EDITED')).exists():
                 raise TrailerInUse()
 
-        if self.instance and 'status' in data and data['status'] != self.instance.status and self.context.get(
-                'view').action != 'complete':
+        if self.instance and 'status' in data and data['status'] == "COMPLETE":
             raise serializers.ValidationError("No se puede cambiar el estado del tracker")
         # tiempo final no puede ser menor al tiempo inicial y calcular la diferencia de tiempo
         if data.get('output_date') and data.get('input_date') and data.get('output_date') < data.get('input_date') and self.instance:
