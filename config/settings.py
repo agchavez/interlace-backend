@@ -16,12 +16,6 @@ from datetime import timedelta
 from dotenv import load_dotenv
 load_dotenv()
 
-print(os.getenv('DB_HOST'))
-print(os.getenv('DB_PORT'))
-print(os.getenv('DB_NAME'))
-print(os.getenv('DB_USER'))
-print(os.getenv('DB_PASSWORD'))
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-bhjfjy4hy_6)c2qv@-yd28b$o&4w0*&%ge*yjy3zk+8svk1b69'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 APPEND_SLASH = False
 
 ALLOWED_HOSTS = ['*']
@@ -63,6 +57,7 @@ INSTALLED_APPS = [
          'rest_framework',
          'corsheaders',
          'django_filters',
+         'import_export',
                  ] + LOCAL_APPS
 
 MIDDLEWARE = [
