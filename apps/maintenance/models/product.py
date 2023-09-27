@@ -97,7 +97,7 @@ class ProductModel(BaseModel):
     # costo
     cost = models.DecimalField(
         "Costo",
-        max_digits=10,
+        max_digits=12,
         decimal_places=8,
         default=0)
     # descripcion sap
