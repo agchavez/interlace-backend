@@ -13,6 +13,15 @@ import os
 from pathlib import Path
 from datetime import timedelta
 
+from dotenv import load_dotenv
+load_dotenv()
+
+print(os.getenv('DB_HOST'))
+print(os.getenv('DB_PORT'))
+print(os.getenv('DB_NAME'))
+print(os.getenv('DB_USER'))
+print(os.getenv('DB_PASSWORD'))
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,7 +33,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-bhjfjy4hy_6)c2qv@-yd28b$o&4w0*&%ge*yjy3zk+8svk1b69'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 APPEND_SLASH = False
 
 ALLOWED_HOSTS = ['*']
@@ -144,6 +153,7 @@ USE_I18N = True
 USE_TZ = True
 
 
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
-STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
