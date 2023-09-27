@@ -1,10 +1,14 @@
 from django.contrib import admin
+
+from import_export import resources
+from import_export.admin import ExportActionMixin
 from apps.maintenance.models.distributor_center import DistributorCenter, RouteModel, LocationModel
 from apps.maintenance.models.operator import OperatorModel
 from apps.maintenance.models.trailer import TransporterModel, TrailerModel
 from apps.maintenance.models.product import ProductModel, OutputTypeModel
 from apps.maintenance.models.driver import DriverModel
 from apps.maintenance.models.period import PeriodModel
+
 # Register your models her
 
 admin.site.register(RouteModel)
@@ -20,15 +24,27 @@ class ProductAdmin(admin.ModelAdmin):
     # ordering = ('id', 'name', 'description', 'is_active', 'created_at', 'updated_at')
 
 
-class DistributorCenterAdmin(admin.ModelAdmin):
+class DistributorCenterResource(resources.ModelResource):
+    class Meta:
+        model = DistributorCenter
+
+
+class DistributorCenterAdmin(ExportActionMixin, admin.ModelAdmin):
     list_display = ('id', 'name')
     search_fields = ['name']
+    resource_class = DistributorCenterResource
 
 
-class DriverAdmin(admin.ModelAdmin):
+class DriverResource(resources.ModelResource):
+    class Meta:
+        model = DriverModel
+
+class DriverAdmin(admin.ModelAdmin, ExportActionMixin):
     list_display = ('id', 'first_name', 'last_name', 'created_at')
     search_fields = ['first_name', 'last_name']
     list_filter = ['created_at']
+    resource_class = DriverResource
+
 
 
 class TrailerAdmin(admin.ModelAdmin):
@@ -42,10 +58,17 @@ class TransporterAdmin(admin.ModelAdmin):
     list_filter = ['created_at']
 
 
-class PeriodAdmin(admin.ModelAdmin):
+class PeriodResource(resources.ModelResource):
+    class Meta:
+        model = PeriodModel
+        fields = ('id', 'label', 'initialDate', 'distributor_center__name', 'product__name')
+
+
+class PeriodAdmin(ExportActionMixin, admin.ModelAdmin):
     list_display = ('id', 'label', 'initialDate', 'distributor_center', 'product')
     search_fields = ['label', 'initialDate', 'product']
     list_filter = ['created_at', 'label', 'distributor_center', 'initialDate', 'product']
+    resource_class = PeriodResource
 
 
 admin.site.register(TransporterModel, TransporterAdmin)
