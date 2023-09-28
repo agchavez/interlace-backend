@@ -51,6 +51,9 @@ class TrailerModel(BaseModel):
     def __str__(self):
         return self.code
 
+    def save(self, *args, **kwargs):
+        self.code = self.code.upper()
+        return super(TrailerModel, self).save(*args, **kwargs)
     class Meta:
         db_table = "trailer"
         verbose_name = "Trailer"
