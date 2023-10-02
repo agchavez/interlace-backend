@@ -292,6 +292,8 @@ def validate_complete_tracker(tracker):
             raise OutputDocumentNumberRequired()
         if not tracker.transfer_number:
             raise TransferNumberRequired()
+        if not tracker.driver:
+            raise DriverRequired()
 
         # Validar la data del oeperador y las fechas de entrada y salida
         if not tracker.operator_1 or not tracker.input_date or not tracker.output_date:
@@ -306,12 +308,11 @@ def validate_complete_tracker(tracker):
             raise InvoiceRequired()
         if not tracker.container_number:
             raise ContainerNumberRequired()
+        if not tracker.driver_import:
+            raise DriverRequired()
     # validar numero de placa y driver
     if not tracker.plate_number:
         raise PlateNumberRequired()
-
-    if not tracker.driver:
-        raise DriverRequired()
 
     # Validar que todos los detalles de tracker tengan la cantidad completa
     for tracker_detail in tracker.tracker_detail.all():
