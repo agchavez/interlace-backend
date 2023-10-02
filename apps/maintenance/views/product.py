@@ -29,6 +29,18 @@ class ProductModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ('name', 'sap_code', 'brand')
     filterset_class = ProductFilter
+    permission_classes = [CustomAccessPermission]
+
+    PERMISSION_MAPPING = {
+        'GET': ['maintenance.view_productmodel'],
+        'POST': ['maintenance.add_productmodel'],
+        'PUT': ['maintenance.change_productmodel'],
+        'PATCH': ['maintenance.change_productmodel'],
+        'DELETE': ['maintenance.delete_productmodel'],
+    }
+
+    def get_required_permissions(self, http_method):
+        return self.PERMISSION_MAPPING.get(http_method, [])
 
 
 class OutputTypeModelViewSet(mixins.ListModelMixin,
@@ -38,3 +50,15 @@ class OutputTypeModelViewSet(mixins.ListModelMixin,
         serializer_class = OutputTypeModelSerializer
         filter_backends = [filters.SearchFilter]
         search_fields = ('name')
+        permission_classes = [CustomAccessPermission]
+
+        PERMISSION_MAPPING = {
+            'GET': ['maintenance.view_outputtypemodel'],
+            'POST': ['maintenance.add_outputtypemodel'],
+            'PUT': ['maintenance.change_outputtypemodel'],
+            'PATCH': ['maintenance.change_outputtypemodel'],
+            'DELETE': ['maintenance.delete_outputtypemodel'],
+        }
+
+        def get_required_permissions(self, http_method):
+            return self.PERMISSION_MAPPING.get(http_method, [])
