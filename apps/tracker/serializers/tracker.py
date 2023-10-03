@@ -16,6 +16,11 @@ from .typeDetailOutput import TrackerDetailOutputSerializer
 
 
 class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
+    tracker_id = serializers.ReadOnlyField(source='tracker_detail.tracker.id')
+    tracker_detail_id = serializers.ReadOnlyField(source='tracker_detail.id')
+    product_name = serializers.ReadOnlyField(source='tracker_detail.product.name')
+    product_sap_code = serializers.ReadOnlyField(source='tracker_detail.product.sap_code')
+
     class Meta:
         model = TrackerDetailProductModel
         fields = '__all__'
