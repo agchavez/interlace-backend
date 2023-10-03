@@ -21,7 +21,8 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistrib
     OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
     OriginLocationRequired
 from apps.user.views.user import CustomAccessPermission
-
+from apps.tracker.models import TrackerDetailOutputModel
+from rest_framework.filters import OrderingFilter
 
 class TrackerFilter(django_filters.FilterSet):
     transporter = django_filters.ModelMultipleChoiceFilter(
@@ -152,7 +153,40 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'time_average': time_average
         }, status=status.HTTP_200_OK)
 
-
+    # ultimos detalles de salida del centro de distribucion
+    @action(detail=False, methods=['get'], url_path='last-output')
+    def getLastOutput(self, request, *args, **kwargs):
+        user = request.user
+        cd = user.centro_distribucion
+        limit = request.GET.get("limit") 
+        limit = int(limit) if limit is not None else 15
+        if cd is None:
+            raise UserWithoutDistributorCenter()
+        trackers = TrackerModel.objects.filter(distributor_center=cd).order_by('-created_at')
+        outputData = []
+        for tracker in trackers:
+            if tracker.output_type is not None:
+                opt = {}
+                opt["required_details"]=tracker.output_type.required_details
+                opt["tracking"]=tracker.pk
+                opt["output_type_name"]=tracker.output_type.name
+                if tracker.output_type.required_details:
+                    details = TrackerDetailOutputModel.objects.filter(tracker=tracker)
+                    for detail in details:
+                        opt["sap_code"]=detail.product.sap_code
+                        opt["product_name"]=detail.product.name
+                        opt["quantity"]=detail.quantity
+                        opt["expiration_date"]=detail.expiration_date
+                        outputData.append(opt)
+                        if len(outputData) > limit:
+                            break
+                else:
+                    outputData.append(opt)
+                if len(outputData) > limit:
+                    break
+        return Response({
+            'results': outputData[:limit],
+        }, status=status.HTTP_200_OK)
 
 
 class TrackerDetailModelViewSet(mixins.ListModelMixin,
@@ -198,6 +232,11 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
 
 
 class TrackerDetailProductModelFilter(django_filters.FilterSet):
+    order_by = django_filters.OrderingFilter(
+        fields=(
+            ('created_at', 'created_at')
+        )
+    )
     class Meta:
         model = TrackerDetailProductModel
         fields = {
@@ -216,7 +255,7 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     , viewsets.GenericViewSet):
     queryset = TrackerDetailProductModel.objects.all()
     serializer_class = TrackerDetailProductModelSerializer
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
     filterset_class = TrackerDetailProductModelFilter
     search_fields = ()
     permission_classes = []
@@ -234,7 +273,7 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     def destroy(self, request, *args, **kwargs):
         if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
             raise TrackerCompletedDetailProduct()
-        return super().destroy(request, *args, **kwargs)
+        return super().destroy(request, *args, **kwargs) 
 
 
 def validate_create_tracker(request, id=None):
