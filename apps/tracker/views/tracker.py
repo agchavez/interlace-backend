@@ -205,6 +205,7 @@ class TrackerDetailProductModelFilter(django_filters.FilterSet):
             'tracker_detail__tracker': ['exact'],
             'tracker_detail__tracker__distributor_center': ['exact'],
             'created_at': ['gte', 'lte'],
+            'id': ['exact'],
         }
 
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
