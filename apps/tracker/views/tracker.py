@@ -21,7 +21,8 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistrib
     OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
     OriginLocationRequired
 from apps.user.views.user import CustomAccessPermission
-
+from apps.tracker.models import TrackerDetailOutputModel
+from rest_framework.filters import OrderingFilter
 
 class TrackerFilter(django_filters.FilterSet):
     transporter = django_filters.ModelMultipleChoiceFilter(
@@ -152,7 +153,40 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'time_average': time_average
         }, status=status.HTTP_200_OK)
 
-
+    # ultimos detalles de salida del centro de distribucion
+    @action(detail=False, methods=['get'], url_path='last-output')
+    def getLastOutput(self, request, *args, **kwargs):
+        user = request.user
+        cd = user.centro_distribucion
+        limit = request.GET.get("limit") 
+        limit = int(limit) if limit is not None else 15
+        if cd is None:
+            raise UserWithoutDistributorCenter()
+        trackers = TrackerModel.objects.filter(distributor_center=cd).order_by('-created_at')
+        outputData = []
+        for tracker in trackers:
+            if tracker.output_type is not None:
+                opt = {}
+                opt["required_details"]=tracker.output_type.required_details
+                opt["tracking"]=tracker.pk
+                opt["output_type_name"]=tracker.output_type.name
+                if tracker.output_type.required_details:
+                    details = TrackerDetailOutputModel.objects.filter(tracker=tracker)
+                    for detail in details:
+                        opt["sap_code"]=detail.product.sap_code
+                        opt["product_name"]=detail.product.name
+                        opt["quantity"]=detail.quantity
+                        opt["expiration_date"]=detail.expiration_date
+                        outputData.append(opt)
+                        if len(outputData) > limit:
+                            break
+                else:
+                    outputData.append(opt)
+                if len(outputData) > limit:
+                    break
+        return Response({
+            'results': outputData[:limit],
+        }, status=status.HTTP_200_OK)
 
 
 class TrackerDetailModelViewSet(mixins.ListModelMixin,
@@ -197,6 +231,22 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
         return super().destroy(request, *args, **kwargs)
 
 
+class TrackerDetailProductModelFilter(django_filters.FilterSet):
+    order_by = django_filters.OrderingFilter(
+        fields=(
+            ('created_at', 'created_at')
+        )
+    )
+    class Meta:
+        model = TrackerDetailProductModel
+        fields = {
+            'tracker_detail': ['exact'],
+            'tracker_detail__tracker': ['exact'],
+            'tracker_detail__tracker__distributor_center': ['exact'],
+            'created_at': ['gte', 'lte'],
+            'id': ['exact'],
+        }
+
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
                                        mixins.RetrieveModelMixin,
                                        mixins.CreateModelMixin,
@@ -205,9 +255,10 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     , viewsets.GenericViewSet):
     queryset = TrackerDetailProductModel.objects.all()
     serializer_class = TrackerDetailProductModelSerializer
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
+    filterset_class = TrackerDetailProductModelFilter
     search_fields = ()
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
@@ -222,7 +273,7 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     def destroy(self, request, *args, **kwargs):
         if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
             raise TrackerCompletedDetailProduct()
-        return super().destroy(request, *args, **kwargs)
+        return super().destroy(request, *args, **kwargs) 
 
 
 def validate_create_tracker(request, id=None):
@@ -292,6 +343,8 @@ def validate_complete_tracker(tracker):
             raise OutputDocumentNumberRequired()
         if not tracker.transfer_number:
             raise TransferNumberRequired()
+        if not tracker.driver:
+            raise DriverRequired()
 
         # Validar la data del oeperador y las fechas de entrada y salida
         if not tracker.operator_1 or not tracker.input_date or not tracker.output_date:
@@ -306,12 +359,11 @@ def validate_complete_tracker(tracker):
             raise InvoiceRequired()
         if not tracker.container_number:
             raise ContainerNumberRequired()
+        if not tracker.driver_import:
+            raise DriverRequired()
     # validar numero de placa y driver
     if not tracker.plate_number:
         raise PlateNumberRequired()
-
-    if not tracker.driver:
-        raise DriverRequired()
 
     # Validar que todos los detalles de tracker tengan la cantidad completa
     for tracker_detail in tracker.tracker_detail.all():

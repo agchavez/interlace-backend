@@ -143,9 +143,6 @@ LANGUAGE_CODE = 'es-HN'
 
 TIME_ZONE = 'America/Tegucigalpa'
 
-USE_I18N = True
-
-USE_TZ = True
 
 
 STATIC_URL = '/static/'

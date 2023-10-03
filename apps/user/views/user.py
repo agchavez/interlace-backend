@@ -71,11 +71,11 @@ class UserViewSet(mixins.CreateModelMixin,
     permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['view_usermodel'],
-        'POST': ['add_usermodel'],
-        'PUT': ['change_usermodel'],
-        'PATCH': ['change_usermodel'],
-        'DELETE': ['delete_usermodel']
+        'GET': ['user.view_usermodel'],
+        'POST': ['user.add_usermodel'],
+        'PUT': ['user.change_usermodel'],
+        'PATCH': ['user.change_usermodel'],
+        'DELETE': ['user.delete_usermodel']
     }
 
     def get_required_permissions(self, http_method):

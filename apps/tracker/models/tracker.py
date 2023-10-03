@@ -157,6 +157,14 @@ class TrackerModel(BaseModel):
         blank=True
     )
 
+    # conductor importado
+    driver_import = models.CharField(
+        "Conductor importados",
+        max_length=50,
+        null=True,
+        blank=True)
+
+
     # Tipo de salida
     output_type = models.ForeignKey(
         OutputTypeModel,
