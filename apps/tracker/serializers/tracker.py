@@ -98,9 +98,9 @@ class TrackerSerializer(serializers.ModelSerializer):
             raise TransporterRequired()
 
         # No se puede registrar un tracker con un trailer que ya este en uso (PENDING)
-        if data.get('trailer') and not self.instance:
-            if TrackerModel.objects.filter(trailer=data.get('trailer'), distributor_center=data.get('distributor_center')).filter(Q(status='PENDING') | Q(status='EDITED')).exists():
-                raise TrailerInUse()
+        #if data.get('trailer') and not self.instance:
+            #if TrackerModel.objects.filter(trailer=data.get('trailer'), distributor_center=data.get('distributor_center')).filter(Q(status='PENDING') | Q(status='EDITED')).exists():
+                #raise TrailerInUse()
 
         if self.instance and 'status' in data and data['status'] == "COMPLETE":
             raise serializers.ValidationError("No se puede cambiar el estado del tracker")
