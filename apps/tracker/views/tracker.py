@@ -206,6 +206,8 @@ class TrackerDetailProductModelFilter(django_filters.FilterSet):
             'tracker_detail__tracker__distributor_center': ['exact'],
             'created_at': ['gte', 'lte'],
             'id': ['exact'],
+            'tracker_detail__tracker__status': ['exact'],
+            'tracker_detail__tracker__user': ['exact'],
         }
 
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
@@ -219,7 +221,7 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     filterset_class = TrackerDetailProductModelFilter
     search_fields = ()
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
