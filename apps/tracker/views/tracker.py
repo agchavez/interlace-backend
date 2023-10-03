@@ -197,6 +197,15 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
         return super().destroy(request, *args, **kwargs)
 
 
+class TrackerDetailProductModelFilter(django_filters.FilterSet):
+    class Meta:
+        model = TrackerDetailProductModel
+        fields = {
+            'tracker_detail': ['exact'],
+            'tracker_detail__tracker': ['exact'],
+            'tracker_detail__tracker__distributor_center': ['exact'],
+        }
+
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
                                        mixins.RetrieveModelMixin,
                                        mixins.CreateModelMixin,
@@ -205,9 +214,10 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     , viewsets.GenericViewSet):
     queryset = TrackerDetailProductModel.objects.all()
     serializer_class = TrackerDetailProductModelSerializer
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    filterset_class = TrackerDetailProductModelFilter
     search_fields = ()
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
