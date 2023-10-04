@@ -1,4 +1,6 @@
 # rest_framework
+from datetime import datetime
+
 from django.db.models import Sum, Q
 from rest_framework import serializers
 
@@ -76,6 +78,7 @@ class TrackerSerializer(serializers.ModelSerializer):
     tracker_detail = TrackerDetailModelSerializer(many=True, read_only=True)
     location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
     tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
+
     def get_tariler(self, obj):
         return TrailerModelSerializer(obj.trailer).data
 
@@ -107,6 +110,20 @@ class TrackerSerializer(serializers.ModelSerializer):
         # tiempo final no puede ser menor al tiempo inicial y calcular la diferencia de tiempo
         if data.get('output_date') and data.get('input_date') and data.get('output_date') < data.get('input_date') and self.instance:
             raise serializers.ValidationError("El tiempo final no puede ser menor al tiempo inicial")
+        if self.instance and 'output_date' in data:
+            if self.instance.output_date is None:
+                # fecha y hora actual
+                now = datetime.now()
+                data['output_date'] = now
+            else:
+                data['output_date'] = self.instance.output_date
+        if self.instance and 'input_date' in data:
+            if self.instance.input_date is None:
+                data['input_date'] = datetime.now()
+            else:
+                data['input_date'] = self.instance.input_date
+
+
         return data
 
     def create(self, validated_data):
