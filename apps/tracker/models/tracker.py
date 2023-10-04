@@ -269,7 +269,7 @@ class TrackerDetailModel(BaseModel):
     # Tracker
     tracker = models.ForeignKey(
         TrackerModel,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         verbose_name="Tracker",
         related_name='tracker_detail',
         null=True,
@@ -307,7 +307,7 @@ class TrackerDetailProductModel(BaseModel):
     # Tracker detalle
     tracker_detail = models.ForeignKey(
         TrackerDetailModel,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         verbose_name="Tracker detalle",
         related_name='tracker_product_detail',
         null=True,
@@ -336,7 +336,7 @@ class TrackerDetailOutputModel(BaseModel):
     # Tracker
     tracker = models.ForeignKey(
         TrackerModel,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         verbose_name="Tracker",
         related_name='tracker_detail_output',
         null=True,
@@ -346,7 +346,7 @@ class TrackerDetailOutputModel(BaseModel):
     # Tipo de producto
     product = models.ForeignKey(
         ProductModel,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         verbose_name="Producto",
         related_name='tracker_detail_output_product',
         null=True,
