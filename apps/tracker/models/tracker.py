@@ -237,10 +237,6 @@ class TrackerModel(BaseModel):
         max_length=50,
         null=True,
         blank=True,
-        unique=True,
-        error_messages={
-            'unique': 'El numero de factura ya existe, debe ser unico'
-        }
     )
 
     class Meta:

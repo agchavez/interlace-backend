@@ -122,8 +122,6 @@ class TrackerSerializer(serializers.ModelSerializer):
                 data['input_date'] = datetime.now()
             else:
                 data['input_date'] = self.instance.input_date
-
-
         return data
 
     def create(self, validated_data):
