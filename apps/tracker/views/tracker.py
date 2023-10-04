@@ -55,7 +55,7 @@ class TrackerFilter(django_filters.FilterSet):
 
     class Meta:
         model = TrackerModel
-        fields = ('transporter', 'trailer', 'status', 'user', 'date', 'distributor_center')
+        fields = ('transporter', 'trailer', 'status','type', 'user', 'date', 'distributor_center')
 
 
 class TrackerModelViewSet(mixins.ListModelMixin,
@@ -255,7 +255,8 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
                                        mixins.UpdateModelMixin,
                                        mixins.DestroyModelMixin
     , viewsets.GenericViewSet):
-    queryset = TrackerDetailProductModel.objects.all()
+    # Evitar los que el tracker_detail este en null
+    queryset = TrackerDetailProductModel.objects.filter(tracker_detail__isnull=False)
     serializer_class = TrackerDetailProductModelSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
     filterset_class = TrackerDetailProductModelFilter
