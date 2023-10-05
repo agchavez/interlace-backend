@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework import filters
@@ -232,22 +232,27 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
 
 
 class TrackerDetailProductModelFilter(django_filters.FilterSet):
-    order_by = django_filters.OrderingFilter(
-        fields=(
-            ('created_at', 'created_at')
+        order_by = django_filters.OrderingFilter(
+            fields=(
+                ('created_at', 'created_at')
+            )
         )
-    )
-    class Meta:
-        model = TrackerDetailProductModel
-        fields = {
-            'tracker_detail': ['exact'],
-            'tracker_detail__tracker': ['exact'],
-            'tracker_detail__tracker__distributor_center': ['exact'],
-            'created_at': ['gte', 'lte'],
-            'id': ['exact'],
-            'tracker_detail__tracker__status': ['exact'],
-            'tracker_detail__tracker__user': ['exact'],
-        }
+
+
+        class Meta:
+            model = TrackerDetailProductModel
+            fields = {
+                'tracker_detail': ['exact'],
+                'tracker_detail__tracker': ['exact'],
+                'tracker_detail__tracker__distributor_center': ['exact'],
+                'tracker_detail__product': ['exact'],
+                'created_at': ['gte', 'lte'],
+                'expiration_date': ['gte', 'lte', 'exact'],
+                'id': ['exact'],
+                'tracker_detail__tracker__status': ['exact'],
+                'tracker_detail__tracker__user': ['exact'],
+
+            }
 
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
                                        mixins.RetrieveModelMixin,
@@ -273,6 +278,27 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
+
+    def list(self, request, *args, **kwargs):
+        # agregar filtro adicional
+        queryset = self.filter_queryset(self.get_queryset())
+        # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
+        shift = request.GET.get('shift')
+        if shift is not None and shift in ['A', 'B', 'C']:
+            if shift == 'A':
+                queryset = queryset.filter(created_at__hour__gte=6, created_at__hour__lte=14)
+            if shift == 'B':
+                queryset = queryset.filter(created_at__hour__gte=14, created_at__hour__lte=22)
+            if shift == 'C':
+                queryset = queryset.filter(Q(created_at__hour__gte=22.5) | Q(created_at__hour__lt=6))
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
     def destroy(self, request, *args, **kwargs):
         if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
             raise TrackerCompletedDetailProduct()

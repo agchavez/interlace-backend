@@ -22,6 +22,17 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
     tracker_detail_id = serializers.ReadOnlyField(source='tracker_detail.id')
     product_name = serializers.ReadOnlyField(source='tracker_detail.product.name')
     product_sap_code = serializers.ReadOnlyField(source='tracker_detail.product.sap_code')
+    shift = serializers.SerializerMethodField('get_shift')
+
+    def get_shift(self, obj):
+        # TURNO A: 6:00 - 14:00 TURNO B: 14:00 - 22:30 TURNO C: 22:30 - 6:00
+        hour = obj.created_at.hour
+        if 6 <= hour < 14:
+            return 'A'
+        elif 14 <= hour < 22.5:  # 22:30 en formato decimal es 22.5
+            return 'B'
+        else:
+            return 'C'
 
     class Meta:
         model = TrackerDetailProductModel
