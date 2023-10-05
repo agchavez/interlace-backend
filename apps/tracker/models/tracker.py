@@ -358,6 +358,8 @@ class TrackerDetailOutputModel(BaseModel):
     expiration_date = models.DateField(
         "Fecha de vencimiento",
         default= datetime.date.today,
+        blank=True, 
+        null=True
     )
 
     class Meta:

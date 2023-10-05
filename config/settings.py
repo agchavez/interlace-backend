@@ -143,8 +143,6 @@ LANGUAGE_CODE = 'es-HN'
 
 TIME_ZONE = 'America/Tegucigalpa'
 
-
-
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
