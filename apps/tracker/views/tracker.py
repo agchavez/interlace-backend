@@ -162,7 +162,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         limit = int(limit) if limit is not None else 15
         if cd is None:
             raise UserWithoutDistributorCenter()
-        trackers = TrackerModel.objects.filter(distributor_center=cd).order_by('-created_at')
+        trackers = TrackerModel.objects.filter(distributor_center=cd).exclude(output_type = 9).order_by('-created_at')
         outputData = []
         for tracker in trackers:
             if tracker.output_type is not None:
@@ -171,7 +171,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                 opt["tracking"]=tracker.pk
                 opt["output_type_name"]=tracker.output_type.name
                 if tracker.output_type.required_details:
-                    details = TrackerDetailOutputModel.objects.filter(tracker=tracker)
+                    details = TrackerDetailOutputModel.objects.filter(tracker=tracker).exclude(product__sap_code="3501451")
                     for detail in details:
                         opt["sap_code"]=detail.product.sap_code
                         opt["product_name"]=detail.product.name
