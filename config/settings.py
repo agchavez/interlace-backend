@@ -44,7 +44,8 @@ LOCAL_APPS = [
     'apps.user',
     'apps.authentication',
     'apps.maintenance',
-    'apps.tracker'
+    'apps.tracker',
+    'apps.report',
 ]
 
 INSTALLED_APPS = [
