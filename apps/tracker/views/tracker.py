@@ -139,6 +139,8 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         queryset = self.filter_queryset(self.get_queryset())
         if user.centro_distribucion:
             queryset = self.filter_queryset(self.get_queryset()).filter(distributor_center=user.centro_distribucion)
+        # Ultimos 5 tracker completado
+        last_trackers = queryset.filter(status='COMPLETE').order_by('-completed_date')[:5]
         # Total de trackers completados
         total_trackers_completed = queryset.filter(status='COMPLETE').count()
         # Total de trackers pendientes
@@ -150,7 +152,8 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         return Response({
             'total_trackers_completed': total_trackers_completed,
             'total_trackers_pending': total_trackers_pending,
-            'time_average': time_average
+            'time_average': time_average,
+            'last_trackers': TrackerSerializer(last_trackers, many=True).data
         }, status=status.HTTP_200_OK)
 
     # ultimos detalles de salida del centro de distribucion
