@@ -294,7 +294,7 @@ class TrackerDetailModel(BaseModel):
         verbose_name_plural = "Detalles de tracker"
 
     def __str__(self):
-        return self.product.name + " - " + str(self.tracker)
+        return self.product.name + " - " +self.product.name + " - " + str(self.tracker)
 
 
 # Modelo para los detalles de productos de los trackers
