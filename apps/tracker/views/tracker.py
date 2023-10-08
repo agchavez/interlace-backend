@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework import filters
@@ -13,7 +13,7 @@ import django_filters
 from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
-from apps.maintenance.models import TrailerModel, TransporterModel, DistributorCenter
+from apps.maintenance.models import TrailerModel, TransporterModel, DistributorCenter, ProductModel
 from apps.user.models import UserModel as User
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
@@ -187,8 +187,25 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                     outputData.append(opt)
                 if len(outputData) > limit:
                     break
+        # tracker compeltados el dia de hoy
+        tracker_completed_today = TrackerModel.objects.filter(distributor_center=cd, status='COMPLETE', created_at__date=datetime.now().date()).count()
+
+
+        # cantidad de pallets recibidos hoy y agrupados por producto
+        products = TrackerDetailProductModel.objects.filter(tracker_detail__tracker__distributor_center=cd, created_at__date=datetime.now().date()).values('tracker_detail__product__id', 'tracker_detail__product__name').annotate(total=Sum('quantity'))
+
+        # Helectrolitos totales del dia de hoy = cantidad pallets x producto.boxes_pre_pallet x producto.helectrolitos
+        total_hele = 0
+        total_pallets = 0
+        for product in products:
+            product_obj = ProductModel.objects.get(id=product['tracker_detail__product__id'])
+            total_hele += product['total'] * product_obj.boxes_pre_pallet * product_obj.helectrolitos
+            total_pallets += product['total']
         return Response({
             'results': outputData[:limit],
+            'tracker_completed_today': tracker_completed_today,
+            'total_hele': total_hele,
+            'total_pallets': total_pallets
         }, status=status.HTTP_200_OK)
 
 
