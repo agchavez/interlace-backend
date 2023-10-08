@@ -61,7 +61,11 @@ class ProductosProximosAVencerAPI(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         fecha_actual = date.today()
-        fecha_limite = fecha_actual + timedelta(days=90)
+        daysQuery = self.request.query_params.get('days', None)
+        days = 60
+        if daysQuery is not None:
+            days = int(daysQuery)
+        fecha_limite = fecha_actual + timedelta(days=days)
 
         queryset = (TrackerDetailProductModel.objects.filter(
             expiration_date__gte=fecha_actual,
