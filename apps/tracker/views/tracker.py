@@ -180,7 +180,8 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         opt["product_name"]=detail.product.name
                         opt["quantity"]=detail.quantity
                         opt["expiration_date"]=detail.expiration_date
-                        outputData.append(opt)
+                        copy = opt.copy()
+                        outputData.append(copy)
                         if len(outputData) > limit:
                             break
                 else:
