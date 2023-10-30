@@ -302,6 +302,12 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     def list(self, request, *args, **kwargs):
         # agregar filtro adicional
         queryset = self.filter_queryset(self.get_queryset())
+
+        user = request.user
+
+        if user.centro_distribucion:
+            queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
+
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
         if shift is not None and shift in ['A', 'B', 'C']:
