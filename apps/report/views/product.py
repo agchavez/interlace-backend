@@ -15,6 +15,7 @@ class TrackerDetailProductSerializer(serializers.Serializer):
     product_name = serializers.CharField()
     sap_code = serializers.CharField()
     expiration_list = serializers.ListField()
+    distributor_center = serializers.CharField()
 
 
 class TrackerDetailProductFilter(django_filters.FilterSet):
@@ -77,11 +78,15 @@ class ProductosProximosAVencerAPI(viewsets.ReadOnlyModelViewSet):
         ).values(
             'tracker_detail__product__name',
             'expiration_date',
-            'tracker_detail__product__sap_code'
+            'quantity',
+            'tracker_detail__tracker__id',
+            'tracker_detail__tracker__distributor_center__name',
+            'tracker_detail__product__sap_code',
+
         ).annotate(
-            total_quantity=Sum('quantity'),
             product_name=F('tracker_detail__product__name'),
-            sap_code=F('tracker_detail__product__sap_code')
+            sap_code=F('tracker_detail__product__sap_code'),
+            distributor_center=F('tracker_detail__tracker__distributor_center__name'),
         ))
 
         queryset = queryset.order_by('expiration_date')
@@ -99,17 +104,22 @@ class ProductosProximosAVencerAPI(viewsets.ReadOnlyModelViewSet):
             producto = item['product_name']
             sap_code = item['sap_code']
             expiration_date = item['expiration_date']
-            total_quantity = item['total_quantity']
+            distributor_center = item['distributor_center']
 
             if producto not in productos_dict:
                 productos_dict[producto] = {
                     'product_name': producto,
                     'sap_code': sap_code,
-                    'expiration_list': [{'expiration_date': expiration_date, 'total_quantity': total_quantity}]
+                    'expiration_list': [{'expiration_date': expiration_date, 'quantity': item['quantity'], 'tracker_id': item['tracker_detail__tracker__id']}],
+                    'distributor_center': distributor_center,
                 }
             else:
-                productos_dict[producto]['expiration_list'].append(
-                    {'expiration_date': expiration_date, 'total_quantity': total_quantity})
+                productos_dict[producto]['expiration_list'].append({
+                        'expiration_date': expiration_date,
+                        'quantity': item['quantity'],
+                        'tracker_id': item['tracker_detail__tracker__id'],
+                    })
+
 
         # Convertir el diccionario en una lista para la respuesta final
         lista_productos = list(productos_dict.values())
