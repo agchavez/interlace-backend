@@ -239,6 +239,13 @@ class TrackerModel(BaseModel):
         blank=True,
     )
 
+    # Observacion
+    observation = models.TextField(
+        "Observacion",
+        null=True,
+        blank=True,
+    )
+
     class Meta:
         db_table = "tracker"
         verbose_name = "Tracker"
