@@ -46,6 +46,7 @@ LOCAL_APPS = [
     'apps.maintenance',
     'apps.tracker',
     'apps.report',
+    'apps.order',
 ]
 
 INSTALLED_APPS = [
