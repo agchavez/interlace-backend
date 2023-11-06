@@ -9,14 +9,14 @@ class OrderHistorySerializer(serializers.ModelSerializer):
 
 # Serializer de detalle de ordenes
 class OrderDetailSerializer(serializers.ModelSerializer):
-    order_detail_history = OrderHistorySerializer(many=True)
+    order_detail_history = OrderHistorySerializer(many=True, read_only=True)
     class Meta:
         model = OrderDetailModel
         fields = '__all__'
 
 # Serializer de ordenes
 class OrderSerializer(serializers.ModelSerializer):
-    order_detail = OrderDetailSerializer(many=True)
+    order_detail = OrderDetailSerializer(many=True, read_only=True)
     class Meta:
         model = OrderModel
         fields = '__all__'

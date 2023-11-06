@@ -1,7 +1,7 @@
 from django.db import models
 from utils.BaseModel import BaseModel
 from apps.maintenance.models.product import ProductModel
-from apps.maintenance.models.distributor_center import DistributorCenter
+from apps.maintenance.models.distributor_center import DistributorCenter, LocationModel
 from apps.user.models.user import UserModel
 from apps.tracker.models.tracker import TrackerModel
 
@@ -39,6 +39,15 @@ class OrderModel(BaseModel):
         "Observaciones",
         blank=True,
         null=True)
+
+    # localidad de entrega
+    location = models.ForeignKey(
+        LocationModel,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Localidad",
+        related_name="order_location")
 
     class Meta:
         db_table = "order"
