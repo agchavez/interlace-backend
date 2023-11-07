@@ -1,18 +1,13 @@
 from rest_framework import serializers
 
-from ..models import InventoryModel, InventoryMovementModel
+from ..models import InventoryMovementModel
 from apps.maintenance.serializer import ProductModelSerializer
-class InventorySerializer(serializers.ModelSerializer):
-    product_data = ProductModelSerializer(source='product', read_only=True)
-    distributor_center_name = serializers.CharField(source='distributor_center.name', read_only=True)
-
-    class Meta:
-        model = InventoryModel
-        fields = '__all__'
+from apps.user.serializers import UserSerializer
 
 class InventoryMovementSerializer(serializers.ModelSerializer):
     product_data = ProductModelSerializer(source='product', read_only=True)
     distributor_center_name = serializers.CharField(source='distributor_center.name', read_only=True)
+    user_name = serializers.CharField(source='user.get_full_name', read_only=True)
 
     class Meta:
         model = InventoryMovementModel

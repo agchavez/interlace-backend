@@ -299,6 +299,13 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
 
+    def partial_update(self, request, *args, **kwargs):
+        # la cantidad disponible es igual a la cantidad
+        instance = self.get_object()
+        request.data['available_quantity'] = request.data['quantity'] * instance.tracker_detail.product.boxes_pre_pallet
+        return super().partial_update(request, *args, **kwargs)
+
+
     def list(self, request, *args, **kwargs):
         # agregar filtro adicional
         queryset = self.filter_queryset(self.get_queryset())

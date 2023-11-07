@@ -4,7 +4,7 @@ from apps.maintenance.models.product import ProductModel
 from apps.maintenance.models.distributor_center import DistributorCenter, LocationModel
 from apps.user.models.user import UserModel
 from apps.tracker.models.tracker import TrackerModel
-
+from apps.tracker.models import TrackerDetailProductModel
 # Modelo de ordenes de salida de producto
 class OrderModel(BaseModel):
     class OrderStatus(models.TextChoices):
@@ -67,12 +67,13 @@ class OrderDetailModel(BaseModel):
         verbose_name="Orden",
         related_name="order_detail")
 
-    # producto
-    product = models.ForeignKey(
-        ProductModel,
+    # tracker detail product
+    tracker_detail_product = models.ForeignKey(
+        TrackerDetailProductModel,
         on_delete=models.CASCADE,
-        verbose_name="Producto",
-        related_name="order_detail_product")
+        verbose_name="Tracker detail product",
+        related_name='order_detail_tracker_detail_product',
+        default = None)
 
     # cantidad de producto
     quantity = models.IntegerField(
@@ -90,7 +91,7 @@ class OrderDetailModel(BaseModel):
         verbose_name_plural = "Detalles de ordenes"
 
     def __str__(self):
-        return self.order.distributor_center.name + " - " + self.product.name + " - " + str(self.quantity)
+        return self.order.distributor_center.name + " - " + " - " + str(self.quantity)
 
 # Historico de ordenes de salida de producto con los TRACKINGS
 class OrderHistoryModel(BaseModel):

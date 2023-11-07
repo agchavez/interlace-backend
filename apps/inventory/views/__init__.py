@@ -1,1 +1,1 @@
-from .inventory import  InventoryViewSet, InventoryMovementViewSet
+from .inventory import InventoryMovementViewSet

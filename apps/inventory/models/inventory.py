@@ -4,44 +4,7 @@ from utils.BaseModel import BaseModel
 from apps.maintenance.models.product import ProductModel
 from apps.maintenance.models.distributor_center import DistributorCenter
 from apps.user.models.user import UserModel
-
-
-# Inventirio de productos por fecha de vencimiento y centro de distribución (lote)
-class InventoryModel(BaseModel):
-    # producto
-    product = models.ForeignKey(
-        ProductModel,
-        on_delete=models.CASCADE,
-        verbose_name="Producto",
-        related_name="inventory_product")
-
-    # centro de distribucion
-    distributor_center = models.ForeignKey(
-        DistributorCenter,
-        on_delete=models.CASCADE,
-        verbose_name="Centro de distribución",
-        related_name="inventory_distributor_center")
-
-    # cantidad puede ser negativa o positiva
-    quantity = models.IntegerField(
-        "Cantidad",
-        default=0)
-
-    # fecha de vencimiento
-    expiration_date = models.DateField(
-        "Fecha de vencimiento",
-        null=True,
-        blank=True)
-
-    class Meta:
-        db_table = "inventory"
-        verbose_name = "Inventario"
-        verbose_name_plural = "Inventarios"
-
-    def __str__(self):
-        return self.product.name + " - " + self.distributor_center.name
-
-
+from apps.tracker.models.tracker import TrackerDetailProductModel
 # modelo de movimietos de inventario
 class InventoryMovementModel(BaseModel):
     # Modulos donde se registra el movimiento
@@ -55,6 +18,15 @@ class InventoryMovementModel(BaseModel):
         IN = "IN", "Entrada"
         OUT = "OUT", "Salida"
         BALANCE = "BALANCE", "Balance"
+
+    # detalle del producto de tracker
+    tracker_detail_product = models.ForeignKey(
+        TrackerDetailProductModel,
+        on_delete=models.CASCADE,
+        verbose_name="Tracking",
+        related_name="inventory_movement_tracking",
+        null=True,
+        blank=True)
 
     # Modulo donde se registra el movimiento
     module = models.CharField(
@@ -81,26 +53,6 @@ class InventoryMovementModel(BaseModel):
         null=True,
         blank=True)
 
-    # inventario
-    product = models.ForeignKey(
-        InventoryModel,
-        on_delete=models.CASCADE,
-        verbose_name="Inventario",
-        related_name="inventory_movement_product")
-
-    # centro de distribucion
-    distributor_center = models.ForeignKey(
-        DistributorCenter,
-        on_delete=models.CASCADE,
-        verbose_name="Centro de distribución",
-        related_name="inventory_movement_distributor_center")
-
-    # fecha de vencimiento
-    date = models.DateField(
-        "Fecha",
-        null=True,
-        blank=True)
-
     movement_type = models.CharField(
         "Tipo de movimiento",
         max_length=50,
@@ -122,12 +74,6 @@ class InventoryMovementModel(BaseModel):
     quantity = models.IntegerField(
         "Cantidad",
         default=0)
-
-    # fecha de vencimiento
-    expiration_date = models.DateField(
-        "Fecha de vencimiento",
-        null=True,
-        blank=True)
 
     # usuario que crea el movimiento
     user = models.ForeignKey(

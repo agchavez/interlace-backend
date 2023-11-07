@@ -34,6 +34,8 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
         else:
             return 'C'
 
+
+
     class Meta:
         model = TrackerDetailProductModel
         fields = '__all__'

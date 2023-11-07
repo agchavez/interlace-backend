@@ -1,9 +1,10 @@
-
 import os
 from pathlib import Path
 from datetime import timedelta
+from decouple import config
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,16 +33,18 @@ LOCAL_APPS = [
 ]
 
 INSTALLED_APPS = [
-         'django.contrib.admin',
-         'django.contrib.auth',
-         'django.contrib.contenttypes',
-         'django.contrib.sessions',
-         'django.contrib.messages',
-         'django.contrib.staticfiles',
-         'rest_framework',
-         'corsheaders',
-         'django_filters',
-         'import_export',
+                     'django.contrib.admin',
+                     'django.contrib.auth',
+                     'django.contrib.contenttypes',
+                     'django.contrib.sessions',
+                     'django.contrib.messages',
+                     'django.contrib.staticfiles',
+                     'rest_framework',
+                     'corsheaders',
+                     'django_filters',
+                     'import_export',
+                     'django_celery_beat',
+                     'django_celery_results',
                  ] + LOCAL_APPS
 
 MIDDLEWARE = [
@@ -75,7 +78,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-
 AUTH_USER_MODEL = 'user.UserModel'
 
 DATABASES = {
@@ -100,7 +102,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-  "TOKEN_OBTAIN_SERIALIZER": "utils.jwt.MyTokenObtainPairSerializer",
+    "TOKEN_OBTAIN_SERIALIZER": "utils.jwt.MyTokenObtainPairSerializer",
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=120),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": True,
@@ -121,7 +123,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Configuraciones de localizacion
 LANGUAGE_CODE = 'es-HN'
 
@@ -131,3 +132,10 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Configuracion celery
+
+CELERY_BROKER_URL = config('CELERY_BROKER_REDIS_URL', default='redis://localhost:6379')
+CELERY_RESULT_BACKEND = "django-db"
+
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'

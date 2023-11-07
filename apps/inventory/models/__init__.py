@@ -1,1 +1,1 @@
-from .inventory import  InventoryModel, InventoryMovementModel
+from .inventory import InventoryMovementModel
