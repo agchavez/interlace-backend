@@ -19,10 +19,11 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistrib
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
     OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
-    OriginLocationRequired
+    OriginLocationRequired, FileTooLarge, FileNotExists
 from apps.user.views.user import CustomAccessPermission
 from apps.tracker.models import TrackerDetailOutputModel
 from rest_framework.filters import OrderingFilter
+from django.http import HttpResponse
 
 class TrackerFilter(django_filters.FilterSet):
     transporter = django_filters.ModelMultipleChoiceFilter(
@@ -155,6 +156,46 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'time_average': time_average,
             'last_trackers': TrackerSerializer(last_trackers, many=True).data
         }, status=status.HTTP_200_OK)
+    # Cargar archivo
+    @action(detail=True, methods=['patch'], url_path='upload-file')
+    def uploadFile(self, request, *args, **kwargs):
+        tracker = self.get_object()
+        if tracker.status != "EDITED":
+            raise TrackerCompleted
+        archivo = request.data.get("archivo")
+        name = request.data.get("name")
+        if archivo is not None:
+            if archivo.size > 20*1024*1024:
+                raise FileTooLarge
+            content = archivo.read()
+            tracker.archivo = content
+        if name:
+            tracker.archivo_name = name
+        tracker.save()
+        serializer = TrackerSerializer(tracker)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    # Cargar archivo
+    @action(detail=True, methods=['delete'], url_path='delete-file')
+    def deleteFile(self, request, *args, **kwargs):
+        tracker = self.get_object()
+        if tracker.status != "EDITED":
+            raise TrackerCompleted
+        if tracker:
+            tracker.archivo = None
+            tracker.archivo_name = None
+            tracker.save()
+        serializer = TrackerSerializer(tracker)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    # Cargar archivo
+    @action(detail=True, methods=['get'], url_path='get-file')
+    def getFile(self, request, *args, **kwargs):
+        tracker = self.get_object()
+        archivo = tracker.archivo
+        if not archivo:
+            raise FileNotExists
+        response = HttpResponse(archivo, content_type='application/octet-stream',)
+        response['Content-Disposition'] = f'attachment; filename="{tracker.archivo_name}"'
+        return response
 
     # ultimos detalles de salida del centro de distribucion
     @action(detail=False, methods=['get'], url_path='last-output')

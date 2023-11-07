@@ -246,6 +246,18 @@ class TrackerModel(BaseModel):
         blank=True,
     )
 
+    archivo = models.BinaryField(
+        "Archivo", 
+        null=True, 
+        blank=True,
+    )
+
+    archivo_name = models.TextField(
+        "Nombre del Archivo",
+        null=True,
+        blank=True,
+    )
+
     class Meta:
         db_table = "tracker"
         verbose_name = "Tracker"
@@ -264,6 +276,11 @@ class TrackerModel(BaseModel):
         if self.input_date and self.output_date:
             self.time_invested = (self.output_date - self.input_date).total_seconds()
         super(TrackerModel, self).save(*args, **kwargs)
+    
+    def save_file_and_name(self, archivo, nombre):
+        self.archivo = archivo
+        self.archivo_name = nombre
+        self.save()
 
 
 # Modelo para los detalles de los trackers

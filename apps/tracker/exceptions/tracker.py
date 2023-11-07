@@ -241,3 +241,18 @@ class OriginLocationRequired(APIException):
     }
     default_code = 'origin_location_required'
 
+class FileTooLarge(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El tamaño del archivo es demasiado grande',
+        'error_code': 'file_too_large'
+    }
+    default_code = 'file_too_large'
+
+class FileNotExists(APIException):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = {
+        'mensage': 'El archivo no existe',
+        'error_code': 'file_not_found'
+    }
+    default_code = 'file_not_found'
