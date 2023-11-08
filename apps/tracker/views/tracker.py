@@ -174,19 +174,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         tracker.save()
         serializer = TrackerSerializer(tracker)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    # Cargar archivo
-    @action(detail=True, methods=['delete'], url_path='delete-file')
-    def deleteFile(self, request, *args, **kwargs):
-        tracker = self.get_object()
-        if tracker.status != "EDITED":
-            raise TrackerCompleted
-        if tracker:
-            tracker.archivo = None
-            tracker.archivo_name = None
-            tracker.save()
-        serializer = TrackerSerializer(tracker)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    # Cargar archivo
+    # Descargar archivo
     @action(detail=True, methods=['get'], url_path='get-file')
     def getFile(self, request, *args, **kwargs):
         tracker = self.get_object()
