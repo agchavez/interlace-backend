@@ -370,6 +370,16 @@ class TrackerDetailOutputModel(BaseModel):
         blank=True
     )
 
+    # Tracker detail product
+    tracker_detail_product = models.ForeignKey(
+        TrackerDetailProductModel,
+        on_delete=models.CASCADE,
+        verbose_name="Tracker detail product",
+        related_name='tracker_detail_output_tracker_detail_product',
+        null=True,
+        blank=True
+    )
+
     # Tipo de producto
     product = models.ForeignKey(
         ProductModel,

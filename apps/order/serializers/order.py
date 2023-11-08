@@ -2,7 +2,7 @@ from django.db.models import Sum
 
 from ..models import OrderModel, OrderDetailModel, OrderHistoryModel
 from ..exceptions.order_detail import QuantityExceeded
-
+from apps.maintenance.serializer import ProductModelSerializer
 from rest_framework import serializers
 
 # Serializer de historico de ordenes
@@ -14,8 +14,9 @@ class OrderHistorySerializer(serializers.ModelSerializer):
 # Serializer de detalle de ordenes
 class OrderDetailSerializer(serializers.ModelSerializer):
     order_detail_history = OrderHistorySerializer(many=True, read_only=True)
-
-
+    product_data = ProductModelSerializer(source='tracker_detail_product.tracker_detail.product', read_only=True)
+    tracking_id = serializers.IntegerField(source='tracker_detail_product.tracker_detail.tracker.id', read_only=True)
+    expiration_date = serializers.DateField(source='tracker_detail_product.expiration_date', read_only=True)
     def validate(self, attrs):
         # la suma de las cantidades de los productos no puede ser mayor a la cantidad disponible de tracker detail product
         quantity = attrs.get('quantity')
