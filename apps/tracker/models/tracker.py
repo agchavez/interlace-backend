@@ -79,13 +79,10 @@ class TrackerModel(BaseModel):
     transfer_number = models.CharField(
         "Número de traslado",
         max_length=50,
-        unique=True,
         null=True,
         blank=False,
         validators=[RegexValidator(regex=regex_number, message='El numero de traslado debe ser un numero')],
-        error_messages={
-            'unique': 'El numero de traslado 5001 ya existe, debe ser unico'
-        }
+
     )
 
     # contabilizado

@@ -162,7 +162,7 @@ class OutputDocumentNumberRequired(APIException):
 class TransferNumberRequired(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = {
-        'mensage': 'Se requiere un numero de traslado valido para completar el seguimiento',
+        'mensage': 'Se requiere un numero de traslado 5001 valido para completar el seguimiento',
         'error_code': 'transfer_number_required'
     }
     default_code = 'transfer_number_required'

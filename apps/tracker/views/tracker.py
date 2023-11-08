@@ -116,7 +116,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     @action(detail=False, methods=['get'], url_path='my-trackers')
     def my_trackers(self, request, *args, **kwargs):
         user = request.user
-        queryset = TrackerModel.objects.filter(user=user, status='EDITED')
+        queryset = TrackerModel.objects.filter(status='EDITED', distributor_center=user.centro_distribucion)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -359,9 +359,9 @@ def validate_create_tracker(request, id=None):
 
     # Validaciones de numero de traslado
     if data.get('transfer_number') and instance:
-        if TrackerModel.objects.filter(transfer_number=data.get('transfer_number')).exclude(
-                id=instance.id).exists():
-            raise InputDocumentNumberRegistered()
+        #if TrackerModel.objects.filter(transfer_number=data.get('transfer_number')).exclude(
+                #id=instance.id).exists():
+            #raise InputDocumentNumberRegistered()
         # El numero de traslado no debe ser numerico en el caso que lo mande
         if not data.get('transfer_number').isnumeric():
             raise InputDocumentNumberIsNotNumber()
@@ -416,6 +416,8 @@ def validate_complete_tracker(tracker):
             raise ContainerNumberRequired()
         if not tracker.driver_import:
             raise DriverRequired()
+        if not tracker.transfer_number:
+            raise TransferNumberRequired()
     # validar numero de placa y driver
     if not tracker.plate_number:
         raise PlateNumberRequired()
