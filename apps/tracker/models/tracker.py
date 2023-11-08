@@ -345,6 +345,13 @@ class TrackerDetailProductModel(BaseModel):
         "Cantidad",
         default=0)
 
+    # Cantidad disponible cajas
+    available_quantity = models.IntegerField(
+        "Cantidad disponible",
+        default=0)
+    def __str__(self):
+        return str(self.id) + " - " + str(self.tracker_detail)
+
     class Meta:
         db_table = "tracker_detail_product"
         verbose_name = "Detalle de producto de tracker"
@@ -385,6 +392,8 @@ class TrackerDetailOutputModel(BaseModel):
         blank=True, 
         null=True
     )
+
+
 
     class Meta:
         db_table = "tracker_detail_output"
