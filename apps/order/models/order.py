@@ -55,7 +55,7 @@ class OrderModel(BaseModel):
         verbose_name_plural = "Ordenes"
 
     def __str__(self):
-        return self.distributor_center.name + " - " + self.user.first_name + " " + self.user.last_name
+        return self.distributor_center.name + " - " + self.user.first_name + " " + self.user.last_name + ' id=' + str(self.id)
 
 
 # Detalles de la orden de salida de producto ademas del la cantidad disponble para seleccionar en los TRACKINGS
@@ -89,6 +89,7 @@ class OrderDetailModel(BaseModel):
         db_table = "order_detail"
         verbose_name = "Detalle de orden"
         verbose_name_plural = "Detalles de ordenes"
+        unique_together = ('order', 'tracker_detail_product')
 
     def __str__(self):
         return self.order.distributor_center.name + " - " + " - " + str(self.quantity)

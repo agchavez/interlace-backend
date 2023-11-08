@@ -9,3 +9,12 @@ class QuantityExceeded(APIException):
     }
     default_code = 'quantity_exceeded'
 
+# Ya existe un registro con la orden y el detalle de tracker
+class OrderDetailExist(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Ya existe un registro con la orden y el detalle de tracker',
+        'error_code': 'order_detail_exist'
+    }
+    default_code = 'order_detail_exist'
+

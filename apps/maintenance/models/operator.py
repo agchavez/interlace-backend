@@ -9,6 +9,11 @@ class OperatorModel(BaseModel):
     first_name = models.CharField(
         "Nombre",
         max_length=60)
+
+    last_name = models.CharField(
+        "Apellido",
+        max_length=60)
+
     distributor_center = models.ForeignKey(
         DistributorCenter,
         on_delete=models.SET_NULL,
