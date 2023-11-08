@@ -91,7 +91,14 @@ class TrackerSerializer(serializers.ModelSerializer):
     tracker_detail = TrackerDetailModelSerializer(many=True, read_only=True)
     location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
     tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
+    is_archivo_up = serializers.SerializerMethodField('archivo_up')
 
+    def archivo_up(self, obj):
+        if obj.archivo is None:
+            return False
+        else:
+            return True
+        
     def get_tariler(self, obj):
         return TrailerModelSerializer(obj.trailer).data
 
@@ -100,7 +107,8 @@ class TrackerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TrackerModel
-        fields = '__all__'
+        # fields = '__all__'
+        exclude = ('archivo',)
 
     def validate(self, data):
         # solo se pueden actualizar si el estado es PENDING

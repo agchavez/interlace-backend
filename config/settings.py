@@ -133,6 +133,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+
+CORS_EXPOSE_HEADERS = ['Content-Disposition']
+
 # Configuracion celery
 
 CELERY_BROKER_URL = config('CELERY_BROKER_REDIS_URL', default='redis://localhost:6379')
