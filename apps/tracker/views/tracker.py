@@ -391,8 +391,8 @@ def validate_complete_tracker(tracker):
         raise OriginLocationRequired()
 
     # El contabilizado es obligatorio
-    if not tracker.accounted:
-        raise AccountedRequired()
+    # if not tracker.accounted:
+    #     raise AccountedRequired()
 
     if tracker.type == 'LOCAL':
         # Validar numero de entrada, salida y traslado
