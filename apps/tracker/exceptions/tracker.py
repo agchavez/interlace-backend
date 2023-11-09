@@ -241,3 +241,11 @@ class OriginLocationRequired(APIException):
     }
     default_code = 'origin_location_required'
 
+# El campo contabilizado es obligatorio
+class AccountedRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El campo contabilizado es obligatorio',
+        'error_code': 'accounted_required'
+    }
+    default_code = 'accounted_required'

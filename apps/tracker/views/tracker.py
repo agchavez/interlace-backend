@@ -19,7 +19,7 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistrib
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
     OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
-    OriginLocationRequired
+    OriginLocationRequired, AccountedRequired
 from apps.user.views.user import CustomAccessPermission
 from apps.tracker.models import TrackerDetailOutputModel
 from rest_framework.filters import OrderingFilter
@@ -389,6 +389,10 @@ def validate_complete_tracker(tracker):
     # la localidad de origen es requerida
     if not tracker.origin_location:
         raise OriginLocationRequired()
+
+    # El contabilizado es obligatorio
+    if not tracker.accounted:
+        raise AccountedRequired()
 
     if tracker.type == 'LOCAL':
         # Validar numero de entrada, salida y traslado
