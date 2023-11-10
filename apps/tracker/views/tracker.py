@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from django.contrib.auth.models import AnonymousUser
 from django.db.models import Sum, Q, F
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
@@ -24,6 +25,9 @@ from apps.user.views.user import CustomAccessPermission
 from apps.tracker.models import TrackerDetailOutputModel
 from rest_framework.filters import OrderingFilter
 from django.http import HttpResponse
+from ..utils.processes import apply_output_movements
+from ...order.utils.update import validate_and_update_order_detail, update_order_detail
+
 
 class TrackerFilter(django_filters.FilterSet):
     transporter = django_filters.ModelMultipleChoiceFilter(
@@ -126,10 +130,16 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     def complete(self, request, *args, **kwargs):
         tracker = self.get_object()
         validate_complete_tracker(tracker)
+        if tracker.order:
+            update_order_detail(tracker.order, tracker)
+
         tracker.complete()
         # la fecha de completado se actualiza en el modelo
         tracker.completed_date = datetime.now()
         tracker.save()
+
+        # aplicar movimientos de salida
+        apply_output_movements.delay(tracker.id, request.user.id)
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
 
     # Informacion del dashboard por centro de distribucion de usuarios
@@ -315,7 +325,7 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
     filterset_class = TrackerDetailProductModelFilter
     search_fields = ()
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
@@ -341,8 +351,9 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        if user.centro_distribucion:
-            queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
+        if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
+            if user.centro_distribucion:
+                queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -426,6 +437,9 @@ def validate_complete_tracker(tracker):
     if not tracker.origin_location:
         raise OriginLocationRequired()
 
+    # Validar que si hay una orden
+    if tracker.order:
+        validate_and_update_order_detail(tracker.order, tracker)
     if tracker.type == 'LOCAL':
         # Validar numero de entrada, salida y traslado
         if not tracker.input_document_number:

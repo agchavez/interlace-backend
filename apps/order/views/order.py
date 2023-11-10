@@ -3,7 +3,10 @@ from rest_framework.viewsets import GenericViewSet
 
 from ..exceptions.order_detail import OrderDetailExist
 # LOCAL
-from ..models import OrderModel, OrderDetailModel, OrderHistoryModel
+from ..models.order import OrderModel
+from ..models.history import OrderHistoryModel
+from ..models.detail import OrderDetailModel
+
 from ..serializers import OrderSerializer, OrderDetailSerializer, OrderHistorySerializer
 
 
@@ -31,7 +34,7 @@ class OrderDetailViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, U
 
 
 # ViewSet de historico de ordenes
-class OrderHistoryViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, GenericViewSet):
+class OrderHistoryViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
     queryset = OrderHistoryModel.objects.all()
     serializer_class = OrderHistorySerializer
     lookup_field = 'id'

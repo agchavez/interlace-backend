@@ -4,9 +4,9 @@ from django.core.validators import RegexValidator
 
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
     OperatorModel, OutputTypeModel, DistributorCenter
-from .typeDetailOutput import TypeDetailOutputModel
-from apps.user.models import UserModel
 
+from apps.user.models import UserModel
+from apps.order.models.order import OrderModel
 from django.db import models
 from utils.BaseModel import BaseModel
 
@@ -16,6 +16,15 @@ regex_number = '^[0-9]+$'
 # Modelo para los trackers
 
 class TrackerModel(BaseModel):
+    # se puede seleccionar un pedido o no
+    order = models.ForeignKey(
+        OrderModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Pedido",
+        related_name='tracker_order',
+        null=True,
+        blank=True
+    )
     trailer = models.ForeignKey(
         TrailerModel,
         on_delete=models.SET_NULL,

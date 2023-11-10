@@ -31,7 +31,7 @@ class TrackerDetailOutputView(
                                 mixins.DestroyModelMixin):
         queryset = TrackerDetailOutputModel.objects.all()
         serializer_class = TrackerDetailOutputSerializer
-        permission_classes = [CustomAccessPermission]
+        permission_classes = []
         filter_backends = [DjangoFilterBackend]
         filterset_class = TrackerDetailOutputFilterSet
         # Mapeo de métodos HTTP a los permisos requeridos

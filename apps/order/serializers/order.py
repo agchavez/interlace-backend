@@ -1,8 +1,10 @@
 from django.db.models import Sum
 
-from ..models import OrderModel, OrderDetailModel, OrderHistoryModel
+from ..models.order import OrderModel
+from ..models.history import OrderHistoryModel
+from ..models.detail import OrderDetailModel
 
-from ..exceptions.order_detail import QuantityExceeded
+from ..exceptions.order_detail import QuantityExceeded, OrderNotCompleted
 from apps.maintenance.serializer import ProductModelSerializer
 from rest_framework import serializers
 
@@ -19,11 +21,17 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     tracking_id = serializers.IntegerField(source='tracker_detail_product.tracker_detail.tracker.id', read_only=True)
     expiration_date = serializers.DateField(source='tracker_detail_product.expiration_date', read_only=True)
     def validate(self, attrs):
+
+        # Nose puede editar una orden que no esta en estado COMPLETED o IN_PROCESS
+        if self.instance:
+            if self.instance.order.status in [OrderModel.OrderStatus.COMPLETED, OrderModel.OrderStatus.IN_PROCESS]:
+                raise OrderNotCompleted()
+
         # la suma de las cantidades de los productos no puede ser mayor a la cantidad disponible de tracker detail product
         quantity = attrs.get('quantity')
         # veridicar si hay mas registros en la orden del mismo tracker detail product y sumarlos
         if self.instance:
-            sum_quantity = OrderDetailModel.objects.filter(tracker_detail_product=attrs.get('tracker_detail_product'), status__not_in=[OrderModel.OrderStatus.COMPLETED]
+            sum_quantity = OrderDetailModel.objects.filter(tracker_detail_product=attrs.get('tracker_detail_product'), order__status__in=[OrderModel.OrderStatus.IN_PROCESS, OrderModel.OrderStatus.PENDING]
                                                            ).exclude(
                 id=self.instance.id).aggregate(Sum('quantity'))
             if sum_quantity.get('quantity__sum') is None:
@@ -60,6 +68,13 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 # Serializer de ordenes
 class OrderSerializer(serializers.ModelSerializer):
     order_detail = OrderDetailSerializer(many=True, read_only=True)
+
+    # No se pueden editar las ordenes que estan en estado COMPLETED o IN_PROCESS
+    def validate(self, attrs):
+        if self.instance:
+            if self.instance.status in [OrderModel.OrderStatus.COMPLETED, OrderModel.OrderStatus.IN_PROCESS]:
+                raise OrderNotCompleted()
+        return attrs
     class Meta:
         model = OrderModel
         fields = '__all__'

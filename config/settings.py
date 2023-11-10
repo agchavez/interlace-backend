@@ -142,4 +142,6 @@ CORS_EXPOSE_HEADERS = ['Content-Disposition']
 CELERY_BROKER_URL = config('CELERY_BROKER_REDIS_URL', default='redis://localhost:6379')
 CELERY_RESULT_BACKEND = "django-db"
 
+
+
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
