@@ -390,9 +390,6 @@ def validate_complete_tracker(tracker):
     if not tracker.origin_location:
         raise OriginLocationRequired()
 
-    # El contabilizado es obligatorio
-    # if not tracker.accounted:
-    #     raise AccountedRequired()
 
     if tracker.type == 'LOCAL':
         # Validar numero de entrada, salida y traslado
@@ -412,6 +409,10 @@ def validate_complete_tracker(tracker):
         # Validaciones para el tipo de salida del producto
         if not tracker.output_type:
             raise OutputTypeRequired()
+        # El contabilizado es obligatorio solo si el tipo de salida no es VACIO
+        if not tracker.accounted and tracker.output_type.id != 9:
+            raise AccountedRequired()
+
     if tracker.type == 'IMPORT':
         # Validar numero de factura y numero de contenedor
         if not tracker.invoice_number:
