@@ -52,10 +52,15 @@ class TrackerFilter(django_filters.FilterSet):
         to_field_name='id'
     )
 
+    id = django_filters.NumberFilter(
+        field_name='id',
+        label='ID'
+    )
+
 
     class Meta:
         model = TrackerModel
-        fields = ('transporter', 'trailer', 'status','type', 'user', 'date', 'distributor_center')
+        fields = ('transporter', 'trailer', 'status','type', 'user', 'date', 'distributor_center', 'id')
 
 
 class TrackerModelViewSet(mixins.ListModelMixin,
@@ -219,7 +224,7 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
     serializer_class = TrackerDetailModelSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ()
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
