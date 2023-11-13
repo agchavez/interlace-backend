@@ -17,7 +17,7 @@ def apply_output_movements(tracker_id, user_id):
         list_out = tracker.tracker_detail_output.all()
         for out in list_out:
             tracker_detail_product = out.tracker_detail_product
-            quantity_boxes = out.quantity * tracker_detail_product.tracker_detail.product.boxes_pre_pallet
+            quantity_boxes = out.quantity
             inventory_movement = InventoryMovementModel.objects.create(
                 tracker_detail_product=tracker_detail_product,
                 module=InventoryMovementModel.Module.T1,
