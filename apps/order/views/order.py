@@ -9,8 +9,21 @@ from ..models.history import OrderHistoryModel
 from ..models.detail import OrderDetailModel
 
 from ..serializers import OrderSerializer, OrderDetailSerializer, OrderHistorySerializer
+
+from django_filters.rest_framework import DjangoFilterBackend
+import django_filters
+from rest_framework import filters
 from ...user.views.user import CustomAccessPermission
 
+class OrderFilter(django_filters.FilterSet):
+    class Meta:
+        model = OrderModel
+        fields = {
+            'status': ['exact'],
+            'id': ['exact'],
+            'location': ['exact'],
+            'distributor_center': ['exact'],
+        }
 
 # ViewSet de ordenes
 class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, GenericViewSet,
@@ -18,6 +31,10 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
     queryset = OrderModel.objects.all()
     serializer_class = OrderSerializer
     lookup_field = 'id'
+
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    filterset_class = OrderFilter
+
     permission_classes = [CustomAccessPermission]
     PERMISSION_MAPPING = {
         'GET': ['order.view_ordermodel'],
