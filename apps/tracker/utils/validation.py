@@ -1,3 +1,5 @@
+from django.db.models import Sum
+
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, \
     InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
