@@ -5,7 +5,7 @@ from ..models.history import OrderHistoryModel
 from ..models.detail import OrderDetailModel
 
 from ..exceptions.order_detail import QuantityExceeded, OrderNotCompleted
-from apps.maintenance.serializer import ProductModelSerializer
+from apps.maintenance.serializer import ProductModelSerializer, LocationModelSerializer
 from rest_framework import serializers
 
 # Serializer de historico de ordenes
@@ -45,7 +45,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         value = sum_quantity.get('quantity__sum')
         boxes_pre_pallet = attrs.get('tracker_detail_product').tracker_detail.product.boxes_pre_pallet
         # catidad total es la cantidad de cajas por pallet por toda la cantidad de pallets
-        total_quantity = boxes_pre_pallet * (value + quantity)
+        total_quantity = value + quantity
         if total_quantity > attrs.get(
                 'tracker_detail_product').available_quantity:
             raise QuantityExceeded()
@@ -68,6 +68,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 # Serializer de ordenes
 class OrderSerializer(serializers.ModelSerializer):
     order_detail = OrderDetailSerializer(many=True, read_only=True)
+    location_data = LocationModelSerializer(source='location', read_only=True)
 
     # No se pueden editar las ordenes que estan en estado COMPLETED o IN_PROCESS
     def validate(self, attrs):
