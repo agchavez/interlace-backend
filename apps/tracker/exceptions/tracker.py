@@ -256,3 +256,22 @@ class FileNotExists(APIException):
         'error_code': 'file_not_found'
     }
     default_code = 'file_not_found'
+
+# No se puede seleccinar pedidos que esten completos
+class OrderCompleted(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'No se puede seleccionar pedidos que esten completos',
+        'error_code': 'order_completed'
+    }
+    default_code = 'order_completed'
+
+
+# solo se pueden listar ordenes del centro de distribucion en donde se genero el tracker
+class OrderDistributorCenter(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'No se puede seleccionar una orden de otro centro de distribución',
+        'error_code': 'order_distributor_center'
+    }
+    default_code = 'order_distributor_center'

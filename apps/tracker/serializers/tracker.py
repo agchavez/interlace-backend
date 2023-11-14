@@ -5,11 +5,11 @@ from django.db.models import Sum, Q
 from rest_framework import serializers
 
 # Models
-from apps.tracker.models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
+from apps.tracker.models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel, TrackerDetailOutputModel
 
 from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequired, TrailerRequired, PalletsExceeded, \
     TrailerInUse, TrackerCompletedDetail, TrackerCompletedDetailProduct, InputDocumentNumberIsNotNumber, \
-    InputDocumentNumberRegistered
+    InputDocumentNumberRegistered, OrderCompleted, OrderDistributorCenter
 
 from apps.maintenance.serializer import TrailerModelSerializer, TransporterModelSerializer, DistributorCenterSerializer, \
     ProductModelSerializer, LocationModelSerializer
@@ -143,6 +143,25 @@ class TrackerSerializer(serializers.ModelSerializer):
                 data['input_date'] = datetime.now()
             else:
                 data['input_date'] = self.instance.input_date
+        # Si se cambia la orden de compra, eliminar los detalles de salida
+        if self.instance and 'order' in data:
+            if self.instance.order != data['order']:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+
+        # Solo se pueden seleccionar pedidos que no esten completos
+        if data.get('order') and self.instance:
+            if data.get('order').status == 'COMPLETED':
+                raise OrderCompleted()
+
+        # solo se pueden listar ordenes del centro de distribucion en donde se genero el tracker
+        if data.get('order') and self.instance:
+            if data.get('order').distributor_center != self.instance.distributor_center:
+                raise OrderDistributorCenter()
+
+        # La localidad de envio es la misma que se configuro en la orden
+        if data.get('order') and self.instance:
+            data['destination_location'] = data.get('order').location
+
         return data
 
     def create(self, validated_data):
