@@ -1,5 +1,6 @@
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, \
     DestroyModelMixin
+from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from ..exceptions.order_detail import OrderDetailExist
@@ -16,6 +17,11 @@ from rest_framework import filters
 from ...user.views.user import CustomAccessPermission
 
 class OrderFilter(django_filters.FilterSet):
+    status_choice = django_filters.MultipleChoiceFilter(
+        choices=OrderModel.OrderStatus.choices,
+        field_name='status',
+
+    )
     class Meta:
         model = OrderModel
         fields = {
@@ -35,7 +41,7 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     filterset_class = OrderFilter
 
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     PERMISSION_MAPPING = {
         'GET': ['order.view_ordermodel'],
         'POST': ['order.add_ordermodel'],
@@ -52,7 +58,7 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
         queryset = OrderModel.objects.all()
         user = self.request.user
         try:
-            cd = user.distributor_center
+            cd = user.centro_distribucion
             queryset = queryset.filter(distributor_center=cd)
         except:
             pass

@@ -88,5 +88,4 @@ class InventoryMovementModel(BaseModel):
         verbose_name_plural = "Movimientos de inventario"
 
     def __str__(self):
-        return self.inventory.product.name + " - " + self.inventory.distributor_center.name + " - " + str(
-            self.quantity) + " - " + str(self.expiration_date)
+        return f"{self.id} - {self.tracker_detail_product.tracker_detail.product.name} - {self.quantity}"

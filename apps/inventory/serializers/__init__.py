@@ -1,1 +1,1 @@
-from .inventory import InventoryMovementSerializer
+from .inventory import InventoryMovementSerializer, InventoryMovementMassiveSerializer
