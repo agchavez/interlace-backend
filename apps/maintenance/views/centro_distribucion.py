@@ -53,8 +53,9 @@ class RouteFilter(django_filters.FilterSet):
         }
 
 class RouteModelViewSet(mixins.ListModelMixin,
-                                mixins.RetrieveModelMixin
-                                , viewsets.GenericViewSet):
+                                mixins.RetrieveModelMixin,
+                                mixins.CreateModelMixin,
+                                viewsets.GenericViewSet):
     queryset = RouteModel.objects.all()
     serializer_class = RouteModelSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
@@ -82,7 +83,8 @@ class LocationFilter(django_filters.FilterSet):
             'name': ['icontains'],
         }
 class LocationModelViewSet(mixins.ListModelMixin,
-                                mixins.RetrieveModelMixin
+                            mixins.RetrieveModelMixin,
+                            mixins.CreateModelMixin
                                 , viewsets.GenericViewSet):
     queryset = LocationModel.objects.all()
     serializer_class = LocationModelSerializer

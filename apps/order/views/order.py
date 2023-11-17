@@ -1,7 +1,9 @@
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, \
     DestroyModelMixin
+from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
-
+from rest_framework.decorators import action
+from rest_framework import status
 from ..exceptions.order_detail import OrderDetailExist
 # LOCAL
 from ..models.order import OrderModel
@@ -9,8 +11,28 @@ from ..models.history import OrderHistoryModel
 from ..models.detail import OrderDetailModel
 
 from ..serializers import OrderSerializer, OrderDetailSerializer, OrderHistorySerializer
+
+from django_filters.rest_framework import DjangoFilterBackend
+import django_filters
+from rest_framework import filters
+
+from ..utils.order import validate_and_create_order
 from ...user.views.user import CustomAccessPermission
 
+class OrderFilter(django_filters.FilterSet):
+    status_choice = django_filters.MultipleChoiceFilter(
+        choices=OrderModel.OrderStatus.choices,
+        field_name='status',
+
+    )
+    class Meta:
+        model = OrderModel
+        fields = {
+            'status': ['exact'],
+            'id': ['exact'],
+            'location': ['exact'],
+            'distributor_center': ['exact'],
+        }
 
 # ViewSet de ordenes
 class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, GenericViewSet,
@@ -18,7 +40,11 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
     queryset = OrderModel.objects.all()
     serializer_class = OrderSerializer
     lookup_field = 'id'
-    permission_classes = [CustomAccessPermission]
+
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    filterset_class = OrderFilter
+
+    permission_classes = []
     PERMISSION_MAPPING = {
         'GET': ['order.view_ordermodel'],
         'POST': ['order.add_ordermodel'],
@@ -35,7 +61,7 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
         queryset = OrderModel.objects.all()
         user = self.request.user
         try:
-            cd = user.distributor_center
+            cd = user.centro_distribucion
             queryset = queryset.filter(distributor_center=cd)
         except:
             pass
@@ -68,6 +94,17 @@ class OrderDetailViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, U
         if order_detail:
             raise OrderDetailExist()
         return super(OrderDetailViewSet, self).create(request, *args, **kwargs)
+
+    # Cargar desde un excel los detalles de una orden
+    @action(detail=False, methods=['post'], url_path='load-excel')
+    def load_excel(self, request):
+        order, list_data_error = validate_and_create_order(request)
+        return Response({
+            'order': OrderSerializer(order).data,
+            'order_detail': OrderDetailSerializer(OrderDetailModel.objects.filter(order=order), many=True).data,
+            'errors': list_data_error,
+        }, status=status.HTTP_201_CREATED)
+
 
 
 # ViewSet de historico de ordenes

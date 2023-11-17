@@ -159,6 +159,12 @@ class OutputTypeModel(BaseModel):
     required_details = models.BooleanField(
         "Detalle requeridos",
         default=False)
+
+    # requiere pedidos
+    required_orders = models.BooleanField(
+        "Requiere pedidos",
+        default=False
+    )
     def __str__(self):
         return self.name
 

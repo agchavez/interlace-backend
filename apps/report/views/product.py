@@ -79,6 +79,7 @@ class ProductosProximosAVencerAPI(viewsets.ReadOnlyModelViewSet):
             'tracker_detail__product__name',
             'expiration_date',
             'quantity',
+            'available_quantity',
             'tracker_detail__tracker__id',
             'tracker_detail__tracker__distributor_center__name',
             'tracker_detail__product__sap_code',
@@ -110,13 +111,19 @@ class ProductosProximosAVencerAPI(viewsets.ReadOnlyModelViewSet):
                 productos_dict[producto] = {
                     'product_name': producto,
                     'sap_code': sap_code,
-                    'expiration_list': [{'expiration_date': expiration_date, 'quantity': item['quantity'], 'tracker_id': item['tracker_detail__tracker__id']}],
+                    'expiration_list': [{
+                        'expiration_date': expiration_date,
+                        'quantity': item['quantity'],
+                        'available_quantity': item['available_quantity'],
+                        'tracker_id': item['tracker_detail__tracker__id'],
+                    }],
                     'distributor_center': distributor_center,
                 }
             else:
                 productos_dict[producto]['expiration_list'].append({
                         'expiration_date': expiration_date,
                         'quantity': item['quantity'],
+                        'available_quantity': item['available_quantity'],
                         'tracker_id': item['tracker_detail__tracker__id'],
                     })
 
