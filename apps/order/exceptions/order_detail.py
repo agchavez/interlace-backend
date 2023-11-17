@@ -36,3 +36,21 @@ class CustomAPIException(APIException):
         }
         self.default_code = code
         super().__init__(detail, code)
+
+# La localidad es requerida
+class LocationRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'La localidad es requerida',
+        'error_code': 'location_required'
+    }
+    default_code = 'location_required'
+
+# El usuario no tiene permisos para realizar esta acción
+class PermissionDenied(APIException):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = {
+        'mensage': 'El usuario no tiene permisos para realizar esta acción',
+        'error_code': 'permission_denied'
+    }
+    default_code = 'permission_denied'

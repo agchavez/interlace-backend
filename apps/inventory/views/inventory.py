@@ -17,12 +17,6 @@ import pandas as pd  # Asegúrate de tener instalada la librería pandas
 from ...tracker.models import TrackerDetailProductModel
 
 
-
-from django.db import connection
-from django.db import reset_queries
-
-
-
 # Filtros de movimientos de inventario
 class InventoryMovementFilter(filters.FilterSet):
     class Meta:
@@ -30,6 +24,13 @@ class InventoryMovementFilter(filters.FilterSet):
         fields = {
             'movement_type': ['exact'],
             'user': ['exact'],
+            'tracker_detail_product__tracker_detail__tracker__distributor_center': ['exact'],
+            'tracker_detail_product__tracker_detail__product': ['exact'],
+            'tracker_detail_product__tracker_detail__product__sap_code': ['exact'],
+            'tracker_detail_product__tracker_detail__product__name': ['contains'],
+            'module': ['exact'],
+            'origin_id': ['exact'],
+            'is_applied': ['exact'],
         }
 # Vista de movimientos de inventario
 class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
@@ -119,22 +120,6 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
             codigo_sap = row['codigo_sap']
             fecha_vencimiento = row['fecha_vencimiento'].strftime('%Y-%m-%d')
             cantidad = row['cantidad']
-
-            # Habilitar la impresión de consultas SQL
-            connection.queries_log.clear()
-            reset_queries()
-
-            tracker_detail_product = TrackerDetailProductModel.objects.filter(
-                tracker_detail__tracker__id=tracker_id,
-                tracker_detail__product__sap_code=str(codigo_sap),
-                expiration_date=str(fecha_vencimiento),
-            ).query
-
-            # Imprimir las consultas SQL
-            print("Queries:", tracker_detail_product)
-
-            # Restablecer la configuración después de imprimir
-            reset_queries()
 
             try:
                 tracker_detail_product = TrackerDetailProductModel.objects.get(

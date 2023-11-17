@@ -2,7 +2,8 @@ from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveMode
     DestroyModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
-
+from rest_framework.decorators import action
+from rest_framework import status
 from ..exceptions.order_detail import OrderDetailExist
 # LOCAL
 from ..models.order import OrderModel
@@ -14,6 +15,8 @@ from ..serializers import OrderSerializer, OrderDetailSerializer, OrderHistorySe
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 from rest_framework import filters
+
+from ..utils.order import validate_and_create_order
 from ...user.views.user import CustomAccessPermission
 
 class OrderFilter(django_filters.FilterSet):
@@ -91,6 +94,17 @@ class OrderDetailViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, U
         if order_detail:
             raise OrderDetailExist()
         return super(OrderDetailViewSet, self).create(request, *args, **kwargs)
+
+    # Cargar desde un excel los detalles de una orden
+    @action(detail=False, methods=['post'], url_path='load-excel')
+    def load_excel(self, request):
+        order, list_data_error = validate_and_create_order(request)
+        return Response({
+            'order': OrderSerializer(order).data,
+            'order_detail': OrderDetailSerializer(OrderDetailModel.objects.filter(order=order), many=True).data,
+            'errors': list_data_error,
+        }, status=status.HTTP_201_CREATED)
+
 
 
 # ViewSet de historico de ordenes
