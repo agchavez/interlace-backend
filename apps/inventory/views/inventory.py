@@ -15,6 +15,7 @@ from ..serializers import InventoryMovementSerializer, InventoryMovementMassiveS
 import pandas as pd  # Asegúrate de tener instalada la librería pandas
 
 from ...tracker.models import TrackerDetailProductModel
+from ...user.views.user import CustomAccessPermission
 
 
 # Filtros de movimientos de inventario
@@ -38,6 +39,19 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
     serializer_class = InventoryMovementSerializer
     filterset_class = InventoryMovementFilter
     filter_backends = [DjangoFilterBackend]
+
+    permission_classes = [CustomAccessPermission]
+    PERMISSION_MAPPING = {
+        'GET': ['inventory.view_inventorymovementmodel'],
+        'POST': ['inventory.add_inventorymovementmodel'],
+'PUT': ['inventory.change_inventorymovementmodel'],
+        'PATCH': ['inventory.change_inventorymovementmodel'],
+        'DELETE': ['inventory.delete_inventorymovementmodel'],
+    }
+
+    def get_required_permissions(self, http_method):
+        return self.PERMISSION_MAPPING.get(http_method, [])
+
 
     @action(detail=False, methods=['post'])
     def batch_create(self, request):
@@ -134,7 +148,7 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
                     "module": InventoryMovementModel.Module.ADMIN,
                     "movement_type": type,
                     "reason": reason,
-                    "user_id": 1
+                    "user_id": request.user.id
                 }
                 new_inv = InventoryMovementModel.objects.create(**data)
                 new_inv.save()

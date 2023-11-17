@@ -59,6 +59,16 @@ def validate_and_create_order(request):
                 tracker_detail__product__sap_code=str(codigo_sap),
                 expiration_date=str(fecha_vencimiento),
             )
+
+            if cantidad > tracker_detail_product.available_quantity or cantidad <= 0:
+                list_data_error.append({
+                    "tracker_id": tracker_id,
+                    "codigo_sap": codigo_sap,
+                    "fecha_vencimiento": fecha_vencimiento,
+                    "cantidad": cantidad,
+                })
+                continue
+
             data = {
                 "tracker_detail_product": tracker_detail_product,
                 "quantity": cantidad,
