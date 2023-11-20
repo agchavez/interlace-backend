@@ -44,7 +44,7 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     filterset_class = OrderFilter
 
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     PERMISSION_MAPPING = {
         'GET': ['order.view_ordermodel'],
         'POST': ['order.add_ordermodel'],

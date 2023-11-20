@@ -15,6 +15,7 @@ from apps.maintenance.serializer import TrailerModelSerializer, TransporterModel
     ProductModelSerializer, LocationModelSerializer
 
 from .typeDetailOutput import TrackerDetailOutputSerializer
+from ...maintenance.models import OutputTypeModel
 
 
 class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
@@ -148,6 +149,18 @@ class TrackerSerializer(serializers.ModelSerializer):
             if self.instance.order != data['order']:
                 TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
 
+        #Cuanda cambia de tipo de salida con de una que requiere order a una diferente, eliminar los detalles de salida y orden pasa a None
+        if self.instance and 'output_type' in data and self.instance.output_type:
+            output_type = OutputTypeModel.objects.get(id=self.instance.output_type.id)
+            if self.instance.output_type.required_orders and not output_type.required_orders and self.instance.order:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+                data['order'] = None
+
+        if self.instance and 'output_type' in data and self.instance.output_type:
+            output_type = OutputTypeModel.objects.get(id=self.instance.output_type.id)
+            if not self.instance.output_type.required_orders and output_type.required_orders:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+                
         # Solo se pueden seleccionar pedidos que no esten completos
         if data.get('order') and self.instance:
             if data.get('order').status == 'COMPLETED':

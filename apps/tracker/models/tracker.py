@@ -415,4 +415,3 @@ class TrackerDetailOutputModel(BaseModel):
         db_table = "tracker_detail_output"
         verbose_name = "Detalle de salida de tracker"
         verbose_name_plural = "Detalles de salida de tracker"
-        unique_together = ('tracker', 'product')

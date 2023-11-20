@@ -48,12 +48,14 @@ def update_order_detail(order, tracker):
     for order_detail in order_details:
 
         # actualizar la cantidad disponible
-        tracker_detail_product = tracker_detail_product_list.get(
+        tracker_detail_product = tracker_detail_product_list.filter(
             tracker_detail_product=order_detail.tracker_detail_product)
 
 
-        if not tracker_detail_product:
+        if not tracker_detail_product.exists():
             continue
+
+        tracker_detail_product = tracker_detail_product.first()
 
         order_detail.quantity_available = order_detail.quantity_available - tracker_detail_product.quantity
 
@@ -74,7 +76,7 @@ def update_order_detail(order, tracker):
 
     # si todas las cantidades estan en 0 cambiar el estado de la orden a COMPLETE
     if order_details.filter(quantity_available__gt=0).count() == 0:
-        order.status = 'COMPLETE'
+        order.status = 'COMPLETED'
         order.save()
 
 
