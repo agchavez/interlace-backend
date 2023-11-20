@@ -71,6 +71,7 @@ class ProductosProximosAVencerAPI(viewsets.ReadOnlyModelViewSet):
         queryset = (TrackerDetailProductModel.objects.filter(
             expiration_date__gte=fecha_actual,
             expiration_date__lte=fecha_limite,
+            available_quantity__gt=0,
             tracker_detail__tracker__status='COMPLETE',
             tracker_detail__isnull=False,
         ).exclude(

@@ -31,7 +31,7 @@ class TrackerDetailOutputView(
                                 mixins.DestroyModelMixin):
         queryset = TrackerDetailOutputModel.objects.all()
         serializer_class = TrackerDetailOutputSerializer
-        permission_classes = [CustomAccessPermission]
+        permission_classes = []
         filter_backends = [DjangoFilterBackend]
         filterset_class = TrackerDetailOutputFilterSet
         # Mapeo de métodos HTTP a los permisos requeridos
@@ -51,7 +51,13 @@ class TrackerDetailOutputView(
             # validar que no existe un producto en el tracker
             tracker = request.data['tracker']
             product = request.data['product']
-            if TrackerDetailOutputModel.objects.filter(tracker=tracker, product=product).exists():
-                raise ProductOutputRegistered()
+
+            if 'tracker_detail_product' in request.data:
+                tracker_detail_product = request.data['tracker_detail_product']
+                if TrackerDetailOutputModel.objects.filter(tracker=tracker, product=product, tracker_detail_product=tracker_detail_product).exists():
+                    raise ProductOutputRegistered()
+            else:
+                if TrackerDetailOutputModel.objects.filter(tracker=tracker, product=product).exists():
+                    raise ProductOutputRegistered()
             return super().create(request, *args, **kwargs)
 
