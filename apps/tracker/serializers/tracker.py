@@ -148,6 +148,16 @@ class TrackerSerializer(serializers.ModelSerializer):
             if self.instance.order != data['order']:
                 TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
 
+        # Cuanda cambia de tipo de salida con de una que requiere order a una diferente, eliminar los detalles de salida y orden pasa a None
+        if self.instance and 'output_type' in data:
+            if self.instance.output_type.required_orders and not data['output_type'].required_orders and self.instance.order:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+                data['order'] = None
+
+        if self.instance and 'output_type' in data:
+            if not self.instance.output_type.required_orders and data['output_type'].required_orders:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+                
         # Solo se pueden seleccionar pedidos que no esten completos
         if data.get('order') and self.instance:
             if data.get('order').status == 'COMPLETED':
