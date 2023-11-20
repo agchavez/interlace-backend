@@ -264,7 +264,7 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
     serializer_class = TrackerDetailModelSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ()
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
