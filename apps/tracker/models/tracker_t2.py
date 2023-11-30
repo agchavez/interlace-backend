@@ -5,6 +5,7 @@ from django.db import models
 from utils.BaseModel import BaseModel
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
     OperatorModel, OutputTypeModel, DistributorCenter
+from apps.tracker.models import TrackerDetailProductModel
 from apps.user.models import UserModel
 
 # Modelo para encabezado de salida de productos t2
@@ -38,7 +39,6 @@ class OutputT2Model(BaseModel):
     choices_status = [
         ('CREATED', 'CREATED'),
         ('AUTHORIZED', 'AUTHORIZED'),
-        ('RECEIVED', 'RECEIVED'),
         ('REJECTED', 'REJECTED'),
         ('APPLIED', 'APPLIED'),
     ]
@@ -118,3 +118,34 @@ class OutputDetailT2Model(BaseModel):
     def __str__(self):
         return self.id
 
+
+# Modelo de los trackers de salida de productos t2
+class TrackerOutputT2Model(BaseModel):
+    # salida
+    output = models.ForeignKey(
+        OutputT2Model,
+        on_delete=models.CASCADE,
+        verbose_name="Salida",
+        related_name="tracker_output_t2")
+
+    # tracker
+    tracker = models.ForeignKey(
+        TrackerDetailProductModel,
+        on_delete=models.CASCADE,
+        verbose_name="Tracker",
+        related_name="tracker_output_t2")
+
+    # cantidad
+    quantity = models.DecimalField(
+        "Cantidad",
+        max_digits=10,
+        decimal_places=2,
+        default=0)
+
+    class Meta:
+        db_table = "tracker_output_t2"
+        verbose_name = "Tracker de salida T2"
+        verbose_name_plural = "Trackers de salida T2"
+
+    def __str__(self):
+        return self.id
