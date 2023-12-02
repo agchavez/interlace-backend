@@ -38,8 +38,7 @@ class OutputT2Model(BaseModel):
     # Estados de la salida
     choices_status = [
         ('CREATED', 'CREATED'),
-        ('AUTHORIZED', 'AUTHORIZED'),
-        ('REJECTED', 'REJECTED'),
+        ('CHECKED', 'CHECKED'),
         ('APPLIED', 'APPLIED'),
     ]
 
@@ -56,6 +55,13 @@ class OutputT2Model(BaseModel):
         on_delete=models.CASCADE,
         verbose_name="Centro de distribución",
         related_name="distributor_center_output_t2")
+
+    # Observaciones
+    observations = models.CharField(
+        "Observaciones",
+        max_length=200,
+        null=True,
+        blank=True)
 
     class Meta:
         db_table = "output_t2"
@@ -98,8 +104,10 @@ class OutputDetailT2Model(BaseModel):
 
     # Estados de la salida
     choices_status = [
-        ('AUTHORIZED', 'AUTHORIZED'),
+        ('CREATED', 'CREATED'),
+        ('CHECKED', 'CHECKED'),
         ('REJECTED', 'REJECTED'),
+        ('AUTHORIZED', 'AUTHORIZED'),
         ('APPLIED', 'APPLIED'),
     ]
 
