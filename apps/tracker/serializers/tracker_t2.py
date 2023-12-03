@@ -1,22 +1,26 @@
 from django.db.models import Sum
 from rest_framework import serializers
 
+from ..exceptions.tracker_t2 import QuantityExceededOut, QuantityMajorZero, TrackerDetailExist, \
+    TrackerDetailProductRequired, QuantityRequired, QuantitySumExceeded
 from ..models import TrackerOutputT2Model, OutputDetailT2Model, OutputT2Model, TrackerDetailProductModel
+from ...order.exceptions.order_detail import CustomAPIException, QuantityExceeded
+
 
 class TrackerOutputT2Serializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data['quantity'] <= 0:
-            raise serializers.ValidationError('La cantidad debe ser mayor a 0')
+            raise QuantityMajorZero()
 
         # No pueden existir dos tracker_output_t2 con el mismo tracker_detail
-        if not self.instance:
-            if TrackerOutputT2Model.objects.filter(tracker_detail=data['tracker_detail']).exists():
-                raise serializers.ValidationError('Ya existe un registro con el mismo tracker_detail')
+        # if not self.instance:
+        #     if TrackerOutputT2Model.objects.filter(tracker_detail=data['tracker_detail']).exists():
+        #         raise TrackerDetailExist()
 
         # la cantiadad no puede se mayor a la cantidad disponible en el tracker
         if data['quantity'] > data['tracker_detail'].available_quantity:
-            raise serializers.ValidationError('La cantidad no puede ser mayor a la cantidad disponible en el tracker')
+            raise QuantityExceeded()
 
         # suma de todos los tracker_output_t2 con el mismo output_detail
         if not self.instance:
@@ -26,7 +30,7 @@ class TrackerOutputT2Serializer(serializers.ModelSerializer):
         sum_quantity = sum_quantity if sum_quantity else 0
         sum_quantity = sum_quantity + data['quantity'] if self.instance else sum_quantity
         if sum_quantity > data['output_detail'].quantity:
-            raise serializers.ValidationError('La cantidad no puede ser mayor a la cantidad de la salida')
+            raise QuantityExceededOut()
         return data
 
     def create(self, validated_data):
@@ -107,7 +111,10 @@ class OutputTrackerT2MassiveSerializer(serializers.Serializer):
             try:
                 TrackerOutputT2Model.objects.get(id=item)
             except TrackerOutputT2Model.DoesNotExist:
-                raise serializers.ValidationError(f"El tracker_output_t2 {item} no existe.")
+                raise CustomAPIException(
+                    detail=f"No existe registro de tracker con el id: {item}.",
+                    code='order_not_completed',
+                )
         return value
 
     def validate_list(self, value):
@@ -118,12 +125,11 @@ class OutputTrackerT2MassiveSerializer(serializers.Serializer):
         for item in value:
             # Verificar que 'tracker_detail_product' esté presente
             if 'tracker_detail_product' not in item:
-                raise serializers.ValidationError("Cada elemento debe tener 'tracker_detail_product'.")
-
+                raise TrackerDetailProductRequired()
 
             # Verificar que 'quantity' esté presente
             if 'quantity' not in item:
-                raise serializers.ValidationError("Cada elemento debe tener 'quantity'.")
+                raise QuantityRequired()
             else:
                 item['quantity'] = int(item['quantity'])
 
@@ -141,18 +147,24 @@ class OutputTrackerT2MassiveSerializer(serializers.Serializer):
 
                 # la cantidad no supere la cantidad disponible en el tracker
                 if item['quantity'] > value_trk.available_quantity:
-                    raise serializers.ValidationError(f"La cantidad no puede ser mayor a la cantidad disponible en el tracker {tracker_detail_product_id}")
-
+                    raise CustomAPIException(
+                        detail=f"La cantidad no puede ser mayor a la cantidad disponible en el tracker {tracker_detail_product_id}",
+                        code='quantity_exceeded_detail',
+                    )
             except TrackerDetailProductModel.DoesNotExist:
-                raise serializers.ValidationError(f"'tracker_detail_product' {tracker_detail_product_id} no existe.")
-
+                raise CustomAPIException(
+                    detail=f"No existe registro de tracker con el id: {tracker_detail_product_id}.",
+                    code='order_not_completed',
+                )
             # validar que no exista el mismo tracker_detail_product ya registrado en la base de datos para el mismo output_detail
             if TrackerOutputT2Model.objects.filter(tracker_detail_id=tracker_detail_product_id, output_detail=output_detail).exists():
-                raise serializers.ValidationError(f"El tracker_detail_product {tracker_detail_product_id} ya existe para esta salida.")
-
+                raise CustomAPIException(
+                    detail=f"El detalle de producto con id: {tracker_detail_product_id} ya existe para esta salida.",
+                    code='tracker_detail_product_exist',
+                )
         # la suma de las cantidades no puede ser mayor a la cantidad de la salida
         if sum_quantity > output_detail.quantity:
-            raise serializers.ValidationError(f"La suma de las cantidades no puede ser mayor a la cantidad de la salida.")
+            raise QuantitySumExceeded()
 
         return value
 

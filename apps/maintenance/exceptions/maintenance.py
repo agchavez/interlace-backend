@@ -32,3 +32,12 @@ class ProductNoIntegerError(APIException):
         'error_code': 'product_id_not_int'
     }
     default_code = 'product_id_not_int'
+
+# No existe el producto en el centro de distribución
+class ProductDoesNotExistError(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El producto no existe en el centro de distribución',
+        'error_code': 'product_does_not_exist'
+    }
+    default_code = 'product_does_not_exist'
