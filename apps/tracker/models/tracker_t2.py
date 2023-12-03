@@ -121,6 +121,8 @@ class OutputDetailT2Model(BaseModel):
         verbose_name = "Detalle de salida T2"
         verbose_name_plural = "Detalles de salida T2"
 
+    def __str__(self):
+        return str(self.output.id) + ' - ' +  self.product.name + ' - ' + str(self.quantity) + ' - ' + self.status
 
 
 # Modelo de los trackers de salida de productos t2

@@ -1,17 +1,22 @@
 # rest_framework
 import pandas as pd
+from django.db.models import Sum
 from rest_framework import viewsets, mixins, status
 
 # transactions
 from django.db import transaction
 
+# actions
+from rest_framework.decorators import action
+
 #django filters
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
+from rest_framework.status import HTTP_200_OK
 
 from ..models import OutputT2Model, OutputDetailT2Model, TrackerOutputT2Model
-from ..serializers import OutputDetailT2Serializer, TrackerOutputT2Serializer, OutputT2Serializer
+from ..serializers import OutputDetailT2Serializer, TrackerOutputT2Serializer, OutputT2Serializer, OutputTrackerT2MassiveSerializer
 from ...inventory.exceptions.inventory import FileRequired, InvalidFile, RequiredColumns
 from ...maintenance.models import ProductModel
 from ...order.exceptions.order_detail import PermissionDenied
@@ -186,6 +191,55 @@ class OutputDetailT2View( viewsets.GenericViewSet, mixins.ListModelMixin, mixins
             self.perform_destroy(instance)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+        @action(detail=True, methods=['post'], url_path='massive-create')
+        def massive_create(self, request, *args, **kwargs):
+            output_detail = self.get_object()
+            serializer = OutputTrackerT2MassiveSerializer(data=request.data, context={'output_detail': output_detail})
+            if serializer.is_valid():
+                # validar que el usuario tenga permisos para crear
+                try:
+                    cd = request.user.centro_distribucion
+                except:
+                    raise PermissionDenied()
+
+                if cd != output_detail.output.distributor_center:
+                    raise PermissionDenied()
+
+                # validar que el status de la salida sea CREATED
+
+                list = serializer.validated_data['list']
+                list_delete = serializer.validated_data['list_delete']
+
+                # TODO: MANEJO DE ESTADOS validacion
+
+                #transaccion
+                with transaction.atomic():
+                    if list_delete:
+                        # eliminar los tracker_output_t2 que esten en la lista de list_delete
+                        TrackerOutputT2Model.objects.filter(id__in=list_delete).delete()
+
+                    for data in list:
+                        # crear el tracker output t2
+                        TrackerOutputT2Model.objects.create(
+                            output_detail=output_detail,
+                            tracker_detail_id=data['tracker_detail_product'],
+                            quantity=data['quantity']
+                        )
+                    # si la suma de todos los tracker_output_t2 con el mismo output_detail es igual a la cantidad de la salida, cambiar el status a CHECKED
+                    sum_quantity = TrackerOutputT2Model.objects.filter(output_detail=output_detail).aggregate(total=Sum('quantity'))['total']
+                    if sum_quantity == output_detail.quantity:
+                        output_detail.status = 'CHECKED'
+                        output_detail.save()
+                    else:
+                        output_detail.status = 'CREATED'
+                        output_detail.save()
+
+                return Response(OutputDetailT2Serializer(output_detail).data, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
 class TrackerOutputT2FilterSet(django_filters.FilterSet):
     class Meta:
@@ -196,13 +250,7 @@ class TrackerOutputT2FilterSet(django_filters.FilterSet):
         }
 
 
-class TrackerOutputT2View(
-                                viewsets.GenericViewSet,
-                                mixins.ListModelMixin,
-                                mixins.RetrieveModelMixin,
-                                mixins.CreateModelMixin,
-                                mixins.UpdateModelMixin,
-                                mixins.DestroyModelMixin):
+class TrackerOutputT2View( viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin):
         queryset = TrackerOutputT2Model.objects.all()
         serializer_class = TrackerOutputT2Serializer
         permission_classes = []
@@ -219,8 +267,3 @@ class TrackerOutputT2View(
 
         def get_required_permissions(self, http_method):
             return self.PERMISSION_MAPPING.get(http_method, [])
-
-        # Funcion de crear
-        def create(self, request, *args, **kwargs):
-            return super(TrackerOutputT2View, self).create(request, *args, **kwargs)
-
