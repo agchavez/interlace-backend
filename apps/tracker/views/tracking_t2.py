@@ -77,7 +77,7 @@ class OutputT2View(viewsets.GenericViewSet,mixins.ListModelMixin,mixins.Retrieve
 
             if df['Material'].isnull().values.any() or df['Total Disponible'].isnull().values.any() or df['Cantidad en Pedidos'].isnull().values.any():
                 raise RequiredColumns()
-
+            products_list = []
             # validar que los productos existan en el inventario
             for index, row in df.iterrows():
                 product = ProductModel.objects.filter(sap_code=row['Material'])
@@ -87,9 +87,7 @@ class OutputT2View(viewsets.GenericViewSet,mixins.ListModelMixin,mixins.Retrieve
                         'quantity': row['Cantidad en Pedidos'],
                         'error': 'Producto no encontrado'
                     })
-                else:
-                    row['Material'] = product[0].id
-
+                continue
             if list_data_error:
                 return Response({
                     'errors': list_data_error,
@@ -98,14 +96,15 @@ class OutputT2View(viewsets.GenericViewSet,mixins.ListModelMixin,mixins.Retrieve
             # restar total disponible - cantidad en pedidos y si es mayor a 0, agregar a la lista 'Cantidad en Pedidos' de lo contrario agregar 'Total Disponible'
 
             for index, row in df.iterrows():
+                product = ProductModel.objects.get(sap_code=row['Material'])
                 if row['Total Disponible'] - row['Cantidad en Pedidos'] > 0:
                     list_data.append({
-                        'product': row['Material'],
+                        'product': product.id,
                         'quantity': row['Cantidad en Pedidos']
                     })
                 else:
                     list_data.append({
-                        'product': row['Material'],
+                        'product': product.id,
                         'quantity': row['Total Disponible']
                     })
 
