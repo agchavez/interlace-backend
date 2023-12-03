@@ -141,6 +141,7 @@ CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
 CELERY_BROKER_URL = config('CELERY_BROKER_REDIS_URL', default='redis://localhost:6379')
 CELERY_RESULT_BACKEND = "django-db"
+CELERY_RESULT_EXPIRES = 86400  # Tiempo en segundos (un día)
 
 
 

@@ -330,7 +330,7 @@ class TrackerDetailModel(BaseModel):
 # Modelo para los detalles de productos de los trackers
 
 class TrackerDetailProductModel(BaseModel):
-    # Tracker detalle
+    #    Tracker detalle
     tracker_detail = models.ForeignKey(
         TrackerDetailModel,
         on_delete=models.CASCADE,
@@ -355,6 +355,7 @@ class TrackerDetailProductModel(BaseModel):
     available_quantity = models.IntegerField(
         "Cantidad disponible",
         default=0)
+
     def __str__(self):
         return str(self.id) + " - " + str(self.tracker_detail)
 

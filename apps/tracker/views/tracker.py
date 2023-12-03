@@ -63,6 +63,16 @@ class TrackerFilter(django_filters.FilterSet):
         label='ID'
     )
 
+    status = django_filters.CharFilter(
+        field_name='status',
+        label='Status',
+        method='filter_status',
+    )
+
+    def filter_status(self, queryset, name, value):
+        values = value.split(',')
+        return queryset.filter(status__in=values)
+
 
     class Meta:
         model = TrackerModel
