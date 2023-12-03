@@ -68,8 +68,6 @@ class OutputT2Model(BaseModel):
         verbose_name = "Salida T2"
         verbose_name_plural = "Salidas T2"
 
-    def __str__(self):
-        return self.id
 
 # Modelo para el detalle de salida de productos t2
 
@@ -123,25 +121,23 @@ class OutputDetailT2Model(BaseModel):
         verbose_name = "Detalle de salida T2"
         verbose_name_plural = "Detalles de salida T2"
 
-    def __str__(self):
-        return self.id
 
 
 # Modelo de los trackers de salida de productos t2
 class TrackerOutputT2Model(BaseModel):
     # salida
-    output = models.ForeignKey(
-        OutputT2Model,
+    output_detail = models.ForeignKey(
+        OutputDetailT2Model,
         on_delete=models.CASCADE,
         verbose_name="Salida",
-        related_name="tracker_output_t2")
+        related_name="output_detail_tracker_t2")
 
     # tracker
-    tracker = models.ForeignKey(
+    tracker_detail = models.ForeignKey(
         TrackerDetailProductModel,
         on_delete=models.CASCADE,
         verbose_name="Tracker",
-        related_name="tracker_output_t2")
+        related_name="tracker_detail_output_t2")
 
     # cantidad
     quantity = models.DecimalField(
@@ -154,6 +150,3 @@ class TrackerOutputT2Model(BaseModel):
         db_table = "tracker_output_t2"
         verbose_name = "Tracker de salida T2"
         verbose_name_plural = "Trackers de salida T2"
-
-    def __str__(self):
-        return self.id
