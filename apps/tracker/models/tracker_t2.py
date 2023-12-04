@@ -27,7 +27,7 @@ class OutputT2Model(BaseModel):
         blank=True)
 
     # usuario que recibe la salida
-    user_receiver = models.ForeignKey(
+    user_applied = models.ForeignKey(
         UserModel,
         on_delete=models.CASCADE,
         verbose_name="Usuario receptor",

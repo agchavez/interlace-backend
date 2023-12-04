@@ -1,5 +1,6 @@
 # rest_framework
 import pandas as pd
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Sum
 from rest_framework import viewsets, mixins, status
 
@@ -12,8 +13,8 @@ from rest_framework.decorators import action
 # django filters
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
-from rest_framework.status import HTTP_200_OK
 
 from ..exceptions.tracker_t2 import DeleteStateCreated
 from ..models import OutputT2Model, OutputDetailT2Model, TrackerOutputT2Model
@@ -23,7 +24,7 @@ from ...inventory.exceptions.inventory import FileRequired, InvalidFile, Require
 from ...maintenance.models import ProductModel
 from ...order.exceptions.order_detail import PermissionDenied
 from ...user.views.user import CustomAccessPermission
-
+from ..utils.processes import apply_output_movements_t2
 
 class OutputT2FilterSet(django_filters.FilterSet):
     class Meta:
@@ -40,7 +41,7 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
                    mixins.DestroyModelMixin):
     queryset = OutputT2Model.objects.all()
     serializer_class = OutputT2Serializer
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     filter_backends = [DjangoFilterBackend]
     filterset_class = OutputT2FilterSet
     # Mapeo de métodos HTTP a los permisos requeridos
@@ -152,6 +153,51 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['post'], url_path='apply')
+    def apply(self, request, *args, **kwargs):
+        output = self.get_object_or_404()
+
+        self.check_permissions(request, output)
+
+        self.check_details_status(output)
+
+        with transaction.atomic():
+            self.apply_output(output)
+
+        return Response(OutputT2Serializer(output).data, status=status.HTTP_200_OK)
+
+    def get_object_or_404(self):
+        return get_object_or_404(OutputT2Model, pk=self.kwargs['pk'])
+
+    def check_permissions(self, request, output):
+        try:
+            cd = request.user.centro_distribucion
+        except ObjectDoesNotExist:
+            raise PermissionDenied()
+
+        if cd != output.distributor_center:
+            raise PermissionDenied()
+
+    def check_details_status(self, output):
+        unauthorized_details = OutputDetailT2Model.objects.filter(
+            output=output,
+            status__in=['CREATED', 'CHECKED', 'REJECTED']
+        ).exists()
+
+        if unauthorized_details:
+            # TODO: Estandarisar los mensajes de error
+            return Response({
+                'error': 'No se puede aplicar la salida, hay detalles pendientes por autorizar'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def apply_output(self, output, user):
+        # TODO: Insertar las salidas de inventario por T2
+        apply_output_movements_t2(output.id, user.id)
+        OutputT2Model.objects.filter(pk=output.pk).update(status='APPLIED', user_applied=user)
+        OutputDetailT2Model.objects.filter(
+            output=output
+        ).update(status='APPLIED')
+
 
 class OutputDetailT2FilterSet(django_filters.FilterSet):
     class Meta:
@@ -227,8 +273,8 @@ class OutputDetailT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.
                     )
                 # si la suma de todos los tracker_output_t2 con el mismo output_detail es igual a la cantidad de la salida, cambiar el status a CHECKED
                 sum_quantity = \
-                TrackerOutputT2Model.objects.filter(output_detail=output_detail).aggregate(total=Sum('quantity'))[
-                    'total']
+                    TrackerOutputT2Model.objects.filter(output_detail=output_detail).aggregate(total=Sum('quantity'))[
+                        'total']
                 if sum_quantity == output_detail.quantity:
                     output_detail.status = 'CHECKED'
                     output_detail.save()

@@ -184,6 +184,7 @@ class OutputT2Serializer(serializers.ModelSerializer):
     def get_user_receiver_name(self, obj):
         return obj.user_receiver.get_full_name() if obj.user_receiver else None
 
+
     class Meta:
         model = OutputT2Model
         fields = '__all__'
