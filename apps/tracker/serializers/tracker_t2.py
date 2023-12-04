@@ -173,7 +173,7 @@ class OutputT2Serializer(serializers.ModelSerializer):
     output_detail_t2 = OutputDetailT2Serializer(many=True, read_only=True)
     user_name = serializers.SerializerMethodField()
     user_authorizer_name = serializers.SerializerMethodField()
-    user_receiver_name = serializers.SerializerMethodField()
+    user_applied_name = serializers.SerializerMethodField()
 
     def get_user_name(self, obj):
         return obj.user.get_full_name()
@@ -181,8 +181,8 @@ class OutputT2Serializer(serializers.ModelSerializer):
     def get_user_authorizer_name(self, obj):
         return obj.user_authorizer.get_full_name() if obj.user_authorizer else None
 
-    def get_user_receiver_name(self, obj):
-        return obj.user_receiver.get_full_name() if obj.user_receiver else None
+    def get_user_applied_name(self, obj):
+        return obj.user_applied.get_full_name() if obj.user_applied else None
 
 
     class Meta:

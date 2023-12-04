@@ -20,8 +20,7 @@ from ..exceptions.tracker_t2 import DeleteStateCreated
 from ..models import OutputT2Model, OutputDetailT2Model, TrackerOutputT2Model
 from ..serializers import OutputDetailT2Serializer, TrackerOutputT2Serializer, OutputT2Serializer, \
     OutputTrackerT2MassiveSerializer
-from ...inventory.exceptions.inventory import FileRequired, InvalidFile, RequiredColumns
-from ...maintenance.models import ProductModel
+from ..utils.tracker_t2 import create_output_t2
 from ...order.exceptions.order_detail import PermissionDenied
 from ...user.views.user import CustomAccessPermission
 from ..utils.processes import apply_output_movements_t2
@@ -41,7 +40,7 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
                    mixins.DestroyModelMixin):
     queryset = OutputT2Model.objects.all()
     serializer_class = OutputT2Serializer
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     filter_backends = [DjangoFilterBackend]
     filterset_class = OutputT2FilterSet
     # Mapeo de métodos HTTP a los permisos requeridos
@@ -59,97 +58,21 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
     # Funcion de crear
     def create(self, request, *args, **kwargs):
         # validar si manda el excel, la localidad
-        if not 'file' in request.FILES:
-            raise FileRequired()
-        file = request.FILES.get('file')
-        if not file.name.endswith('.xlsx'):
-            raise InvalidFile()
-
-        try:
-            cd = request.user.centro_distribucion
-        except:
-            raise PermissionDenied()
-        location = request.data.get('location')
-        observations = request.data.get('observations') if 'observations' in request.data else None
-        # leer el excel
-        df = pd.read_excel(file)
-
-        if not 'Material' in df.columns or not 'Descripcion' in df.columns or not 'Total Disponible' in df.columns or not 'Cantidad en Pedidos' in df.columns:
-            raise RequiredColumns()
-
-        list_data = []
-        list_data_error = []
-
-        # Validar que los campos sean numericos tanto 'Material', 'Total Disponible' y 'Cantidad en Pedidos'
-        df['Material'] = pd.to_numeric(df['Material'], errors='coerce')
-        df['Total Disponible'] = pd.to_numeric(df['Total Disponible'], errors='coerce')
-        df['Cantidad en Pedidos'] = pd.to_numeric(df['Cantidad en Pedidos'], errors='coerce')
-
-        if df['Material'].isnull().values.any() or df['Total Disponible'].isnull().values.any() or df[
-            'Cantidad en Pedidos'].isnull().values.any():
-            raise RequiredColumns()
-        products_list = []
-        # validar que los productos existan en el inventario
-        for index, row in df.iterrows():
-            product = ProductModel.objects.filter(sap_code=row['Material'])
-            if not product:
-                list_data_error.append({
-                    'product': row['Material'],
-                    'quantity': row['Cantidad en Pedidos'],
-                    'error': 'Producto no encontrado'
-                })
-            continue
-        if list_data_error:
+        (data, status_code) = create_output_t2(request)
+        if status_code == status.HTTP_201_CREATED:
             return Response({
-                'errors': list_data_error,
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # restar total disponible - cantidad en pedidos y si es mayor a 0, agregar a la lista 'Cantidad en Pedidos' de lo contrario agregar 'Total Disponible'
-
-        for index, row in df.iterrows():
-            product = ProductModel.objects.get(sap_code=row['Material'])
-            if row['Total Disponible'] - row['Cantidad en Pedidos'] > 0:
-                list_data.append({
-                    'product': product.id,
-                    'quantity': row['Cantidad en Pedidos']
-                })
-            else:
-                list_data.append({
-                    'product': product.id,
-                    'quantity': row['Total Disponible']
-                })
-
-        # crear la salida
-        with transaction.atomic():
-            output = OutputT2Model.objects.create(
-                distributor_center=cd,
-                observations=observations,
-                user=request.user,
-            )
-            output.save()
-            for data in list_data:
-                # crear el detalle de la salida
-                OutputDetailT2Model.objects.create(
-                    output=output,
-                    product_id=data['product'],
-                    quantity=data['quantity']
-                )
-        return Response({
-            'output': OutputT2Serializer(output).data,
-            'output_detail': OutputDetailT2Serializer(OutputDetailT2Model.objects.filter(output=output),
-                                                      many=True).data,
-            'errors': list_data_error,
-        }, status=status.HTTP_201_CREATED)
+                'output': OutputT2Serializer(data).data,
+                'output_detail': OutputDetailT2Serializer(OutputDetailT2Model.objects.filter(output= data),
+                                                          many=True).data,
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(data, status=status_code)
 
     # solo se puede eliminar si no tiene detalle de salida y el status es CREATED
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.status != 'CREATED':
             raise DeleteStateCreated()
-        # if TrackerOutputT2Model.objects.filter(output_detail__output=instance).exists():
-        #     return Response({
-        #         'error': 'No se puede eliminar la salida'
-        #     }, status=status.HTTP_400_BAD_REQUEST)
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -157,7 +80,7 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
     def apply(self, request, *args, **kwargs):
         output = self.get_object_or_404()
 
-        self.check_permissions(request, output)
+        self.check_permissions_created(request, output)
 
         self.check_details_status(output)
 
@@ -169,7 +92,7 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
     def get_object_or_404(self):
         return get_object_or_404(OutputT2Model, pk=self.kwargs['pk'])
 
-    def check_permissions(self, request, output):
+    def check_permissions_created(self, request, output):
         try:
             cd = request.user.centro_distribucion
         except ObjectDoesNotExist:
