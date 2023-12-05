@@ -285,3 +285,11 @@ class OrderDistributorCenter(APIException):
     }
     default_code = 'order_distributor_center'
 
+# el id del producto es obligatorio
+class ProductIdRequired(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El id del producto es obligatorio',
+        'error_code': 'product_id_required'
+    }
+    default_code = 'product_id_required'

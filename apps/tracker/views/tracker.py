@@ -20,7 +20,7 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistrib
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
     OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
-    OriginLocationRequired, AccountedRequired,  FileTooLarge, FileNotExists
+    OriginLocationRequired, AccountedRequired, FileTooLarge, FileNotExists, ProductIdRequired
 
 from apps.user.views.user import CustomAccessPermission
 from apps.tracker.models import TrackerDetailOutputModel
@@ -388,6 +388,36 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    # Listar fechas disponibles por producto que su cantidad sea mayor a 0
+    @action(detail=False, methods=['get'], url_path='available-dates')
+    def available_dates(self, request, *args, **kwargs):
+        # el id del producto es requerido
+        product_id = request.GET.get('product_id')
+        if product_id is None or not product_id.isnumeric():
+            raise ProductIdRequired()
+
+        query = TrackerDetailProductModel.objects.filter(tracker_detail__product__id=product_id, available_quantity__gt=0)
+
+        # agrupar por fecha y sumar la cantidad disponible
+        data = []
+        for item in query.values('expiration_date').annotate(total=Sum('available_quantity')):
+            data.append({
+                'expiration_date': item.get('expiration_date'),
+                'total': item.get('total'),
+                'details': query.filter(expiration_date=item.get('expiration_date'))
+                    .values('id', 'available_quantity')
+                    # cambiar el nombre de las llaves
+                    .annotate(tracker_id=F('tracker_detail__tracker__id'))
+            })
+
+        # paginar
+        page = self.paginate_queryset(data)
+        if page is not None:
+            return self.get_paginated_response(page)
+
+        return Response(data)
+
     def destroy(self, request, *args, **kwargs):
         if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
             raise TrackerCompletedDetailProduct()
