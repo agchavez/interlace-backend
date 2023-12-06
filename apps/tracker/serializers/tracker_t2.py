@@ -4,6 +4,7 @@ from rest_framework import serializers
 from ..exceptions.tracker_t2 import QuantityExceededOut, QuantityMajorZero, TrackerDetailExist, \
     TrackerDetailProductRequired, QuantityRequired, QuantitySumExceeded
 from ..models import TrackerOutputT2Model, OutputDetailT2Model, OutputT2Model, TrackerDetailProductModel
+from ...maintenance.serializer import DistributorCenterSerializer
 from ...order.exceptions.order_detail import CustomAPIException, QuantityExceeded
 
 
@@ -173,8 +174,9 @@ class OutputT2Serializer(serializers.ModelSerializer):
     output_detail_t2 = OutputDetailT2Serializer(many=True, read_only=True)
     user_name = serializers.SerializerMethodField()
     user_authorizer_name = serializers.SerializerMethodField()
+    user_check_name = serializers.SerializerMethodField()
     user_applied_name = serializers.SerializerMethodField()
-
+    distributor_center_data = DistributorCenterSerializer(source='distributor_center', read_only=True)
     def get_user_name(self, obj):
         return obj.user.get_full_name()
 
@@ -184,6 +186,8 @@ class OutputT2Serializer(serializers.ModelSerializer):
     def get_user_applied_name(self, obj):
         return obj.user_applied.get_full_name() if obj.user_applied else None
 
+    def get_user_check_name(self, obj):
+        return obj.user_check.get_full_name() if obj.user_check else None
 
     class Meta:
         model = OutputT2Model

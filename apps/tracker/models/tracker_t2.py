@@ -35,6 +35,15 @@ class OutputT2Model(BaseModel):
         null=True,
         blank=True)
 
+    # usuario check
+    user_check = models.ForeignKey(
+        UserModel,
+        on_delete=models.CASCADE,
+        verbose_name="Usuario check",
+        related_name="user_check_output_t2",
+        null=True,
+        blank=True)
+
     # Estados de la salida
     choices_status = [
         ('CREATED', 'CREATED'),
