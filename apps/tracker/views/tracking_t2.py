@@ -36,7 +36,11 @@ class OutputT2FilterSet(django_filters.FilterSet):
         }
 
 
-class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin,
+class OutputT2View(viewsets.GenericViewSet,
+                   mixins.ListModelMixin,
+                   mixins.RetrieveModelMixin,
+                   mixins.UpdateModelMixin,
+                   mixins.CreateModelMixin,
                    mixins.DestroyModelMixin):
     queryset = OutputT2Model.objects.all()
     serializer_class = OutputT2Serializer
@@ -76,6 +80,25 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    # Obtner mis salidas segun el usuario y eel cd asociado para el grupo 'SUPERVISOR' mostrar los que esten con status 'CREATED', 'REJECTED'
+    # Para el rol de 'AYUDANTE DE BODEGA' mostrar las salidas con status 'AUTHORIZED', 'CHECKED'
+    @action(detail=False, methods=['get'], url_path='my-outputs')
+    def my_outputs(self, request, *args, **kwargs):
+        try:
+            cd = request.user.centro_distribucion
+        except ObjectDoesNotExist:
+            raise PermissionDenied()
+
+        if request.user.groups.filter(name='AYUDANTE DE BODEGA INTERNA').exists():
+            outputs = OutputT2Model.objects.filter(distributor_center=cd, status__in=['CREATED', 'REJECTED'])
+        elif request.user.groups.filter(name='SUPERVISOR').exists():
+            outputs = OutputT2Model.objects.filter(distributor_center=cd, status__in=['AUTHORIZED', 'CHECKED'])
+        else:
+            raise PermissionDenied()
+
+        return Response(OutputT2Serializer(outputs, many=True).data, status=status.HTTP_200_OK)
+
+
     @action(detail=True, methods=['post'], url_path='apply')
     def apply(self, request, *args, **kwargs):
         output = self.get_object_or_404()
@@ -84,8 +107,16 @@ class OutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.Retrie
 
         self.check_details_status(output)
 
+        user = request.user
+
+        # verificar que el usuario sea un supervisor  y tenga el mismo cd que la salida
+        if user.groups.filter(name='SUPERVISOR').exists():
+            if user.centro_distribucion != output.distributor_center:
+                raise PermissionDenied()
+        else:
+            raise PermissionDenied()
         with transaction.atomic():
-            self.apply_output(output)
+            self.apply_output(output, user)
 
         return Response(OutputT2Serializer(output).data, status=status.HTTP_200_OK)
 
@@ -178,7 +209,6 @@ class OutputDetailT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.
 
             list = serializer.validated_data['list']
             list_delete = serializer.validated_data['list_delete']
-
             # TODO: MANEJO DE ESTADOS validacion
 
             # transaccion

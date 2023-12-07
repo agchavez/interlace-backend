@@ -48,6 +48,8 @@ class OutputT2Model(BaseModel):
     choices_status = [
         ('CREATED', 'CREATED'),
         ('CHECKED', 'CHECKED'),
+        ('REJECTED', 'REJECTED'),
+        ('AUTHORIZED', 'AUTHORIZED'),
         ('APPLIED', 'APPLIED'),
     ]
 

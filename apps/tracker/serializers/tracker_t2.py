@@ -72,23 +72,33 @@ class OutputDetailT2Serializer(serializers.ModelSerializer):
     details = serializers.SerializerMethodField('get_details')
 
     def get_details(self, obj):
-        # listar detalles de salida agrupados por fecha de vencimiento y con la suma de cada grupo de por fecha
         details = []
+        total_quantity = 0
+
         for item in obj.output_detail_tracker_t2.all():
             expiration_date = item.tracker_detail.expiration_date
             quantity = item.quantity
-            if not expiration_date in details:
+            total_quantity += quantity
+
+            # Buscar si ya existe un detalle con la misma fecha de vencimiento
+            existing_detail = next((detail for detail in details if detail['expiration_date'] == expiration_date), None)
+
+            if existing_detail:
+                # Si ya existe, agregar la cantidad al de   talle existente
+                existing_detail['quantity'] += quantity
+                existing_detail['details'].append(TrackerOutputT2Serializer(item).data)
+            else:
+                # Si no existe, agregar un nuevo detalle
                 details.append({
                     'expiration_date': expiration_date,
                     'quantity': quantity,
                     'details': [TrackerOutputT2Serializer(item).data]
                 })
-            else:
-                for detail in details:
-                    if detail['expiration_date'] == expiration_date:
-                        detail['quantity'] = detail['quantity'] + quantity
-                        detail['details'].append(TrackerOutputT2Serializer(item).data)
-        return details
+
+        return {
+            'details': details,
+            'total_quantity': total_quantity
+        }
 
     class Meta:
         model = OutputDetailT2Model
@@ -105,6 +115,7 @@ class OutputTrackerT2MassiveSerializer(serializers.Serializer):
     list_delete = serializers.ListField(
         child=serializers.IntegerField()
     )
+    quantity = serializers.IntegerField(allow_null=True, required=False)
 
     # validar que los lista de numeros sean instancias de TrackerOutputT2Model
     def validate_list_delete(self, value):
@@ -158,11 +169,11 @@ class OutputTrackerT2MassiveSerializer(serializers.Serializer):
                     code='order_not_completed',
                 )
             # validar que no exista el mismo tracker_detail_product ya registrado en la base de datos para el mismo output_detail
-            if TrackerOutputT2Model.objects.filter(tracker_detail_id=tracker_detail_product_id, output_detail=output_detail).exists():
-                raise CustomAPIException(
-                    detail=f"El detalle de producto con id: {tracker_detail_product_id} ya existe para esta salida.",
-                    code='tracker_detail_product_exist',
-                )
+                # if TrackerOutputT2Model.objects.filter(tracker_detail_id=tracker_detail_product_id, output_detail=output_detail).exists() and not
+                #     raise CustomAPIException(
+                #         detail=f"El detalle de producto con id: {tracker_detail_product_id} ya existe para esta salida.",
+                #         code='tracker_detail_product_exist',
+                #     )
         # la suma de las cantidades no puede ser mayor a la cantidad de la salida
         if sum_quantity > output_detail.quantity:
             raise QuantitySumExceeded()
@@ -188,6 +199,68 @@ class OutputT2Serializer(serializers.ModelSerializer):
 
     def get_user_check_name(self, obj):
         return obj.user_check.get_full_name() if obj.user_check else None
+
+    def validate(self, data):
+        if self.instance:
+            if self.instance.status == 'APPLIED':
+                raise CustomAPIException(
+                    detail=f"La salida ya fue aplicada, no se puede modificar.",
+                    code='output_applied',
+                )
+            # Solo se permiten estados CHECKED, REJECTED y AUTHORIZED
+            if data['status'] not in ['CHECKED', 'REJECTED', 'AUTHORIZED']:
+                raise CustomAPIException(
+                    detail=f"El estado no puede ser modificado.",
+                    code='output_status_not_allowed',
+                )
+            # Si es CHECKED el estado anterior debe ser CREATED o REJECTED
+            if data['status'] == 'CHECKED':
+                if self.instance.status not in ['CREATED', 'REJECTED']:
+                    raise CustomAPIException(
+                        detail=f"Ya no se puede cambiar el estado a revisado.",
+                        code='output_status_created',
+                    )
+            # Si es AUTHORIZED el estado anterior debe ser CHECKED
+            if data['status'] == 'AUTHORIZED':
+                if self.instance.status != 'CHECKED':
+                    raise CustomAPIException(
+                        detail=f"Ya no se puede cambiar el estado a autorizado.",
+                        code='output_status_checked',
+                    )
+            # Si es REJECTED el estado anterior debe ser CHECKED
+            if data['status'] == 'REJECTED':
+                if self.instance.status != 'CHECKED':
+                    raise CustomAPIException(
+                        detail=f"Ya no se puede cambiar el estado a rechazado.",
+                        code='output_status_checked',
+                    )
+
+            # Si es REJECTED verificar que almenos un detalle tenga el status REJECTED
+            if data['status'] == 'REJECTED':
+                if not self.instance.output_detail_t2.filter(status='REJECTED').exists():
+                    raise CustomAPIException(
+                        detail=f"Debe existir almenos un detalle rechazado.",
+                        code='output_status_rejected',
+                    )
+        return data
+
+    def update(self, instance, validated_data):
+        user = self.context['request'].user
+        # Si es UN status CHECKED, cambiar todos los status de los tracker_output_t2 a CHECKED
+        if validated_data['status'] == 'CHECKED':
+            instance.user_check = user
+            if instance.status == 'REJECTED':
+                OutputDetailT2Model.objects.filter(output=instance, status='REJECTED').update(status='CREATED')
+            else:
+                OutputDetailT2Model.objects.filter(output=instance).update(status='CHECKED')
+        # Si es UN status AUTHORIZED, cambiar todos los status de los tracker_output_t2 a AUTHORIZED
+        if validated_data['status'] == 'AUTHORIZED':
+            instance.user_authorizer = user
+            OutputDetailT2Model.objects.filter(output=instance).update(status='AUTHORIZED')
+        # Actualizar el status de la salida
+        instance.status = validated_data['status']
+        instance.save()
+        return instance
 
     class Meta:
         model = OutputT2Model

@@ -45,21 +45,16 @@ def create_output_t2(request):
     for index, row in df.iterrows():
         product = ProductModel.objects.filter(sap_code=row['Material'])
         if not product:
-            list_data_error.append({
-                'product': row['Material'],
-                'quantity': row['Cantidad en Pedidos'],
-                'error': 'Producto no encontrado'
-            })
-        continue
-    if list_data_error:
-        return ({
-                    'error': 'Algunos productos no fueron encontrados',
-                    'data': list_data_error
-                }, status.HTTP_400_BAD_REQUEST)
+            # eliminar los productos que no existan en el inventario
+            df.drop(index, inplace=True)
+
 
     # restar total disponible - cantidad en pedidos y si es mayor a 0, agregar a la lista 'Cantidad en Pedidos' de lo contrario agregar 'Total Disponible'
 
     for index, row in df.iterrows():
+        # Si el Total disoponible o Cantidad en pedidos es menor o igual a 0, omitir el registro
+        if row['Total Disponible'] <= 0 or row['Cantidad en Pedidos'] <= 0:
+            continue
         product = ProductModel.objects.get(sap_code=row['Material'])
         if row['Total Disponible'] - row['Cantidad en Pedidos'] > 0:
             list_data.append({
