@@ -74,6 +74,11 @@ class OutputT2Model(BaseModel):
         null=True,
         blank=True)
 
+    # ultima actualizacion
+    last_update = models.DateTimeField(
+        "Ultima actualización",
+        auto_now=True)
+
     class Meta:
         db_table = "output_t2"
         verbose_name = "Salida T2"

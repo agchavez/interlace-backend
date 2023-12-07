@@ -19,21 +19,40 @@ from rest_framework.response import Response
 from ..exceptions.tracker_t2 import DeleteStateCreated
 from ..models import OutputT2Model, OutputDetailT2Model, TrackerOutputT2Model
 from ..serializers import OutputDetailT2Serializer, TrackerOutputT2Serializer, OutputT2Serializer, \
-    OutputTrackerT2MassiveSerializer
+    OutputTrackerT2MassiveSerializer, OutputT2ListSerializer
 from ..utils.tracker_t2 import create_output_t2
 from ...order.exceptions.order_detail import PermissionDenied
 from ...user.views.user import CustomAccessPermission
 from ..utils.processes import apply_output_movements_t2
 
 class OutputT2FilterSet(django_filters.FilterSet):
+    # filtrar por multiple status
+    status = django_filters.MultipleChoiceFilter(
+        choices=OutputT2Model.choices_status,
+        field_name='status',
+        label='Estado'
+    )
+
+    id = django_filters.NumberFilter(
+        field_name='id',
+        label='ID'
+    )
+
+    distributor_center = django_filters.NumberFilter(
+        field_name='distributor_center',
+        label='Centro de distribución'
+    )
+
+    date = django_filters.DateFromToRangeFilter(
+        field_name='created_at',
+        label='Fecha de creación'
+    )
+
     class Meta:
         model = OutputT2Model
         # rango de created_at
-        fields = {
-            'distributor_center': ['exact'],
-            'created_at': ['exact', 'gte', 'lte'],
-            'status': ['exact'],
-        }
+        fields = ('status', 'distributor_center', 'id')
+
 
 
 class OutputT2View(viewsets.GenericViewSet,
@@ -59,15 +78,25 @@ class OutputT2View(viewsets.GenericViewSet,
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
 
+    def list(self, request, *args, **kwargs):
+        # serializer solo para listar
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer_class = OutputT2ListSerializer
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializer_class(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = serializer_class(self.queryset, many=True)
+        return Response(serializer.data)
+
     # Funcion de crear
     def create(self, request, *args, **kwargs):
         # validar si manda el excel, la localidad
         (data, status_code) = create_output_t2(request)
         if status_code == status.HTTP_201_CREATED:
             return Response({
-                'output': OutputT2Serializer(data).data,
-                'output_detail': OutputDetailT2Serializer(OutputDetailT2Model.objects.filter(output= data),
-                                                          many=True).data,
+                'id': data.id,
             }, status=status.HTTP_201_CREATED)
         else:
             return Response(data, status=status_code)

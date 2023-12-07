@@ -181,6 +181,32 @@ class OutputTrackerT2MassiveSerializer(serializers.Serializer):
         return value
 
 
+# serializaer solo para visualizar la informacion principal de la salida
+class OutputT2ListSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    count_details = serializers.SerializerMethodField()
+    user_authorizer_name = serializers.SerializerMethodField()
+    user_check_name = serializers.SerializerMethodField()
+    user_applied_name = serializers.SerializerMethodField()
+    distributor_center_data = DistributorCenterSerializer(source='distributor_center', read_only=True)
+    def get_user_name(self, obj):
+        return obj.user.get_full_name()
+
+    def get_user_authorizer_name(self, obj):
+        return obj.user_authorizer.get_full_name() if obj.user_authorizer else None
+
+    def get_user_applied_name(self, obj):
+        return obj.user_applied.get_full_name() if obj.user_applied else None
+
+    def get_user_check_name(self, obj):
+        return obj.user_check.get_full_name() if obj.user_check else None
+
+    def get_count_details(self, obj):
+        return obj.output_detail_t2.count()
+    class Meta:
+        model = OutputT2Model
+        fields = '__all__'
+
 class OutputT2Serializer(serializers.ModelSerializer):
     output_detail_t2 = OutputDetailT2Serializer(many=True, read_only=True)
     user_name = serializers.SerializerMethodField()
