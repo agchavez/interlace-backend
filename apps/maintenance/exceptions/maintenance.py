@@ -32,3 +32,31 @@ class ProductNoIntegerError(APIException):
         'error_code': 'product_id_not_int'
     }
     default_code = 'product_id_not_int'
+
+# No existe el producto en el centro de distribución
+class ProductDoesNotExistError(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El producto no existe en el centro de distribución',
+        'error_code': 'product_does_not_exist'
+    }
+    default_code = 'product_does_not_exist'
+
+
+# Ya existe el lote para el Centro de Distribución
+class LotAlreadyExistsError(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Ya existe un lote con el mismo codigo para el centro de distribución',
+        'error_code': 'lot_already_exists'
+    }
+    default_code = 'lot_already_exists'
+
+# El lote no es valido para este centro de distribución
+class LotNotValidError(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El lote no es valido para este centro de distribución',
+        'error_code': 'lot_not_valid'
+    }
+    default_code = 'lot_not_valid'

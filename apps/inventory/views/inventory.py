@@ -44,7 +44,7 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
     PERMISSION_MAPPING = {
         'GET': ['inventory.view_inventorymovementmodel'],
         'POST': ['inventory.add_inventorymovementmodel'],
-'PUT': ['inventory.change_inventorymovementmodel'],
+        'PUT': ['inventory.change_inventorymovementmodel'],
         'PATCH': ['inventory.change_inventorymovementmodel'],
         'DELETE': ['inventory.delete_inventorymovementmodel'],
     }

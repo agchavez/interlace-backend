@@ -4,7 +4,7 @@ from django.db import models
 # local
 from utils.BaseModel import BaseModel
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
-    OperatorModel, OutputTypeModel, DistributorCenter
+    OperatorModel, OutputTypeModel, DistributorCenter, LotModel
 from apps.tracker.models import TrackerDetailProductModel
 from apps.user.models import UserModel
 
@@ -27,7 +27,7 @@ class OutputT2Model(BaseModel):
         blank=True)
 
     # usuario que recibe la salida
-    user_receiver = models.ForeignKey(
+    user_applied = models.ForeignKey(
         UserModel,
         on_delete=models.CASCADE,
         verbose_name="Usuario receptor",
@@ -35,10 +35,21 @@ class OutputT2Model(BaseModel):
         null=True,
         blank=True)
 
+    # usuario check
+    user_check = models.ForeignKey(
+        UserModel,
+        on_delete=models.CASCADE,
+        verbose_name="Usuario check",
+        related_name="user_check_output_t2",
+        null=True,
+        blank=True)
+
     # Estados de la salida
     choices_status = [
         ('CREATED', 'CREATED'),
         ('CHECKED', 'CHECKED'),
+        ('REJECTED', 'REJECTED'),
+        ('AUTHORIZED', 'AUTHORIZED'),
         ('APPLIED', 'APPLIED'),
     ]
 
@@ -63,13 +74,16 @@ class OutputT2Model(BaseModel):
         null=True,
         blank=True)
 
+    # ultima actualizacion
+    last_update = models.DateTimeField(
+        "Ultima actualización",
+        auto_now=True)
+
     class Meta:
         db_table = "output_t2"
         verbose_name = "Salida T2"
         verbose_name_plural = "Salidas T2"
 
-    def __str__(self):
-        return self.id
 
 # Modelo para el detalle de salida de productos t2
 
@@ -124,24 +138,36 @@ class OutputDetailT2Model(BaseModel):
         verbose_name_plural = "Detalles de salida T2"
 
     def __str__(self):
-        return self.id
+        return str(self.output.id) + ' - ' +  self.product.name + ' - ' + str(self.quantity) + ' - ' + self.status
 
 
 # Modelo de los trackers de salida de productos t2
 class TrackerOutputT2Model(BaseModel):
+
     # salida
-    output = models.ForeignKey(
-        OutputT2Model,
+    output_detail = models.ForeignKey(
+        OutputDetailT2Model,
         on_delete=models.CASCADE,
         verbose_name="Salida",
-        related_name="tracker_output_t2")
+        null=True,
+        related_name="output_detail_tracker_t2")
 
     # tracker
-    tracker = models.ForeignKey(
+    tracker_detail = models.ForeignKey(
         TrackerDetailProductModel,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         verbose_name="Tracker",
-        related_name="tracker_output_t2")
+        null=True,
+        related_name="tracker_detail_output_t2")
+
+    lote = models.ForeignKey(
+        LotModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Lote",
+        null=True,
+        blank=True,
+        related_name="lote_output_t2")
+
 
     # cantidad
     quantity = models.DecimalField(
@@ -154,6 +180,3 @@ class TrackerOutputT2Model(BaseModel):
         db_table = "tracker_output_t2"
         verbose_name = "Tracker de salida T2"
         verbose_name_plural = "Trackers de salida T2"
-
-    def __str__(self):
-        return self.id

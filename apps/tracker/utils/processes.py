@@ -1,4 +1,4 @@
-from ..models import TrackerModel
+from ..models import TrackerModel, OutputT2Model, TrackerOutputT2Model
 from apps.inventory.models import InventoryMovementModel
 from django.db import transaction
 from celery import shared_task
@@ -31,4 +31,29 @@ def apply_output_movements(tracker_id, user_id):
     return list_process
 
 
+"""
+Insertar los movimientos de salida para las salidas de tipo T2
+"""
+@transaction.atomic
+def apply_output_movements_t2(output_id, user_id):
+    # lista movimientos de salida
+    list_process = []
+    output = OutputT2Model.objects.get(id=output_id)
+    if output:
+        cd = output.distributor_center
+        list_out = TrackerOutputT2Model.objects.filter(output_detail__output=output)
+        for out in list_out:
+            tracker_detail_product = out.tracker_detail
+            quantity_boxes = out.quantity
+            inventory_movement = InventoryMovementModel.objects.create(
+                tracker_detail_product=tracker_detail_product,
+                module=InventoryMovementModel.Module.T2,
+                origin_id=output.id,
+                movement_type=InventoryMovementModel.MovementType.OUT,
+                quantity=-quantity_boxes,
+                user_id=user_id
+            )
+            list_process.append(out.id)
+            inventory_movement.save()
+    return list_process
 

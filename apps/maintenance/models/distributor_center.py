@@ -91,3 +91,27 @@ class RouteModel(BaseModel):
         unique_together = ['distributor_center', 'location', 'code']
 
 
+# lotes por centro de distribución
+class LotModel(BaseModel):
+    distributor_center = models.ForeignKey(
+        DistributorCenter,
+        on_delete=models.SET_NULL,
+        verbose_name="Centro de Distribución",
+        null=True,
+        blank=True)
+    code = models.CharField(
+        "Código",
+        max_length=6)
+
+    def __str__(self):
+        return self.code
+
+    def save(self, *args, **kwargs):
+        self.code = self.code.upper()
+        return super(LotModel, self).save(*args, **kwargs)
+
+    class Meta:
+        db_table = "lot"
+        verbose_name = "Lote"
+        verbose_name_plural = "Lotes"
+        unique_together = ['distributor_center', 'code']
