@@ -4,12 +4,15 @@ from rest_framework import serializers
 from ..exceptions.tracker_t2 import QuantityExceededOut, QuantityMajorZero, TrackerDetailExist, \
     TrackerDetailProductRequired, QuantityRequired, QuantitySumExceeded
 from ..models import TrackerOutputT2Model, OutputDetailT2Model, OutputT2Model, TrackerDetailProductModel
+from ...maintenance.exceptions.maintenance import LotNotValidError
+from ...maintenance.models import LotModel
 from ...maintenance.serializer import DistributorCenterSerializer
 from ...order.exceptions.order_detail import CustomAPIException, QuantityExceeded
 
 
 class TrackerOutputT2Serializer(serializers.ModelSerializer):
-
+    tracker_id = serializers.IntegerField(source='tracker_detail.tracker_detail.tracker.id', read_only=True)
+    code_name = serializers.CharField(source='lote.code', read_only=True)
     def validate(self, data):
         if data['quantity'] <= 0:
             raise QuantityMajorZero()
@@ -71,6 +74,13 @@ class OutputDetailT2Serializer(serializers.ModelSerializer):
     product_sap_code = serializers.CharField(source='product.sap_code', read_only=True)
     details = serializers.SerializerMethodField('get_details')
 
+    # campo lote para cambiarlo a los item hijos
+    lote = serializers.CharField(allow_null=True, required=False)
+    list_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_null=True,
+        required=False
+    )
     def get_details(self, obj):
         details = []
         total_quantity = 0
@@ -92,6 +102,8 @@ class OutputDetailT2Serializer(serializers.ModelSerializer):
                 details.append({
                     'expiration_date': expiration_date,
                     'quantity': quantity,
+                    'lote': item.lote.id if item.lote else None,
+                    'code_name': item.lote.code if item.lote else None,
                     'details': [TrackerOutputT2Serializer(item).data]
                 })
 
@@ -100,10 +112,35 @@ class OutputDetailT2Serializer(serializers.ModelSerializer):
             'total_quantity': total_quantity
         }
 
+    def validate(self, data):
+        # verificar que el lote existe para el cd del registro
+        if self.instance and 'lote' in data:
+            if not LotModel.objects.filter(id=data['lote'], distributor_center=self.instance.output.distributor_center).exists():
+                raise LotNotValidError()
+
+        # se requiere la lista de ids para actualizar los items
+        if self.instance and not 'list_ids' in data and 'lote' in data:
+            raise CustomAPIException(
+                detail=f"Se requiere la lista de ids para actualizar los items.",
+                code='list_ids_required',
+            )
+        return data
+
     class Meta:
         model = OutputDetailT2Model
         fields = '__all__'
         # create_at no mostrar en el serializer
+
+    def update(self, instance, validated_data):
+        # Actualizar el lote de los TrackerOutputT2Model en el caso de que esté en la solicitud
+        lote_id = validated_data.get('lote')
+        list_ids = validated_data.get('list_ids')
+        if lote_id and list_ids:
+            (TrackerOutputT2Model.objects.filter(output_detail=instance, id__in=list_ids)
+             .update(lote_id=lote_id))
+
+        # Llamar al método update de la clase base para realizar la actualización estándar
+        return super().update(instance, validated_data)
 
 # Serializer de carga masiva de salida de productos T2
 class OutputTrackerT2MassiveSerializer(serializers.Serializer):

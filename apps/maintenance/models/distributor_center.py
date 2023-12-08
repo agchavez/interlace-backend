@@ -106,6 +106,10 @@ class LotModel(BaseModel):
     def __str__(self):
         return self.code
 
+    def save(self, *args, **kwargs):
+        self.code = self.code.upper()
+        return super(LotModel, self).save(*args, **kwargs)
+
     class Meta:
         db_table = "lot"
         verbose_name = "Lote"
