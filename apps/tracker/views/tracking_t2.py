@@ -63,16 +63,17 @@ class OutputT2View(viewsets.GenericViewSet,
                    mixins.DestroyModelMixin):
     queryset = OutputT2Model.objects.all()
     serializer_class = OutputT2Serializer
-    permission_classes = []
     filter_backends = [DjangoFilterBackend]
     filterset_class = OutputT2FilterSet
+
+    permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['tracker.view_trackermodel'],
-        'POST': ['tracker.add_trackermodel'],
-        'PUT': ['tracker.change_trackermodel'],
-        'PATCH': ['tracker.change_trackermodel'],
-        'DELETE': ['tracker.delete_trackermodel'],
+        'GET': ['tracker.view_outputt2model'],
+        'POST': ['tracker.add_outputt2model'],
+        'PUT': ['tracker.change_outputt2model'],
+        'PATCH': ['tracker.change_outputt2model'],
+        'DELETE': ['tracker.delete_outputt2model'],
     }
 
     def get_required_permissions(self, http_method):
@@ -104,7 +105,7 @@ class OutputT2View(viewsets.GenericViewSet,
     # solo se puede eliminar si no tiene detalle de salida y el status es CREATED
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.status != 'CREATED':
+        if instance.status == 'APPLIED':
             raise DeleteStateCreated()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -197,16 +198,16 @@ class OutputDetailT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.
                          mixins.UpdateModelMixin, mixins.DestroyModelMixin):
     queryset = OutputDetailT2Model.objects.all()
     serializer_class = OutputDetailT2Serializer
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     filter_backends = [DjangoFilterBackend]
     filterset_class = OutputDetailT2FilterSet
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['tracker.view_trackermodel'],
-        'POST': ['tracker.add_trackermodel'],
-        'PUT': ['tracker.change_trackermodel'],
-        'PATCH': ['tracker.change_trackermodel'],
-        'DELETE': ['tracker.delete_trackermodel'],
+        'GET': ['tracker.view_outputdetailt2model'],
+        'POST': ['tracker.add_outputdetailt2model'],
+        'PUT': ['tracker.change_outputdetailt2model'],
+        'PATCH': ['tracker.change_outputdetailt2model'],
+        'DELETE': ['tracker.delete_outputdetailt2model'],
     }
 
     def get_required_permissions(self, http_method):
@@ -282,16 +283,16 @@ class TrackerOutputT2View(viewsets.GenericViewSet, mixins.ListModelMixin, mixins
                           mixins.CreateModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin):
     queryset = TrackerOutputT2Model.objects.all()
     serializer_class = TrackerOutputT2Serializer
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     filter_backends = [DjangoFilterBackend]
     filterset_class = TrackerOutputT2FilterSet
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
-        'GET': ['tracker.view_trackermodel'],
-        'POST': ['tracker.add_trackermodel'],
-        'PUT': ['tracker.change_trackermodel'],
-        'PATCH': ['tracker.change_trackermodel'],
-        'DELETE': ['tracker.delete_trackermodel'],
+        'GET': ['tracker.view_trackeroutputt2model'],
+        'POST': ['tracker.add_trackeroutputt2model'],
+        'PUT': ['tracker.change_trackeroutputt2model'],
+        'PATCH': ['tracker.change_trackeroutputt2model'],
+        'DELETE': ['tracker.delete_trackeroutputt2model'],
     }
 
     def get_required_permissions(self, http_method):

@@ -60,7 +60,7 @@ class QuantitySumExceeded(APIException):
 class DeleteStateCreated(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = {
-        'mensage': "Solo se puede eliminar el registros con estado de 'creado'",
+        'mensage': "No se puede eliminar el registros con estado de Completado",
         'error_code': 'delete_state_created'
     }
     default_code = 'delete_state_created'

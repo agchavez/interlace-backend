@@ -4,7 +4,7 @@ from django.db import models
 # local
 from utils.BaseModel import BaseModel
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
-    OperatorModel, OutputTypeModel, DistributorCenter
+    OperatorModel, OutputTypeModel, DistributorCenter, LotModel
 from apps.tracker.models import TrackerDetailProductModel
 from apps.user.models import UserModel
 
@@ -143,19 +143,31 @@ class OutputDetailT2Model(BaseModel):
 
 # Modelo de los trackers de salida de productos t2
 class TrackerOutputT2Model(BaseModel):
+
     # salida
     output_detail = models.ForeignKey(
         OutputDetailT2Model,
         on_delete=models.CASCADE,
         verbose_name="Salida",
+        null=True,
         related_name="output_detail_tracker_t2")
 
     # tracker
     tracker_detail = models.ForeignKey(
         TrackerDetailProductModel,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         verbose_name="Tracker",
+        null=True,
         related_name="tracker_detail_output_t2")
+
+    lote = models.ForeignKey(
+        LotModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Lote",
+        null=True,
+        blank=True,
+        related_name="lote_output_t2")
+
 
     # cantidad
     quantity = models.DecimalField(
