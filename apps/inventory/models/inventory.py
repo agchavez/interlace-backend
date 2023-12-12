@@ -12,7 +12,7 @@ class InventoryMovementModel(BaseModel):
         T1 = "T1", "T1"
         T2 = "T2", "T2"
         ADMIN = "ADMIN", "ADMIN"
-
+        ORDER = "ORDER", "ORDER"
     # tipo de movimiento
     class MovementType(models.TextChoices):
         IN = "IN", "Entrada"
