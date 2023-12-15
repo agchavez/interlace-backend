@@ -3,6 +3,7 @@ from django.db.models import Sum
 from ..models.order import OrderModel
 from ..models.history import OrderHistoryModel
 from ..models.detail import OrderDetailModel
+from ..models.out_order import OutOrderModel
 
 from ..exceptions.order_detail import QuantityExceeded, OrderNotCompleted
 from apps.maintenance.serializer import ProductModelSerializer, LocationModelSerializer
@@ -65,10 +66,18 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('quantity_available',)
 
+
+# Serializer de ordenes de salida
+class OutOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OutOrderModel
+        fields = '__all__'
+
 # Serializer de ordenes
 class OrderSerializer(serializers.ModelSerializer):
     order_detail = OrderDetailSerializer(many=True, read_only=True)
     location_data = LocationModelSerializer(source='location', read_only=True)
+    out_order = OutOrderSerializer(read_only=True)
 
     # No se pueden editar las ordenes que estan en estado COMPLETED o IN_PROCESS
     def validate(self, attrs):
@@ -79,3 +88,5 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderModel
         fields = '__all__'
+
+

@@ -9,6 +9,14 @@ class NoDistributionCenterError(APIException):
     }
     default_code = 'no_distribution_center'
 
+# EL CENMTRO DE DISTRIBUCION NO EXISTE
+class DistributionCenterDoesNotExistError(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'El centro de distribucion no existe',
+        'error_code': 'distribution_center_does_not_exist'
+    }
+    default_code = 'distribution_center_does_not_exist'
 class NoPeriodError(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = {
