@@ -24,13 +24,18 @@ class TrackerDetailProductFilter(django_filters.FilterSet):
         to_field_name='id',
         queryset=ProductModel.objects.all()
     )
+    productos = django_filters.CharFilter(
+        method='filter_product_in'
+    )
     distributor_center = django_filters.ModelMultipleChoiceFilter(
         field_name='tracker_detail__tracker__distributor_center',
         to_field_name='id',
         queryset=DistributorCenter.objects.all()
     )
 
-
+    def filter_product_in(self, queryset, name, value):
+        products = value.split(',')  # Assuming values are comma-separated
+        return queryset.filter(tracker_detail__product__in=products)
     class Meta:
         model = TrackerDetailProductModel
         fields = []
