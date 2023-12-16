@@ -69,9 +69,10 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
 # Serializer de ordenes de salida
 class OutOrderSerializer(serializers.ModelSerializer):
+    document = None
     class Meta:
         model = OutOrderModel
-        fields = '__all__'
+        exclude = ('document',)
 
 # Serializer de ordenes
 class OrderSerializer(serializers.ModelSerializer):
