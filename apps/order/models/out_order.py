@@ -43,6 +43,13 @@ class OutOrderModel(BaseModel):
         "Documento",
         null=True,
         blank=True)
+
+    # vehiculo
+    vehicle = models.CharField(
+        "Vehiculo",
+        max_length=50
+        )
+
     document_name = models.CharField(
         "Nombre documento",
         max_length=50,
