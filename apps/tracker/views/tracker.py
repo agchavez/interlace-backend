@@ -326,6 +326,7 @@ class TrackerDetailProductModelFilter(django_filters.FilterSet):
                 'id': ['exact'],
                 'tracker_detail__tracker__status': ['exact'],
                 'tracker_detail__tracker__user': ['exact'],
+                'available_quantity': ['gt', 'lt', 'exact'],
 
             }
 
