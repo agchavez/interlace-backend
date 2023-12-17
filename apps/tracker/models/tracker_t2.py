@@ -103,10 +103,8 @@ class OutputDetailT2Model(BaseModel):
         related_name="product_output_detail_t2")
 
     # cantidad
-    quantity = models.DecimalField(
+    quantity = models.IntegerField(
         "Cantidad",
-        max_digits=10,
-        decimal_places=2,
         default=0)
 
     # observaciones mootivo del rechazo
@@ -170,11 +168,9 @@ class TrackerOutputT2Model(BaseModel):
 
 
     # cantidad
-    quantity = models.DecimalField(
-        "Cantidad",
-        max_digits=10,
-        decimal_places=2,
-        default=0)
+    quantity = models.IntegerField(
+    "Cantidad",
+    default=0)
 
     class Meta:
         db_table = "tracker_output_t2"

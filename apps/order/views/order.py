@@ -1,22 +1,27 @@
+from django.db import transaction
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateModelMixin, \
     DestroyModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.decorators import action
 from rest_framework import status
-from ..exceptions.order_detail import OrderDetailExist
+from ..exceptions.order_detail import OrderDetailExist, OutOrderExist, PermissionDenied
 # LOCAL
 from ..models.order import OrderModel
 from ..models.history import OrderHistoryModel
 from ..models.detail import OrderDetailModel
+from ..models.out_order import OutOrderModel
 
-from ..serializers import OrderSerializer, OrderDetailSerializer, OrderHistorySerializer
+from ..serializers import OrderSerializer, OrderDetailSerializer, OrderHistorySerializer, OutOrderSerializer
 
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 from rest_framework import filters
 
-from ..utils.order import validate_and_create_order
+from ..utils.order import validate_and_create_order, insert_order_detail_to_inventory_movement
+from ...tracker.exceptions.tracker import FileTooLarge, FileNotExists
 from ...user.views.user import CustomAccessPermission
 
 class OrderFilter(django_filters.FilterSet):
@@ -123,3 +128,69 @@ class OrderHistoryViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
 
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
+
+
+# Vista para salida de ordenes
+class OutOrderViewSet(CreateModelMixin, GenericViewSet):
+    queryset = OutOrderModel.objects.all()
+    serializer_class = OutOrderSerializer
+    lookup_field = 'id'
+    permission_classes = [CustomAccessPermission]
+    PERMISSION_MAPPING = {
+        'GET': ['order.view_outordermodel'],
+        'POST': ['order.add_outordermodel'],
+        'PUT': ['order.change_outordermodel'],
+        'PATCH': ['order.change_outordermodel'],
+        'DELETE': ['order.delete_outordermodel'],
+    }
+
+    def get_required_permissions(self, http_method):
+        return self.PERMISSION_MAPPING.get(http_method, [])
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+
+        order_id = request.data.get('order')
+        order = get_object_or_404(OrderModel, id=order_id)
+        document = request.data.get("document")
+        user = request.user
+        try:
+            if user.centro_distribucion is None or user.centro_distribucion.id != order.distributor_center.id:
+                raise PermissionDenied()
+        except:
+            raise PermissionDenied()
+        if document is not None:
+            if document.size > 20 * 1024 * 1024:
+                raise FileTooLarge
+        if order.status != OrderModel.OrderStatus.PENDING:
+            raise OutOrderExist()
+
+        if OutOrderModel.objects.filter(order=order).exists():
+            raise OutOrderExist()
+
+        result = super(OutOrderViewSet, self).create(request, *args, **kwargs)
+        if document is not None:
+            instance = OutOrderModel.objects.get(id=result.data['id'])
+            content = document.read()
+            instance.document = content
+            name = request.data.get("document_name")
+            if name is not None:
+                instance.document_name = name
+            instance.save()
+        # actualizar el estado de la orden
+        order.status = OrderModel.OrderStatus.COMPLETED
+        order.save()
+
+        # hacer los movimientos de inventario de salida
+        insert_order_detail_to_inventory_movement(order, request.user.id)
+        return result
+
+    @action(detail=True, methods=['get'], url_path='get-file')
+    def getFile(self, request, *args, **kwargs):
+        out_order = self.get_object()
+        archivo = out_order.document
+        if not archivo:
+            raise FileNotExists
+        response = HttpResponse(archivo, content_type='application/octet-stream', )
+        response['Content-Disposition'] = f'attachment; filename="{out_order.document_name}"'
+        return response

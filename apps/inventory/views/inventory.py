@@ -16,10 +16,52 @@ import pandas as pd  # Asegúrate de tener instalada la librería pandas
 
 from ...tracker.models import TrackerDetailProductModel
 from ...user.views.user import CustomAccessPermission
-
+import django_filters
 
 # Filtros de movimientos de inventario
 class InventoryMovementFilter(filters.FilterSet):
+    product = django_filters.CharFilter(
+        field_name='tracker_detail_product__tracker_detail__product',
+        method='filter_product_in'
+    )
+
+    distributor_center = django_filters.CharFilter(
+        field_name='tracker_detail_product__tracker_detail__tracker__distributor_center',
+        method='filter_distributor_center_in'
+    )
+
+    module = django_filters.CharFilter(
+        field_name='module',
+        method='module_in'
+    )
+
+    tracker = django_filters.CharFilter(
+        field_name='tracker_detail_product__tracker_detail__tracker',
+        lookup_expr='exact'
+    )
+
+    date_before = django_filters.DateFilter(
+        field_name='created_at',
+        lookup_expr='lte'
+    )
+
+    date_after = django_filters.DateFilter(
+        field_name='created_at',
+        lookup_expr='gte'
+    )
+
+    def filter_product_in(self, queryset, name, value):
+        products = value.split(',')  # Assuming values are comma-separated
+        return queryset.filter(tracker_detail_product__tracker_detail__product__in=products)
+    
+    def filter_distributor_center_in(self, queryset, name, value):
+        cds = value.split(',')  # Assuming values are comma-separated
+        return queryset.filter(tracker_detail_product__tracker_detail__tracker__distributor_center__in=cds)
+    
+    def module_in(self, queryset, name, value):
+        module = value.split(',')  # Assuming values are comma-separated
+        return queryset.filter(module__in=module)
+    
     class Meta:
         model = InventoryMovementModel
         fields = {
@@ -29,7 +71,6 @@ class InventoryMovementFilter(filters.FilterSet):
             'tracker_detail_product__tracker_detail__product': ['exact'],
             'tracker_detail_product__tracker_detail__product__sap_code': ['exact'],
             'tracker_detail_product__tracker_detail__product__name': ['contains'],
-            'module': ['exact'],
             'origin_id': ['exact'],
             'is_applied': ['exact'],
         }
@@ -40,7 +81,7 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
     filterset_class = InventoryMovementFilter
     filter_backends = [DjangoFilterBackend]
 
-    permission_classes = [CustomAccessPermission]
+    # permission_classes = [CustomAccessPermission]
     PERMISSION_MAPPING = {
         'GET': ['inventory.view_inventorymovementmodel'],
         'POST': ['inventory.add_inventorymovementmodel'],

@@ -3,6 +3,7 @@ from django.db import transaction
 from ..exceptions.order_detail import LocationRequired, PermissionDenied
 from ..models.detail import OrderDetailModel
 from ..models.order import OrderModel
+from ...inventory.models import InventoryMovementModel
 from ...inventory.exceptions.inventory import FileRequired, InvalidFile, RequiredColumns
 from ...maintenance.models import LocationModel
 from ...tracker.models import TrackerDetailProductModel
@@ -101,3 +102,26 @@ def validate_and_create_order(request):
         OrderDetailModel.objects.create(**item)
 
     return (order, list_data_error)
+
+
+# inseryar los detalles de la orden a movimiento de inventario cuando se completa la orden
+@transaction.atomic
+def insert_order_detail_to_inventory_movement(order, user_id):
+    # obtener los detalles de la orden
+    order_detail = OrderDetailModel.objects.filter(order=order)
+    # recorrer los detalles de la orden
+    for item in order_detail:
+        # crear el movimiento de inventario
+        InventoryMovementModel.objects.create(
+            tracker_detail_product=item.tracker_detail_product,
+            quantity=item.quantity * -1,
+            movement_type=InventoryMovementModel.MovementType.OUT,
+            module=InventoryMovementModel.Module.ORDER,
+            origin_id=order.id,
+            user_id=user_id,
+        )
+
+        # quantity_available de order detail = 0
+        item.quantity_available = 0
+        item.save()
+

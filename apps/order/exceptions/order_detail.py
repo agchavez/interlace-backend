@@ -54,3 +54,12 @@ class PermissionDenied(APIException):
         'error_code': 'permission_denied'
     }
     default_code = 'permission_denied'
+
+# Ya existe una salida para esta orden
+class OutOrderExist(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = {
+        'mensage': 'Ya existe una salida para este pedido',
+        'error_code': 'out_order_exist'
+    }
+    default_code = 'out_order_exist'
