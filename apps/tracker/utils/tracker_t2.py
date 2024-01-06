@@ -22,6 +22,10 @@ def create_output_t2(request):
     except:
         raise PermissionDenied()
     location = request.data.get('location')
+
+    if not 'pre_sale_date' in request.data:
+        raise RequiredColumns()
+
     observations = request.data.get('observations') if 'observations' in request.data else None
     # leer el excel
     df = pd.read_excel(file)
@@ -72,6 +76,7 @@ def create_output_t2(request):
         output = OutputT2Model.objects.create(
             distributor_center=cd,
             observations=observations,
+            pre_sale_date=request.data.get('pre_sale_date'),
             user=request.user,
         )
         output.save()

@@ -1,5 +1,6 @@
 # django
 from django.db import models
+from django.utils import timezone
 
 # local
 from utils.BaseModel import BaseModel
@@ -78,6 +79,19 @@ class OutputT2Model(BaseModel):
     last_update = models.DateTimeField(
         "Ultima actualización",
         auto_now=True)
+
+    # json de la simulacion
+    simulation = models.JSONField(
+        "simulación",
+        null=True,
+        blank=True)
+
+    # fecha de preventa
+    pre_sale_date = models.DateField(
+        "Fecha de preventa",
+        default=timezone.now()
+        )
+
 
     class Meta:
         db_table = "output_t2"

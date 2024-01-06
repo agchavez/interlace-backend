@@ -47,6 +47,10 @@ class OutputT2FilterSet(django_filters.FilterSet):
         field_name='created_at',
         label='Fecha de creación'
     )
+    pre_sale_date = django_filters.DateFilter(
+        field_name='pre_sale_date',
+        label='Fecha de preventa'
+    )
 
     class Meta:
         model = OutputT2Model
@@ -149,6 +153,167 @@ class OutputT2View(viewsets.GenericViewSet,
             self.apply_output(output, user)
 
         return Response(OutputT2Serializer(output).data, status=status.HTTP_200_OK)
+
+    # Api que recibe un excel de SAP y hace una simulacion con los datos comprando excel con tracker
+    @action(detail=True, methods=['post'], url_path='simulate')
+    def simulate(self, request, *args, **kwargs):
+        output = self.get_object_or_404()
+        self.check_permissions_created(request, output)
+        # verificar el excel
+        excel = request.FILES['excel']
+        df = pd.read_excel(excel)
+        # validar que el excel tenga las columnas correctas
+        if not ({'Ruta_SAP', 'TOUR_ID','Entrega', 'Población', 'Conductor', 'Calle','Cod_Mat', 'Producto', 'Nombre','UM','Cant_UMV'}
+                .issubset(df.columns)):
+            return Response({
+                'error': 'El excel no tiene las columnas correctas'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # validar que el excel tenga datos
+        if df.empty:
+            return Response({
+                'error': 'El excel no tiene datos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # limpitar data eliminar filas vacias, cantidad = 0, cod_mat = 0 y todas las rutas que no sean la ruta seleccionada, Cod_Mat que empiecen con 350
+        df = df.dropna()
+        df = df[df['Cant_UMV'] != 0]
+        df = df[df['Cod_Mat'] != 0]
+        # Ordenear primeras rutas del conductor osea primero las primera ruta de los conductores y luego las segunda ruta de los conductores yu asi sucesivamente
+        df = df.sort_values(by=['Conductor', 'TOUR_ID'], ascending=True)
+        # codigo de sap del producto que coincide con 17365
+        # df = df[df['Cod_Mat'].astype(str).str.startswith(producto)]
+
+        df = df[~df['Cod_Mat'].astype(str).str.startswith('350')]
+
+        # validar que el excel tenga datos
+        if df.empty:
+            return Response({
+                'error': 'El excel no tiene datos'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # sacar lista de TOU_ID, conductor pero que no se repitan para futuros filtros
+        tour_id_list = df['TOUR_ID'].unique()
+        conductor_list = df['Conductor'].unique()
+        client_list = df['Nombre'].unique()
+        client_ids = []
+        for index, client in enumerate(client_list):
+            client_ids.append({
+                # quitar espacios en blanco
+                'nombre': client.strip(),
+                'id': index + 1
+            })
+        product_list = []
+        # tracker detail product de la salida
+
+        # tracker detail all de la salida
+        tracker_detail_all = TrackerOutputT2Model.objects.filter(output_detail__output=output)
+        data = []
+        data_simulated = []
+        # manejar la data de los productos, tracker y cantidades para poteriormente ir asignando a cada fila del excel y restando sin afectar la base de datos
+        for tracker in tracker_detail_all:
+            data.append({
+                'tracker_id': tracker.tracker_detail.tracker_detail.tracker.id,
+                'codigo_sap': tracker.tracker_detail.tracker_detail.product.sap_code,
+                'fecha_vencimiento': tracker.tracker_detail.expiration_date,
+                'cantidad': tracker.quantity,
+                'lote': tracker.lote,
+                # Tiempo en bodega en dias
+                'time_in_warehouse': (tracker.created_at - tracker.tracker_detail.created_at).days
+            })
+        # asociar fechas de vencimiento de los tracker detail all a cada linea del excel segun el codigo sap y la cantidad si faltan cantidades tomar de los tracker detail all
+        for index, row in df.iterrows():
+            codigo_sap = row['Cod_Mat']
+            # verificar si existe el producto en la lista de productos
+            product = list(filter(lambda x: x['codigo_sap'] == str(codigo_sap), product_list))
+            if len(product) == 0:
+                product_list.append({
+                    'codigo_sap': str(codigo_sap),
+                    'nombre': row['Producto'].strip(),
+                })
+            client_id = list(filter(lambda x: x['nombre'] == row['Nombre'].strip(), client_ids))[0]['id']
+            # omitir si el codigo sap empieza con 350
+            if str(codigo_sap).startswith('350'):
+                continue
+            cantidad = row['Cant_UMV']
+            # Buscar en la lista de data si existe el codigo sap y la cantidad es mayor a 0
+            tracker_detail_product = list(filter(lambda x: x['codigo_sap'] == str(codigo_sap) and x['cantidad'] > 0, data))
+            if len(tracker_detail_product) > 0:
+                # si al hacer la resta la cantidad es menor a 0, romar del siguiente tracker detail product osea ambas fechas de vencimiento y tracker y restar la cantidad
+                if cantidad > tracker_detail_product[0]['cantidad']:
+                    if len(tracker_detail_product) > 1:
+
+                        list_fecha_vencimiento = [ str(tracker_detail_product[0]['fecha_vencimiento']), str(tracker_detail_product[1]['fecha_vencimiento']) ]
+                        list_tracker = [tracker_detail_product[0]['tracker_id'], tracker_detail_product[1]['tracker_id']]
+                        list_lote = [tracker_detail_product[0]['lote'], tracker_detail_product[1]['lote']]
+
+                        # guardar el dataframe
+                        data_simulated.append({
+                            'TOUR_ID': row['TOUR_ID'],
+                            'Entrega': row['Entrega'],
+                            'Población': row['Población'],
+                            'Conductor': row['Conductor'],
+                            'Calle': row['Calle'],
+                            'Cod_Mat': row['Cod_Mat'],
+                            'Producto': row['Producto'],
+                            'Nombre': row['Nombre'],
+                            'UM': row['UM'],
+                            'Cant_UMV': cantidad,
+                            'fecha_vencimiento': list_fecha_vencimiento,
+                            'tracker': list_tracker,
+                            'client_id': client_id,
+                            'lote': list_lote,
+                            'time_in_warehouse': tracker_detail_product[0]['time_in_warehouse'],
+                        })
+                        # restar la cantidad disponible del primer tracker detail product y el resto a la cantidad del segundo tracker detail product
+                        cantididad_restante = cantidad - tracker_detail_product[0]['cantidad']
+                        tracker_detail_product[0]['cantidad'] = 0
+                        tracker_detail_product[1]['cantidad'] = tracker_detail_product[1]['cantidad'] - cantididad_restante
+                        continue
+                # guardar el dataframe
+                data_simulated.append({
+                    'TOUR_ID': row['TOUR_ID'],
+                    'Entrega': row['Entrega'],
+                    'Población': row['Población'],
+                    'Conductor': row['Conductor'],
+                    'Calle': row['Calle'],
+                    'Cod_Mat': row['Cod_Mat'],
+                    'Producto': row['Producto'],
+                    'Nombre': row['Nombre'],
+                    'UM': row['UM'],
+                    'Cant_UMV': cantidad,
+                    'fecha_vencimiento': str(tracker_detail_product[0]['fecha_vencimiento']),
+                    'tracker': tracker_detail_product[0]['tracker_id'],
+                    'client_id': client_id,
+                    'lote': tracker_detail_product[0]['lote'],
+                    'time_in_warehouse': tracker_detail_product[0]['time_in_warehouse'],
+
+                })
+                # restar la cantidad del tracker detail product
+                tracker_detail_product[0]['cantidad'] = tracker_detail_product[0]['cantidad'] - cantidad
+
+
+            else:
+                row['fecha_vencimiento'] = None
+                row['tracker_detail_product'] = None
+                row['cantidad'] = 0
+
+        # guardar la data simulada en la base de datos todo el json
+        tour_id_list = tour_id_list.tolist()
+        conductor_list = conductor_list.tolist()
+        data = {
+            'tour_id_list': tour_id_list,
+            'conductor_list': conductor_list,
+            'client_ids': client_ids,
+            'product_list': product_list,
+            'data': data_simulated
+        }
+        output.simulation = data
+        output.save()
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
 
     def get_object_or_404(self):
         return get_object_or_404(OutputT2Model, pk=self.kwargs['pk'])
