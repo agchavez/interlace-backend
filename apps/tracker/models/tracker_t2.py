@@ -79,6 +79,13 @@ class OutputT2Model(BaseModel):
         "Ultima actualización",
         auto_now=True)
 
+    # json de la simulacion
+    simulation = models.JSONField(
+        "simulación",
+        null=True,
+        blank=True)
+
+
     class Meta:
         db_table = "output_t2"
         verbose_name = "Salida T2"

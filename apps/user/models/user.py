@@ -3,7 +3,7 @@ from django.contrib.auth.models import AbstractUser, Group
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.hashers import make_password
-import uuid
+
 
 from rest_framework.exceptions import ValidationError
 from apps.maintenance.models.distributor_center import DistributorCenter
@@ -67,6 +67,14 @@ class UserModel(AbstractUser):
         blank=True,
         verbose_name=_('centro de distribución'),
         related_name='user_centro_distribucion'
+    )
+
+    # centros de distribucion a los que tiene acceso el usuario
+    distributor_centers = models.ManyToManyField(
+        DistributorCenter,
+        verbose_name=_('centros de distribución'),
+        related_name='user_distributor_centers',
+        blank=True
     )
 
     # Numero de empleado valor numerico, unico pero opcional
