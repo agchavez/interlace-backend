@@ -47,6 +47,10 @@ class OutputT2FilterSet(django_filters.FilterSet):
         field_name='created_at',
         label='Fecha de creación'
     )
+    pre_sale_date = django_filters.DateFilter(
+        field_name='pre_sale_date',
+        label='Fecha de preventa'
+    )
 
     class Meta:
         model = OutputT2Model
@@ -155,11 +159,6 @@ class OutputT2View(viewsets.GenericViewSet,
     def simulate(self, request, *args, **kwargs):
         output = self.get_object_or_404()
         self.check_permissions_created(request, output)
-        user = request.user
-
-        # ruta a filtrar
-        producto = request.data['producto']
-
         # verificar el excel
         excel = request.FILES['excel']
         df = pd.read_excel(excel)

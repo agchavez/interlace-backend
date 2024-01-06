@@ -1,5 +1,6 @@
 # django
 from django.db import models
+from django.utils import timezone
 
 # local
 from utils.BaseModel import BaseModel
@@ -84,6 +85,12 @@ class OutputT2Model(BaseModel):
         "simulación",
         null=True,
         blank=True)
+
+    # fecha de preventa
+    pre_sale_date = models.DateField(
+        "Fecha de preventa",
+        default=timezone.now()
+        )
 
 
     class Meta:
