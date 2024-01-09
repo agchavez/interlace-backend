@@ -158,6 +158,7 @@ class OutputT2View(viewsets.GenericViewSet,
     @action(detail=True, methods=['post'], url_path='simulate')
     def simulate(self, request, *args, **kwargs):
         output = self.get_object_or_404()
+        user = request.user
         self.check_permissions_created(request, output)
         # verificar el excel
         excel = request.FILES['excel']
@@ -165,7 +166,7 @@ class OutputT2View(viewsets.GenericViewSet,
         data_email = {
             'id': output.id,
             'name': output.user.get_full_name(),
-            'email': output.user.email,
+            'email': user.email,
         }
         # validar que el excel tenga las columnas correctas
         if not ({'Ruta_SAP', 'TOUR_ID','Entrega', 'Población', 'Conductor', 'Calle','Cod_Mat', 'Producto', 'Nombre','UM','Cant_UMV'}
