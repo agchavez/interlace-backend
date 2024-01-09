@@ -165,7 +165,7 @@ class OutputT2View(viewsets.GenericViewSet,
         df = pd.read_excel(excel)
         data_email = {
             'id': output.id,
-            'name': output.user.get_full_name(),
+            'name': user.get_full_name(),
             'email': user.email,
         }
         # validar que el excel tenga las columnas correctas
