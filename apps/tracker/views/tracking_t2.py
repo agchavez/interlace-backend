@@ -217,7 +217,7 @@ class OutputT2View(viewsets.GenericViewSet,
                 'codigo_sap': tracker.tracker_detail.tracker_detail.product.sap_code,
                 'fecha_vencimiento': tracker.tracker_detail.expiration_date,
                 'cantidad': tracker.quantity,
-                'lote': tracker.lote,
+                'lote': tracker.lote.code,
                 # Tiempo en bodega en dias
                 'time_in_warehouse': (tracker.created_at - tracker.tracker_detail.created_at).days
             })
