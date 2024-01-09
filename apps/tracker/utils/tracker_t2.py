@@ -243,8 +243,9 @@ def restore_password_notification(data):
             'name': data['name'],
             'url': '%s%s%s' % (os.getenv('FRONTEND_URL'), '/tracker-t2/simulated/', data['id'])
         })
+        print('Se envio el correo de salida T2')
 
     except Exception as e:
-        print(e)
+        print('Error al enviar el correo de salida T2' + str(e))
 
 # enviar correo de salida t2
