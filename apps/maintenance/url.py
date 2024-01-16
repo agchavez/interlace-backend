@@ -11,6 +11,7 @@ from .views import (
         DriverModelViewSet,
         ProductModelViewSet,
         OutputTypeModelViewSet,
+        LotModelViewSet,
         PeriodViewSet)
 
 # Routers
@@ -25,3 +26,4 @@ router.register(r'driver', DriverModelViewSet)
 router.register(r'product', ProductModelViewSet)
 router.register(r'output-type', OutputTypeModelViewSet)
 router.register(r'period', PeriodViewSet)
+router.register(r'lot', LotModelViewSet)

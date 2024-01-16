@@ -5,16 +5,17 @@ from django.db.models import Sum, Q
 from rest_framework import serializers
 
 # Models
-from apps.tracker.models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
+from apps.tracker.models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel, TrackerDetailOutputModel
 
 from apps.tracker.exceptions.tracker import TrackerCompleted, TransporterRequired, TrailerRequired, PalletsExceeded, \
     TrailerInUse, TrackerCompletedDetail, TrackerCompletedDetailProduct, InputDocumentNumberIsNotNumber, \
-    InputDocumentNumberRegistered
+    InputDocumentNumberRegistered, OrderCompleted, OrderDistributorCenter
 
 from apps.maintenance.serializer import TrailerModelSerializer, TransporterModelSerializer, DistributorCenterSerializer, \
     ProductModelSerializer, LocationModelSerializer
 
 from .typeDetailOutput import TrackerDetailOutputSerializer
+from ...maintenance.models import OutputTypeModel
 
 
 class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
@@ -33,6 +34,8 @@ class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
             return 'B'
         else:
             return 'C'
+
+
 
     class Meta:
         model = TrackerDetailProductModel
@@ -89,7 +92,14 @@ class TrackerSerializer(serializers.ModelSerializer):
     tracker_detail = TrackerDetailModelSerializer(many=True, read_only=True)
     location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
     tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
+    is_archivo_up = serializers.SerializerMethodField('archivo_up')
 
+    def archivo_up(self, obj):
+        if obj.archivo is None:
+            return False
+        else:
+            return True
+        
     def get_tariler(self, obj):
         return TrailerModelSerializer(obj.trailer).data
 
@@ -98,7 +108,8 @@ class TrackerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TrackerModel
-        fields = '__all__'
+        # fields = '__all__'
+        exclude = ('archivo',)
 
     def validate(self, data):
         # solo se pueden actualizar si el estado es PENDING
@@ -133,6 +144,37 @@ class TrackerSerializer(serializers.ModelSerializer):
                 data['input_date'] = datetime.now()
             else:
                 data['input_date'] = self.instance.input_date
+        # Si se cambia la orden de compra, eliminar los detalles de salida
+        if self.instance and 'order' in data:
+            if self.instance.order != data['order']:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+
+        #Cuanda cambia de tipo de salida con de una que requiere order a una diferente, eliminar los detalles de salida y orden pasa a None
+        if self.instance and 'output_type' in data and self.instance.output_type:
+            output_type = OutputTypeModel.objects.get(id=self.instance.output_type.id)
+            if self.instance.output_type.required_orders and not output_type.required_orders and self.instance.order:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+                data['order'] = None
+
+        if self.instance and 'output_type' in data and self.instance.output_type:
+            output_type = OutputTypeModel.objects.get(id=self.instance.output_type.id)
+            if not self.instance.output_type.required_orders and output_type.required_orders:
+                TrackerDetailOutputModel.objects.filter(tracker=self.instance).delete()
+                
+        # Solo se pueden seleccionar pedidos que no esten completos
+        if data.get('order') and self.instance:
+            if data.get('order').status == 'COMPLETED':
+                raise OrderCompleted()
+
+        # solo se pueden listar ordenes del centro de distribucion en donde se genero el tracker
+        if data.get('order') and self.instance:
+            if data.get('order').distributor_center != self.instance.distributor_center:
+                raise OrderDistributorCenter()
+
+        # La localidad de envio es la misma que se configuro en la orden
+        if data.get('order') and self.instance:
+            data['destination_location'] = data.get('order').location
+
         return data
 
     def create(self, validated_data):

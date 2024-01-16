@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from django.contrib.auth.models import AnonymousUser
 from django.db.models import Sum, Q, F
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
@@ -10,7 +11,7 @@ from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 # Models
-from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel
+from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel, TrackerOutputT2Model
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
 from apps.maintenance.models import TrailerModel, TransporterModel, DistributorCenter, ProductModel
@@ -19,10 +20,15 @@ from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistrib
     TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
     TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
     OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
-    OriginLocationRequired, AccountedRequired
+    OriginLocationRequired, AccountedRequired, FileTooLarge, FileNotExists, ProductIdRequired
+
 from apps.user.views.user import CustomAccessPermission
 from apps.tracker.models import TrackerDetailOutputModel
 from rest_framework.filters import OrderingFilter
+from django.http import HttpResponse
+from ..utils.processes import apply_output_movements
+from ...order.utils.update import validate_and_update_order_detail, update_order_detail
+
 
 class TrackerFilter(django_filters.FilterSet):
     transporter = django_filters.ModelMultipleChoiceFilter(
@@ -169,10 +175,16 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     def complete(self, request, *args, **kwargs):
         tracker = self.get_object()
         validate_complete_tracker(tracker)
+        if tracker.order:
+            update_order_detail(tracker.order, tracker)
+
         tracker.complete()
         # la fecha de completado se actualiza en el modelo
         tracker.completed_date = datetime.now()
         tracker.save()
+
+        # aplicar movimientos de salida
+        apply_output_movements.delay(tracker.id, request.user.id)
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
 
     # Informacion del dashboard por centro de distribucion de usuarios
@@ -199,6 +211,34 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'time_average': time_average,
             'last_trackers': TrackerSerializer(last_trackers, many=True).data
         }, status=status.HTTP_200_OK)
+    # Cargar archivo
+    @action(detail=True, methods=['patch'], url_path='upload-file')
+    def uploadFile(self, request, *args, **kwargs):
+        tracker = self.get_object()
+        if tracker.status != "EDITED":
+            raise TrackerCompleted
+        archivo = request.data.get("archivo")
+        name = request.data.get("name")
+        if archivo is not None:
+            if archivo.size > 20*1024*1024:
+                raise FileTooLarge
+            content = archivo.read()
+            tracker.archivo = content
+        if name:
+            tracker.archivo_name = name
+        tracker.save()
+        serializer = TrackerSerializer(tracker)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    # Descargar archivo
+    @action(detail=True, methods=['get'], url_path='get-file')
+    def getFile(self, request, *args, **kwargs):
+        tracker = self.get_object()
+        archivo = tracker.archivo
+        if not archivo:
+            raise FileNotExists
+        response = HttpResponse(archivo, content_type='application/octet-stream',)
+        response['Content-Disposition'] = f'attachment; filename="{tracker.archivo_name}"'
+        return response
 
     # ultimos detalles de salida del centro de distribucion
     @action(detail=False, methods=['get'], url_path='last-output')
@@ -263,7 +303,7 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
     serializer_class = TrackerDetailModelSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ()
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
@@ -315,6 +355,7 @@ class TrackerDetailProductModelFilter(django_filters.FilterSet):
                 'id': ['exact'],
                 'tracker_detail__tracker__status': ['exact'],
                 'tracker_detail__tracker__user': ['exact'],
+                'available_quantity': ['gt', 'lt', 'exact'],
 
             }
 
@@ -343,14 +384,22 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
 
+    def partial_update(self, request, *args, **kwargs):
+        # la cantidad disponible es igual a la cantidad
+        instance = self.get_object()
+        request.data['available_quantity'] = request.data['quantity'] * instance.tracker_detail.product.boxes_pre_pallet
+        return super().partial_update(request, *args, **kwargs)
+
+
     def list(self, request, *args, **kwargs):
         # agregar filtro adicional
         queryset = self.filter_queryset(self.get_queryset())
 
         user = request.user
 
-        if user.centro_distribucion:
-            queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
+        if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
+            if user.centro_distribucion:
+                queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -369,6 +418,62 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    # Listar fechas disponibles por producto que su cantidad sea mayor a 0
+    @action(detail=False, methods=['get'], url_path='available-dates')
+    def available_dates(self, request, *args, **kwargs):
+        # el id del producto es requerido
+        product_id = request.GET.get('product_id')
+        output_id = request.GET.get('output_id')
+        if product_id is None or not product_id.isnumeric() or output_id is None or not output_id.isnumeric():
+            raise ProductIdRequired()
+
+        query = TrackerDetailProductModel.objects.filter(tracker_detail__product__id=product_id, available_quantity__gt=0)
+
+        # ademas no tienen que estar ya seleccionadas en otras TrackerOutputT2Model restando las cantidades
+# de los TrackerDetailProductModel
+
+        # agrupar por fecha y sumar la cantidad disponible
+        data = []
+        for item in query.values('expiration_date').annotate(total=Sum('available_quantity')):
+            data.append({
+                'expiration_date': item.get('expiration_date'),
+                'total': item.get('total'),
+                'details': query.filter(expiration_date=item.get('expiration_date'))
+                    .values('id', 'available_quantity')
+                    # cambiar el nombre de las llaves
+                    .annotate(tracker_id=F('tracker_detail__tracker__id'))
+            })
+        process_data = []
+        for track in data:
+            total = 0
+            for detail in track['details']:
+                if TrackerOutputT2Model.objects.filter(tracker_detail_id=detail['id'] ).exclude(output_detail__id=output_id).exists():
+                    sum_quantity = (TrackerOutputT2Model.objects.filter(tracker_detail_id=detail['id'] ).exclude(output_detail__id=output_id).aggregate(Sum('quantity')))
+                    if sum_quantity.get('quantity__sum') is None:
+                        sum_quantity = {'quantity__sum': 0}
+                    value = sum_quantity.get('quantity__sum')
+                    if value is not None :
+                        # si es igual a la cantidad disponible, eliminar el detalle
+                        if value == detail['available_quantity']:
+                            detail['available_quantity'] = 0
+                        else:
+                            detail['available_quantity'] = detail['available_quantity'] - value
+                            total += detail['available_quantity']
+                    else:
+                        total += detail['available_quantity']
+                else:
+                    total += detail['available_quantity']
+            if total > 0:
+                track['total'] = total
+                process_data.append(track)
+        # paginar
+        page = self.paginate_queryset(process_data)
+        if page is not None:
+            return self.get_paginated_response(process_data)
+
+        return Response(process_data)
+
     def destroy(self, request, *args, **kwargs):
         if self.get_object().tracker_detail.tracker.status == 'COMPLETE':
             raise TrackerCompletedDetailProduct()
@@ -433,7 +538,9 @@ def validate_complete_tracker(tracker):
     # la localidad de origen es requerida
     if not tracker.origin_location:
         raise OriginLocationRequired()
-
+    # Validar que si hay una orden
+    if tracker.order:
+        validate_and_update_order_detail(tracker.order, tracker)
 
     if tracker.type == 'LOCAL':
         # Validar numero de entrada, salida y traslado

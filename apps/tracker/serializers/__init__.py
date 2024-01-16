@@ -1,3 +1,3 @@
 from .typeDetailOutput import TypeDetailOutputSerializer, TrackerDetailOutputSerializer
 from .tracker import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
-
+from .tracker_t2 import TrackerOutputT2Serializer, OutputDetailT2Serializer, OutputT2Serializer, OutputTrackerT2MassiveSerializer, OutputT2ListSerializer
