@@ -2,7 +2,7 @@
 from rest_framework import serializers
 
 # Models
-from ..models import DistributorCenter, LocationModel, RouteModel
+from ..models import DistributorCenter, LocationModel, RouteModel, LotModel
 
 
 class DistributorCenterSerializer(serializers.ModelSerializer):
@@ -23,3 +23,9 @@ class RouteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = RouteModel
         fields = '__all__'
+
+class LotModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LotModel
+        fields = '__all__'
+

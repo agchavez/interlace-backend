@@ -4,9 +4,9 @@ from django.core.validators import RegexValidator
 
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
     OperatorModel, OutputTypeModel, DistributorCenter
-from .typeDetailOutput import TypeDetailOutputModel
-from apps.user.models import UserModel
 
+from apps.user.models import UserModel
+from apps.order.models.order import OrderModel
 from django.db import models
 from utils.BaseModel import BaseModel
 
@@ -16,6 +16,15 @@ regex_number = '^[0-9]+$'
 # Modelo para los trackers
 
 class TrackerModel(BaseModel):
+    # se puede seleccionar un pedido o no
+    order = models.ForeignKey(
+        OrderModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Pedido",
+        related_name='tracker_order',
+        null=True,
+        blank=True
+    )
     trailer = models.ForeignKey(
         TrailerModel,
         on_delete=models.SET_NULL,
@@ -243,6 +252,18 @@ class TrackerModel(BaseModel):
         blank=True,
     )
 
+    archivo = models.BinaryField(
+        "Archivo", 
+        null=True, 
+        blank=True,
+    )
+
+    archivo_name = models.TextField(
+        "Nombre del Archivo",
+        null=True,
+        blank=True,
+    )
+
     class Meta:
         db_table = "tracker"
         verbose_name = "Tracker"
@@ -261,6 +282,11 @@ class TrackerModel(BaseModel):
         if self.input_date and self.output_date:
             self.time_invested = (self.output_date - self.input_date).total_seconds()
         super(TrackerModel, self).save(*args, **kwargs)
+    
+    def save_file_and_name(self, archivo, nombre):
+        self.archivo = archivo
+        self.archivo_name = nombre
+        self.save()
 
 
 # Modelo para los detalles de los trackers
@@ -304,7 +330,7 @@ class TrackerDetailModel(BaseModel):
 # Modelo para los detalles de productos de los trackers
 
 class TrackerDetailProductModel(BaseModel):
-    # Tracker detalle
+    #    Tracker detalle
     tracker_detail = models.ForeignKey(
         TrackerDetailModel,
         on_delete=models.CASCADE,
@@ -325,6 +351,14 @@ class TrackerDetailProductModel(BaseModel):
         "Cantidad",
         default=0)
 
+    # Cantidad disponible cajas
+    available_quantity = models.IntegerField(
+        "Cantidad disponible",
+        default=0)
+
+    def __str__(self):
+        return str(self.id) + " - " + str(self.tracker_detail)
+
     class Meta:
         db_table = "tracker_detail_product"
         verbose_name = "Detalle de producto de tracker"
@@ -339,6 +373,16 @@ class TrackerDetailOutputModel(BaseModel):
         on_delete=models.CASCADE,
         verbose_name="Tracker",
         related_name='tracker_detail_output',
+        null=True,
+        blank=True
+    )
+
+    # Tracker detail product
+    tracker_detail_product = models.ForeignKey(
+        TrackerDetailProductModel,
+        on_delete=models.CASCADE,
+        verbose_name="Tracker detail product",
+        related_name='tracker_detail_output_tracker_detail_product',
         null=True,
         blank=True
     )
@@ -366,8 +410,9 @@ class TrackerDetailOutputModel(BaseModel):
         null=True
     )
 
+
+
     class Meta:
         db_table = "tracker_detail_output"
         verbose_name = "Detalle de salida de tracker"
         verbose_name_plural = "Detalles de salida de tracker"
-        unique_together = ('tracker', 'product')

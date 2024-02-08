@@ -1,0 +1,114 @@
+from click.core import F
+from django.db.models import Avg
+from rest_framework import viewsets
+from datetime import date, timedelta
+from rest_framework import serializers
+from rest_framework.response import Response
+
+from apps.maintenance.exceptions.maintenance import DistributionCenterDoesNotExistError, NoDistributionCenterError
+from apps.tracker.models.tracker import TrackerModel
+from apps.user.views.user import CustomAccessPermission
+from apps.maintenance.models.distributor_center import DistributorCenter
+# Grafica de TAT(tiempo promedio de entrega) por mes, centro de distribucion y año
+class TATSerializer(serializers.Serializer):
+    # lista de años disponibles (2023 en adelante)
+    year = serializers.ListField(child=serializers.IntegerField(), required=False)
+    # centros de distribucion, solo si el usuario no tiene asignado un centro de distribucion
+    distributor_center = serializers.ListField(child=serializers.IntegerField(), required=False)
+
+    def validate(self, attrs):
+        # si no se envia el año se toma el año actual
+        if not attrs.get('year'):
+            attrs['year'] = [date.today().year]
+        # validar que los años sean validos
+        for year in attrs.get('year'):
+            if year < date.today().year:
+                raise serializers.ValidationError('El año no puede ser menor al año actual')
+        # si el usuario no tiene un centro de distribucion asignado se debe enviar los centros de distribucion
+        if not self.context['request'].user.centro_distribucion:
+            if not attrs.get('distributor_center'):
+                raise NoDistributionCenterError()
+            else:
+                # validar que los centros de distribucion existan
+                for distributor_center in attrs.get('distributor_center'):
+                    if not DistributorCenter.objects.filter(id=distributor_center).exists():
+                        raise DistributionCenterDoesNotExistError
+        return attrs
+
+
+class TATAPI(viewsets.ReadOnlyModelViewSet):
+    serializer_class = TATSerializer
+    permission_classes = [CustomAccessPermission]
+
+    PERMISSION_MAPPING = {
+        'GET': ['tracker.view_trackermodel'],
+        'POST': ['tracker.add_trackermodel'],
+        'PUT': ['tracker.change_trackermodel'],
+        'PATCH': ['tracker.change_trackermodel'],
+        'DELETE': ['tracker.delete_trackermodel'],
+    }
+
+    def get_required_permissions(self, http_method):
+        return self.PERMISSION_MAPPING.get(http_method, [])
+
+    def get_queryset(self):
+        return TrackerModel.objects.all()
+
+    def list(self, request, *args, **kwargs):
+        # si el usuario no tiene un centro de distribucion asignado se debe enviar los centros de distribucion
+        if not request.user.centro_distribucion:
+            distributor_center = request.query_params.get('distributor_center')
+            if distributor_center:
+                distributor_center = [int(x) for x in distributor_center.split(',')]
+            else:
+                distributor_center = []
+        else:
+            distributor_center = [request.user.centro_distribucion.id]
+        year = request.query_params.get('year')
+        if year:
+            year = [int(x) for x in year.split(',')]
+        else:
+            year = [date.today().year]
+        # obtener los datos de la grafica, created_at (para agrupar por mes y año), distributor_center (para agrupar por centro de distribucion), time_invested (tiempo promedio de entrega valor en minutos)
+        queryset = (TrackerModel.objects
+                    .filter(created_at__year__in=year, distributor_center__in=distributor_center, status='COMPLETE')
+                    .values('created_at__month', 'created_at__year', 'distributor_center')
+                    .annotate(avg_time_invested=Avg('time_invested') / 60)
+                    .order_by('created_at__month', 'created_at__year', 'distributor_center')
+                    )
+
+        # lista de meses
+        months = [x for x in range(1, 13)]
+        # solo los años que se enviaron
+        years = year
+        # lista de centros de distribucion
+        distributor_centers = DistributorCenter.objects.filter(id__in=distributor_center)
+        # lista de datos de la grafica
+        data = []
+
+        # Recorrer los meses
+        for month in months:
+            # Recorrer los años
+            for year in years:
+                # Recorrer los centros de distribucion
+                for distributor_center in distributor_centers:
+                    # Filtrar el queryset
+                    queryset_filter = queryset.filter(
+                        created_at__month=month,
+                        created_at__year=year,
+                        distributor_center=distributor_center.id
+                    )
+
+                    # Obtener el valor promedio del tiempo invertido
+                    avg_time_invested = queryset_filter[0]['avg_time_invested'] if queryset_filter else 0
+
+                    # Agregar el registro a la lista de datos
+                    data.append({
+                        'month': month,
+                        'year': year,
+                        'distributor_center': distributor_center.id,
+                        'distributor_center_name': distributor_center.name,
+                        'avg_time_invested': avg_time_invested if avg_time_invested else 0
+                        # Si no hay registros, establecer el tiempo en 0
+                    })
+        return Response(data)
