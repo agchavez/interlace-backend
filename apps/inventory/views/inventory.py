@@ -185,12 +185,13 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
                 )
                 balance = 0
                 # si la cantidad es mayoer a la cantidad del tracker detail
-                if cantidad == tracker_detail_product.quantity:
+                if cantidad == tracker_detail_product.available_quantity:
+                    list_ids.append(tracker_detail_product.id)
                     continue
-                elif cantidad > tracker_detail_product.quantity:
-                    balance = cantidad - tracker_detail_product.quantity
+                elif cantidad > tracker_detail_product.available_quantity:
+                    balance = cantidad - tracker_detail_product.available_quantity
                 else:
-                    balance = cantidad - tracker_detail_product.quantity
+                    balance = cantidad - tracker_detail_product.available_quantity
                 data = {
                     "origin_id": new_origin_id,
                     "tracker_detail_product_id": tracker_detail_product.id,
@@ -214,13 +215,16 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
                     "error": "No existe registro con estos datos.",
                 })
         # todos los tracker details que no estan esten en la lista de ids y que la cantidad disponible sea mayor a 0 hacer el balance para 0
-        tracker_detail_products = TrackerDetailProductModel.objects.filter(tracker_detail__tracker__id__in=list_ids)
+        #   que no este en la lista de ids
+        tracker_detail_products = TrackerDetailProductModel.objects.filter(
+            available_quantity__gt=0
+        ).exclude(id__in=list_ids)
         for tracker_detail_product in tracker_detail_products:
-            if tracker_detail_product.quantity > 0:
+            if tracker_detail_product.available_quantity > 0:
                 data = {
                     "origin_id": new_origin_id,
                     "tracker_detail_product_id": tracker_detail_product.id,
-                    "quantity": -tracker_detail_product.quantity,
+                    "quantity": -tracker_detail_product.available_quantity,
                     "module": InventoryMovementModel.Module.ADMIN,
                     "movement_type": type,
                     "reason": reason,
