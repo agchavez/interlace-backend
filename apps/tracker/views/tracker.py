@@ -177,6 +177,8 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         validate_complete_tracker(tracker)
         if tracker.order:
             update_order_detail(tracker.order, tracker)
+            apply_output_movements.delay(tracker.id, request.user.id)
+
 
         tracker.complete()
         # la fecha de completado se actualiza en el modelo
@@ -184,7 +186,6 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         tracker.save()
 
         # aplicar movimientos de salida
-        apply_output_movements.delay(tracker.id, request.user.id)
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
 
     # Informacion del dashboard por centro de distribucion de usuarios
