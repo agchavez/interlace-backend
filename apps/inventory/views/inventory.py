@@ -182,10 +182,18 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
                     tracker_detail__product__sap_code=str(codigo_sap),
                     expiration_date=str(fecha_vencimiento),
                 )
+                balance = 0
+                # si la cantidad es mayoer a la cantidad del tracker detail
+                if cantidad == tracker_detail_product.quantity:
+                    continue
+                elif cantidad > tracker_detail_product.quantity:
+                    balance = cantidad - tracker_detail_product.quantity
+                else:
+                    balance = cantidad - tracker_detail_product.quantity
                 data = {
                     "origin_id": new_origin_id,
                     "tracker_detail_product_id": tracker_detail_product.id,
-                    "quantity": cantidad,
+                    "quantity": balance,
                     "module": InventoryMovementModel.Module.ADMIN,
                     "movement_type": type,
                     "reason": reason,
