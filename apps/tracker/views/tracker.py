@@ -468,6 +468,8 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
             if total > 0:
                 track['total'] = total
                 process_data.append(track)
+        # ordenar por fecha de vencimiento mas reciente de primero
+        process_data.sort(key=lambda x: x['expiration_date'], reverse=False)
         # paginar
         page = self.paginate_queryset(process_data)
         if page is not None:
