@@ -70,12 +70,7 @@ class UserModel(AbstractUser):
     )
 
     # centros de distribucion a los que tiene acceso el usuario
-    distributor_centers = models.ManyToManyField(
-        DistributorCenter,
-        verbose_name=_('centros de distribución'),
-        related_name='user_distributor_centers',
-        blank=True
-    )
+
 
     # Numero de empleado valor numerico, unico pero opcional
     employee_number = models.IntegerField(
