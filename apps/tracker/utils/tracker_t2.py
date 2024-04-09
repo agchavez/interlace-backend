@@ -231,11 +231,12 @@ def simulate_output_t2(pd_records, output_id, data_email):
         output.save()
 
         # enviar correo de salida t2
-        restore_password_notification(data_email)
+        restore_password_notification.delay(data_email)
         return True, 'Se ha realizado la simulacion de la salida T2'
     except Exception as e:
         return False, str(e)
 
+@shared_task
 def restore_password_notification(data):
     try:
         return create_mail(data['email'], "Simulacion salida T2", 'mails/simulate_complete.html', {
@@ -243,8 +244,9 @@ def restore_password_notification(data):
             'name': data['name'],
             'url': '%s%s%s' % (os.getenv('FRONTEND_URL'), '/tracker-t2/simulated/', data['id'])
         })
+        print('Se envio el correo de salida T2')
 
     except Exception as e:
-        print(e)
+        print('Error al enviar el correo de salida T2' + str(e))
 
 # enviar correo de salida t2

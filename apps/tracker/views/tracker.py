@@ -73,7 +73,6 @@ class TrackerFilter(django_filters.FilterSet):
         values = value.split(',')
         return queryset.filter(status__in=values)
 
-
     class Meta:
         model = TrackerModel
         fields = ('transporter', 'trailer', 'status','type', 'user', 'date', 'distributor_center', 'id')
@@ -122,6 +121,36 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             request.data['operator_2'] = tracker.operator_2.id
         return super().create(request, *args, **kwargs)
 
+    def list(self, request, *args, **kwargs):
+        # agregar filtro adicional
+        queryset = self.filter_queryset(self.get_queryset())
+
+        user = request.user
+
+        try:
+            if user.centro_distribucion:
+                queryset = queryset.filter(distributor_center=user.centro_distribucion)
+        except:
+            pass
+
+        # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
+        shift = request.GET.get('shift')
+        if shift is not None and shift in ['A', 'B', 'C']:
+            if shift == 'A':
+                queryset = queryset.filter(created_at__hour__gte=6, created_at__hour__lte=14)
+            if shift == 'B':
+                queryset = queryset.filter(created_at__hour__gte=14, created_at__hour__lte=22)
+            if shift == 'C':
+                queryset = queryset.filter(Q(created_at__hour__gte=22.5) | Q(created_at__hour__lt=6))
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     # Sobrescribe el método destroy para verificar que el tracker no este completado
     def destroy(self, request, *args, **kwargs):
         if self.get_object().status == 'COMPLETE':
@@ -148,6 +177,8 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         validate_complete_tracker(tracker)
         if tracker.order:
             update_order_detail(tracker.order, tracker)
+            apply_output_movements.delay(tracker.id, request.user.id)
+
 
         tracker.complete()
         # la fecha de completado se actualiza en el modelo
@@ -155,7 +186,6 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         tracker.save()
 
         # aplicar movimientos de salida
-        apply_output_movements.delay(tracker.id, request.user.id)
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
 
     # Informacion del dashboard por centro de distribucion de usuarios
@@ -438,6 +468,8 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
             if total > 0:
                 track['total'] = total
                 process_data.append(track)
+        # ordenar por fecha de vencimiento mas reciente de primero
+        process_data.sort(key=lambda x: x['expiration_date'], reverse=False)
         # paginar
         page = self.paginate_queryset(process_data)
         if page is not None:

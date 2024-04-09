@@ -14,6 +14,7 @@ from ..models import InventoryMovementModel
 from ..serializers import InventoryMovementSerializer, InventoryMovementMassiveSerializer 
 import pandas as pd  # Asegúrate de tener instalada la librería pandas
 
+from ..utils.inventory import update_adjustment_movement
 from ...tracker.models import TrackerDetailProductModel
 from ...user.views.user import CustomAccessPermission
 import django_filters
@@ -169,6 +170,7 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
         else:
             new_origin_id = 1
 
+        list_ids = []
         # Lógica para crear movimientos de inventario masivos desde el archivo Excel
         for index, row in df.iterrows():
             tracker_id = row['tracker_id']
@@ -182,15 +184,25 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
                     tracker_detail__product__sap_code=str(codigo_sap),
                     expiration_date=str(fecha_vencimiento),
                 )
+                balance = 0
+                # si la cantidad es mayoer a la cantidad del tracker detail
+                if cantidad == tracker_detail_product.available_quantity:
+                    list_ids.append(tracker_detail_product.id)
+                    continue
+                elif cantidad > tracker_detail_product.available_quantity:
+                    balance = cantidad - tracker_detail_product.available_quantity
+                else:
+                    balance = cantidad - tracker_detail_product.available_quantity
                 data = {
                     "origin_id": new_origin_id,
                     "tracker_detail_product_id": tracker_detail_product.id,
-                    "quantity": cantidad,
+                    "quantity": balance,
                     "module": InventoryMovementModel.Module.ADMIN,
                     "movement_type": type,
                     "reason": reason,
                     "user_id": request.user.id
                 }
+                list_ids.append(tracker_detail_product.id)
                 new_inv = InventoryMovementModel.objects.create(**data)
                 new_inv.save()
                 list_data.append(InventoryMovementSerializer(new_inv).data)
@@ -203,6 +215,10 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
                     "cantidad": cantidad,
                     "error": "No existe registro con estos datos.",
                 })
+        # todos los tracker details que no estan esten en la lista de ids y que la cantidad disponible sea mayor a 0 hacer el balance para 0
+        #   que no este en la lista de ids
+        update_adjustment_movement.delay(list_ids, new_origin_id, reason, type, request.user.id)
+
         # Retornar una respuesta exitosa
         return Response({
             'data': list_data,
