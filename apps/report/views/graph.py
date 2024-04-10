@@ -25,7 +25,7 @@ class TATSerializer(serializers.Serializer):
             if year < date.today().year:
                 raise serializers.ValidationError('El año no puede ser menor al año actual')
         # si el usuario no tiene un centro de distribucion asignado se debe enviar los centros de distribucion
-        if not self.context['request'].user.centro_distribucion:
+        if self.context['request'].user.distributions_centers.exists():
             if not attrs.get('distributor_center'):
                 raise NoDistributionCenterError()
             else:
@@ -56,7 +56,7 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
 
     def list(self, request, *args, **kwargs):
         # si el usuario no tiene un centro de distribucion asignado se debe enviar los centros de distribucion
-        if not request.user.centro_distribucion:
+        if request.user.distributions_centers.exists():
             distributor_center = request.query_params.get('distributor_center')
             if distributor_center:
                 distributor_center = [int(x) for x in distributor_center.split(',')]
