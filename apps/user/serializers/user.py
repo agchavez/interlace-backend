@@ -62,7 +62,7 @@ class UserSerializer(serializers.ModelSerializer):
                 else:
                     data['is_staff'] = False
         # en los centros de distribucion asociados tiene que existir el centro de distribucion
-        if 'centro_distribucion' in data:
+        if 'centro_distribucion' in data and 'distributions_centers' in data:
             distributions_centers = data['distributions_centers']
             # en el arreglo de centros de distribucion asociados tiene que existir el centro de distribucion
             if data['centro_distribucion'] not in distributions_centers:
