@@ -64,10 +64,12 @@ class OrderViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, UpdateM
     # Solo ver las ordenes del centro de distribucion del usuario
     def get_queryset(self):
         queryset = OrderModel.objects.all()
-        user = self.request.user
+        # solo si distributions_centers solo tiene un centro de distribucion
+        user = self.request
         try:
-            cd = user.centro_distribucion
-            queryset = queryset.filter(distributor_center=cd)
+            if len(user.distributions_centers) == 1:
+                cd = user.distributions_centers.first()
+                queryset = queryset.filter(distributor_center=cd)
         except:
             pass
         return queryset
