@@ -82,7 +82,7 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
     filterset_class = InventoryMovementFilter
     filter_backends = [DjangoFilterBackend]
 
-    # permission_classes = [CustomAccessPermission]
+    permission_classes = [CustomAccessPermission]
     PERMISSION_MAPPING = {
         'GET': ['inventory.view_inventorymovementmodel'],
         'POST': ['inventory.add_inventorymovementmodel'],
@@ -90,6 +90,11 @@ class InventoryMovementViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSe
         'PATCH': ['inventory.change_inventorymovementmodel'],
         'DELETE': ['inventory.delete_inventorymovementmodel'],
     }
+
+    # solo tomar en cuenta los cd que el usuario tiene asignado
+    def get_queryset(self):
+        cds = self.request.user.distributions_centers.all()
+        return InventoryMovementModel.objects.filter(tracker_detail_product__tracker_detail__tracker__distributor_center__in=cds)
 
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
