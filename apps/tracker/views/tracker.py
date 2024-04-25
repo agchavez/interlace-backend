@@ -214,7 +214,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         # Total de trackers pendientes
         total_trackers_pending = queryset.filter(status='PENDING').values('created_at', 'status', 'id').order_by('created_at')[:10]
         # Tiempo promedio en completar un tracker
-        tracker_average_complete = queryset.filter(status='COMPLETE', exclude_tat=False)
+        tracker_average_complete = queryset.filter(status='COMPLETE', exclude_tat=False).count()
         time_average = queryset.filter(status='COMPLETE', exclude_tat=False).aggregate(Sum('time_invested'))
         # Tiempo promedio en completar un tracker
         time_average = time_average.get('time_invested__sum') / tracker_average_complete if tracker_average_complete > 0 else 0
