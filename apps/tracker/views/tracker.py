@@ -128,11 +128,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        try:
-            if user.centro_distribucion:
-                queryset = queryset.filter(distributor_center=user.centro_distribucion)
-        except:
-            pass
+        # try:
+        #     if user.centro_distribucion:
+        #         queryset = queryset.filter(distributor_center=user.centro_distribucion)
+        # except:
+        #     pass
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -399,9 +399,9 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
-            if user.centro_distribucion:
-                queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
+        # if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
+        #     if user.centro_distribucion:
+        #         queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
