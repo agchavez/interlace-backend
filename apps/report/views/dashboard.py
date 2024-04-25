@@ -76,7 +76,8 @@ class DashboardAPI(viewsets.ReadOnlyModelViewSet):
                 cd_name = cd.name
                 if hasattr(cd,'location_distributor_center') and cd.location_distributor_center is not None:
                      cd_name = cd.location_distributor_center.code + " - " + cd.name
-                tat = trackers.filter(distributor_center=cd).aggregate(Avg('time_invested'))
+                tat = (trackers.filter(distributor_center=cd, exclude_tat=False)
+                       .aggregate(Avg('time_invested')))
                 tat['time_invested__avg'] = tat['time_invested__avg'] if tat['time_invested__avg'] else 0
                 count = trackers.filter(distributor_center=cd).count()
                 user = trackers.filter(distributor_center=cd, status='EDITED').values('user__first_name', 'user__last_name').first()
