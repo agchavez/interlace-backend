@@ -199,6 +199,11 @@ class TrackerModel(BaseModel):
         null=True,
         blank=True)
 
+    # excluir del tat
+    exclude_tat = models.BooleanField(
+        "Excluir del TAT",
+        default=False)
+
     STATUS_CHOICES = (
         ('PENDING', 'PENDING'),
         ('COMPLETE', 'COMPLETE'),
