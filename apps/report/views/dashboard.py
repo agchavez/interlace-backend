@@ -66,11 +66,13 @@ class DashboardAPI(viewsets.ReadOnlyModelViewSet):
                 tat = trackers.filter(distributor_center=cd).aggregate(Avg('time_invested'))
                 tat['time_invested__avg'] = tat['time_invested__avg'] if tat['time_invested__avg'] else 0
                 count = trackers.filter(distributor_center=cd).count()
+                user = trackers.filter(distributor_center=cd, status='EDITED').values('user__first_name', 'user__last_name').first()
                 resp.append({
                     'distributor_center': cd_name,
                     'total_trackers': count,
                     'edit_trackers': trackers.filter(distributor_center=cd, status='EDITED').count(),
                     'tat': tat['time_invested__avg'],
+                    'user': user['user__first_name'] + ' ' + user['user__last_name'] if user else None,
                     'edited_trackers': []
                 })
 
@@ -84,7 +86,6 @@ class DashboardAPI(viewsets.ReadOnlyModelViewSet):
                     tracker_details = TrackerDetailModel.objects.filter(tracker=tracker['id']).values(
                         'product__sap_code', 'product__name', 'quantity', 'tracker_product_detail__expiration_date', 'tracker_product_detail__quantity')
                     products = {}
-
                     for detail in tracker_details:
                         sap_code = detail['product__sap_code']
                         if sap_code not in products:
