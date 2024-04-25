@@ -1,7 +1,8 @@
 from click.core import F
 from django.db.models import Avg, Sum
 from rest_framework import viewsets
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+
 from rest_framework import serializers
 from rest_framework.response import Response
 
@@ -47,17 +48,29 @@ class DashboardAPI(viewsets.ReadOnlyModelViewSet):
         cds = request.user.distributions_centers.all()
 
         if len(cds) > 1:
+            # Obtener la fecha actual y la hora actual
+            now = datetime.now()
+
+            # Establecer la hora de inicio del día (6 am)
+            start_of_day = now.replace(hour=6, minute=0, second=0, microsecond=0)
+
             if request.query_params.get('date_range') == 'today':
-                trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__date=date.today())
+                trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__gte=start_of_day)
+
             elif request.query_params.get('date_range') == 'this_week':
-                trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__date__range=[
-                    date.today() - timedelta(days=date.today().weekday()), date.today()])
+                # Calcular el inicio de la semana (lunes a las 6 am)
+                start_of_week = start_of_day - timedelta(days=now.weekday())
+                trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__gte=start_of_week)
+
             elif request.query_params.get('date_range') == 'this_month':
-                trackers = TrackerModel.objects.filter(distributor_center__in=cds,
-                                                       created_at__month=date.today().month)
+                # Obtener el primer día del mes (a las 6 am)
+                first_day_of_month = now.replace(day=1, hour=6, minute=0, second=0, microsecond=0)
+                trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__gte=first_day_of_month)
+
             elif request.query_params.get('date_range') == 'this_year':
-                trackers = TrackerModel.objects.filter(distributor_center__in=cds,
-                                                       created_at__year=date.today().year)
+                # Obtener el primer día del año (a las 6 am)
+                first_day_of_year = now.replace(month=1, day=1, hour=6, minute=0, second=0, microsecond=0)
+                trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__gte=first_day_of_year)
 
             for cd in cds:
                 cd_name = cd.name
