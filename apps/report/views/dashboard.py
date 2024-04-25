@@ -5,10 +5,9 @@ from datetime import date, timedelta
 from rest_framework import serializers
 from rest_framework.response import Response
 
-from apps.maintenance.exceptions.maintenance import DistributionCenterDoesNotExistError, NoDistributionCenterError
+from apps.maintenance.models import PeriodModel
 from apps.tracker.models.tracker import TrackerModel, TrackerDetailModel
-from apps.user.views.user import CustomAccessPermission
-from apps.maintenance.models.distributor_center import DistributorCenter
+
 
 
 # dashboard para los cds asignados al usuario
@@ -89,10 +88,12 @@ class DashboardAPI(viewsets.ReadOnlyModelViewSet):
                     for detail in tracker_details:
                         sap_code = detail['product__sap_code']
                         if sap_code not in products:
+                            period = PeriodModel.objects.filter(distributor_center=cd, product__sap_code=sap_code).values('label').last()
                             products[sap_code] = {
                                 'sap_code': sap_code,
                                 'name': detail['product__name'],
                                 'quantity': detail['quantity'],
+                                'period': period['label'] if period else None,
                                 'expiration_dates': [{'expiration_date': detail['tracker_product_detail__expiration_date'],
                                                      'quantity': detail['tracker_product_detail__quantity']}]
                             }
