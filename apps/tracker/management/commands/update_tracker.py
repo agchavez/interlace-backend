@@ -23,7 +23,7 @@ class Command(BaseCommand):
                 # t.save()
                 self.stdout.write(self.style.SUCCESS(f'Tracker {t.id} excluido del TAT, tiempo {t.time_invested} mayor al promedio {average}'))
             # si los tiempo son menores a 30 minutos del promedio se excluyen
-            tracker_exclude = trackers.filter(time_invested__lt=average - 1800, exclude_tat=False, status='COMPLETE')
+            #tracker_exclude = trackers.filter(time_invested__lt=average - 1800, exclude_tat=False, status='COMPLETE')
             # for t in tracker_exclude:
             #     # t.exclude_tat = True
             #     # t.save()
