@@ -71,7 +71,7 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
             year = [date.today().year]
         # obtener los datos de la grafica, created_at (para agrupar por mes y año), distributor_center (para agrupar por centro de distribucion), time_invested (tiempo promedio de entrega valor en minutos)
         queryset = (TrackerModel.objects
-                    .filter(created_at__year__in=year, distributor_center__in=distributor_center, status='COMPLETE')
+                    .filter(created_at__year__in=year, distributor_center__in=distributor_center, status='COMPLETE', exclude_tat=False)
                     .values('created_at__month', 'created_at__year', 'distributor_center')
                     .annotate(avg_time_invested=Avg('time_invested') / 60)
                     .order_by('created_at__month', 'created_at__year', 'distributor_center')
