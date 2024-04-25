@@ -104,6 +104,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     #     user = self.request.user
     #     if user.groups.filter(name='SUPERVISOR').exists():
     #         return TrackerModel.objects.filter(distributor_center=user.centro_distribucion)
+    #         return TrackerModel.objects.filter(distributdashor_center=user.centro_distribucion)
     #     return TrackerModel.objects.all()
 
     def get_required_permissions(self, http_method):
