@@ -55,6 +55,9 @@ class DashboardAPI(viewsets.ReadOnlyModelViewSet):
             start_of_day = now.replace(hour=6, minute=0, second=0, microsecond=0)
 
             if request.query_params.get('date_range') == 'today':
+                # si la consulta se hace antes de las 5:59 tomar en cuena las 6 am del día anterior
+                if now.hour < 6:
+                    start_of_day = start_of_day - timedelta(days=1)
                 trackers = TrackerModel.objects.filter(distributor_center__in=cds, created_at__gte=start_of_day)
 
             elif request.query_params.get('date_range') == 'this_week':
