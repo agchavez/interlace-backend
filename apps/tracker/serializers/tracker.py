@@ -93,6 +93,8 @@ class TrackerSerializer(serializers.ModelSerializer):
     location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
     tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
     is_archivo_up = serializers.SerializerMethodField('archivo_up')
+    operator_1_name = serializers.SerializerMethodField()
+    operator_2_name = serializers.SerializerMethodField()
 
     def archivo_up(self, obj):
         if obj.archivo is None:
@@ -105,6 +107,18 @@ class TrackerSerializer(serializers.ModelSerializer):
 
     def get_transporter(self, obj):
         return TransporterModelSerializer(obj.transporter).data
+
+    def get_operator_1_name(self, obj):
+        if obj.operator_1 is not None:
+            return obj.operator_1.get_full_name()
+        else:
+            return None
+
+    def get_operator_2_name(self, obj):
+        if obj.operator_2 is not None:
+            return obj.operator_2.get_full_name()
+        else:
+            return None
 
     class Meta:
         model = TrackerModel

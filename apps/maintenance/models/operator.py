@@ -25,6 +25,8 @@ class OperatorModel(BaseModel):
     def __str__(self):
         return self.first_name + " - " + self.distributor_center.name
 
+    def get_full_name(self):
+        return self.first_name + " " + self.last_name
 
     def save(self, *args, **kwargs):
         self.first_name = self.first_name.upper()
