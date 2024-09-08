@@ -104,6 +104,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     #     user = self.request.user
     #     if user.groups.filter(name='SUPERVISOR').exists():
     #         return TrackerModel.objects.filter(distributor_center=user.centro_distribucion)
+    #         return TrackerModel.objects.filter(distributdashor_center=user.centro_distribucion)
     #     return TrackerModel.objects.all()
 
     def get_required_permissions(self, http_method):
@@ -127,11 +128,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        try:
-            if user.centro_distribucion:
-                queryset = queryset.filter(distributor_center=user.centro_distribucion)
-        except:
-            pass
+        # try:
+        #     if user.centro_distribucion:
+        #         queryset = queryset.filter(distributor_center=user.centro_distribucion)
+        # except:
+        #     pass
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -181,9 +182,19 @@ class TrackerModelViewSet(mixins.ListModelMixin,
 
 
         tracker.complete()
-        # la fecha de completado se actualiza en el modelo
-        tracker.completed_date = datetime.now()
-        tracker.save()
+
+        # si el time invested es 10 minutos superior al promedio del mes, se excluye del TAT
+        # verificar si hay trackers completados
+        if TrackerModel.objects.filter(status='COMPLETE', distributor_center=tracker.distributor_center).count() > 0:
+            tat_average = (TrackerModel.objects.filter(status='COMPLETE', distributor_center=tracker.distributor_center, exclude_tat=False)
+                           .aggregate(Sum('time_invested')))
+            tat_average = tat_average.get('time_invested__sum') / TrackerModel.objects.filter(status='COMPLETE', distributor_center=tracker.distributor_center, exclude_tat=False).count()
+            if tracker.time_invested > tat_average + 600:
+                tracker.exclude_tat = True
+                tracker.save()
+            # la fecha de completado se actualiza en el modelo
+            tracker.completed_date = datetime.now()
+            tracker.save()
 
         # aplicar movimientos de salida
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
@@ -203,9 +214,10 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         # Total de trackers pendientes
         total_trackers_pending = queryset.filter(status='PENDING').values('created_at', 'status', 'id').order_by('created_at')[:10]
         # Tiempo promedio en completar un tracker
-        time_average = queryset.filter(status='COMPLETE').aggregate(Sum('time_invested'))
+        tracker_average_complete = queryset.filter(status='COMPLETE', exclude_tat=False).count()
+        time_average = queryset.filter(status='COMPLETE', exclude_tat=False).aggregate(Sum('time_invested'))
         # Tiempo promedio en completar un tracker
-        time_average = time_average.get('time_invested__sum') / total_trackers_completed if total_trackers_completed > 0 else 0
+        time_average = time_average.get('time_invested__sum') / tracker_average_complete if tracker_average_complete > 0 else 0
         return Response({
             'total_trackers_completed': total_trackers_completed,
             'total_trackers_pending': total_trackers_pending,
@@ -398,9 +410,9 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
-            if user.centro_distribucion:
-                queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
+        # if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
+        #     if user.centro_distribucion:
+        #         queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -468,6 +480,8 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
             if total > 0:
                 track['total'] = total
                 process_data.append(track)
+        # ordenar por fecha de vencimiento mas reciente de primero
+        process_data.sort(key=lambda x: x['expiration_date'], reverse=False)
         # paginar
         page = self.paginate_queryset(process_data)
         if page is not None:

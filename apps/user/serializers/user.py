@@ -61,6 +61,13 @@ class UserSerializer(serializers.ModelSerializer):
                     break
                 else:
                     data['is_staff'] = False
+        # en los centros de distribucion asociados tiene que existir el centro de distribucion
+        if 'centro_distribucion' in data and 'distributions_centers' in data:
+            distributions_centers = data['distributions_centers']
+            # en el arreglo de centros de distribucion asociados tiene que existir el centro de distribucion
+            if data['centro_distribucion'] not in distributions_centers:
+                # agregar el centro de distribucion al arreglo de centros de distribucion asociados
+                distributions_centers.append(data['centro_distribucion'])
 
         return data
     @staticmethod
