@@ -1,12 +1,12 @@
 from django.db.models import Sum
 
-from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, \
-    InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
-    TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
-    OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
-    OriginLocationRequired
-
-from ..models import TrackerModel, TrackerDetailProductModel
+from apps.order.utils.update import validate_and_update_order_detail
+from apps.tracker.exceptions.tracker import InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, \
+    UserWithoutDistributorCenter, TrackerCompleted, TrackerCompletedDetailRequired, OriginLocationRequired, \
+    InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, DriverRequired, OperatorRequired, \
+    OutputTypeRequired, AccountedRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired
+from apps.tracker.exceptions.tracker_t2 import QuantityRequired
+from apps.tracker.models import TrackerModel, TrackerDetailProductModel
 
 
 def validate_create_tracker(request, id=None):
@@ -37,9 +37,9 @@ def validate_create_tracker(request, id=None):
 
     # Validaciones de numero de traslado
     if data.get('transfer_number') and instance:
-        if TrackerModel.objects.filter(transfer_number=data.get('transfer_number')).exclude(
-                id=instance.id).exists():
-            raise InputDocumentNumberRegistered()
+        #if TrackerModel.objects.filter(transfer_number=data.get('transfer_number')).exclude(
+                #id=instance.id).exists():
+            #raise InputDocumentNumberRegistered()
         # El numero de traslado no debe ser numerico en el caso que lo mande
         if not data.get('transfer_number').isnumeric():
             raise InputDocumentNumberIsNotNumber()
@@ -67,6 +67,9 @@ def validate_complete_tracker(tracker):
     # la localidad de origen es requerida
     if not tracker.origin_location:
         raise OriginLocationRequired()
+    # Validar que si hay una orden
+    if tracker.order:
+        validate_and_update_order_detail(tracker.order, tracker)
 
     if tracker.type == 'LOCAL':
         # Validar numero de entrada, salida y traslado
@@ -86,6 +89,10 @@ def validate_complete_tracker(tracker):
         # Validaciones para el tipo de salida del producto
         if not tracker.output_type:
             raise OutputTypeRequired()
+        # El contabilizado es obligatorio solo si el tipo de salida no es VACIO
+        if not tracker.accounted and tracker.output_type.id != 9:
+            raise AccountedRequired()
+
     if tracker.type == 'IMPORT':
         # Validar numero de factura y numero de contenedor
         if not tracker.invoice_number:
@@ -94,6 +101,8 @@ def validate_complete_tracker(tracker):
             raise ContainerNumberRequired()
         if not tracker.driver_import:
             raise DriverRequired()
+        if not tracker.transfer_number:
+            raise TransferNumberRequired()
     # validar numero de placa y driver
     if not tracker.plate_number:
         raise PlateNumberRequired()
@@ -105,3 +114,4 @@ def validate_complete_tracker(tracker):
         if sum_quantity.get('quantity__sum') != tracker_detail.quantity:
             raise QuantityRequired()
     return True
+
