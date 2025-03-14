@@ -3,9 +3,11 @@ from rest_framework import serializers
 
 # Models
 from ..models import DistributorCenter, LocationModel, RouteModel, LotModel
-
+from .country import CountrySerializer
 
 class DistributorCenterSerializer(serializers.ModelSerializer):
+    data_country = CountrySerializer(read_only=True, source='country')
+    location_distributor_center_code = serializers.ReadOnlyField(source='location_distributor_center.code')
     class Meta:
         model = DistributorCenter
         fields = '__all__'

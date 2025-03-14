@@ -25,10 +25,9 @@ class ClaimSerializer(serializers.ModelSerializer):
             "doc_contenido",
             "doc_producto",
             "created_at",
-            "updated_at",
         ]
         read_only_fields = [
             "id", "status",
             "doc_trailer", "doc_descarga", "doc_contenido", "doc_producto",
-            "created_at", "updated_at"
+            "created_at"
         ]

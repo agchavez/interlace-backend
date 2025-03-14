@@ -3,10 +3,11 @@ from django.urls import path, re_path, include
 
 # Views
 from apps.user.views import UserViewSet, LogEntryViewSet, DetailGroupViewSet
-
+from apps.user.views.notificacion import NotificationViewSet
 # Routers
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'log', LogEntryViewSet)
 router.register(r'groups', DetailGroupViewSet)
+router.register(r'notification', NotificationViewSet)
 

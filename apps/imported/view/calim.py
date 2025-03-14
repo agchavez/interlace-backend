@@ -19,14 +19,9 @@ class ClaimViewSet(
     mixins.DestroyModelMixin,  # DELETE /reclamos/<pk>/
     viewsets.GenericViewSet
 ):
-    """
-    ViewSet basado en mixins para manejar Reclamos.
-    - Lista, crea, detalle, actualiza, elimina
-    - Acción personalizada para cambiar estado
-    """
     queryset = ClaimModel.objects.all()
     serializer_class = ClaimSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = []
 
     # Si usas filtros:
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -46,29 +41,11 @@ class ClaimViewSet(
         return self.PERMISSION_MAPPING.get(http_method, [])
 
     def get_permissions(self):
-        """
-        Aquí podrías integrar tu lógica de permisos custom.
-        Por ahora, dejamos 'permissions.IsAuthenticated'.
-        Si quisieras usar un CustomAccessPermission, podrías hacer:
 
-        if self.request:
-            required_perms = self.get_required_permissions(self.request.method)
-            ...
-        """
         return super().get_permissions()
 
     def create(self, request, *args, **kwargs):
-        """
-        Sobrescribimos create() para usar la función create_reclamo(),
-        que maneja la lógica de adjuntar documentos y notificar.
 
-        Espera multipart/form-data con:
-        - tracker_id
-        - assigned_user_id (opcional)
-        - tipo
-        - descripcion
-        - doc_trailer, doc_descarga, doc_contenido, doc_producto (archivos opcionales)
-        """
         tracker_id = request.data.get("tracker_id")
         assigned_user_id = request.data.get("assigned_user_id")
         tipo = request.data.get("tipo")
@@ -102,11 +79,7 @@ class ClaimViewSet(
 
     @action(methods=["post"], detail=True, url_path="change-state")
     def change_state(self, request, pk=None):
-        """
-        Acción personalizada para cambiar el estado de un Reclamo.
-        POST /reclamos/<pk>/change-state/
-        Body JSON: { "new_state": "EN_PROCESO", "changed_by_id": 123 }
-        """
+
         new_state = request.data.get("new_state")
         changed_by_id = request.data.get("changed_by_id")
 
