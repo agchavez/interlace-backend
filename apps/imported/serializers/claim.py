@@ -1,11 +1,9 @@
 from rest_framework import serializers
-
 from apps.document.serializers.document import DocumentSerializer
 from apps.imported.model.claim import ClaimModel
 
-
 class ClaimSerializer(serializers.ModelSerializer):
-    # Mostrar datos de cada documento
+    # Se muestran los documentos relacionados mediante el DocumentSerializer
     doc_trailer = DocumentSerializer(read_only=True)
     doc_descarga = DocumentSerializer(read_only=True)
     doc_contenido = DocumentSerializer(read_only=True)

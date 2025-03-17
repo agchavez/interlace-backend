@@ -1,5 +1,3 @@
-# reclamos/views.py
-
 from rest_framework import mixins, viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,21 +10,26 @@ from apps.imported.utils.claim import create_reclamo, change_reclamo_state
 
 
 class ClaimViewSet(
-    mixins.ListModelMixin,  # GET /reclamos/
-    mixins.CreateModelMixin,  # POST /reclamos/
-    mixins.RetrieveModelMixin,  # GET /reclamos/<pk>/
-    mixins.UpdateModelMixin,  # PUT/PATCH /reclamos/<pk>/
-    mixins.DestroyModelMixin,  # DELETE /reclamos/<pk>/
+    mixins.ListModelMixin,      # GET /claims/
+    mixins.CreateModelMixin,    # POST /claims/
+    mixins.RetrieveModelMixin,  # GET /claims/<pk>/
+    mixins.UpdateModelMixin,    # PUT/PATCH /claims/<pk>/
+    mixins.DestroyModelMixin,   # DELETE /claims/<pk>/
     viewsets.GenericViewSet
 ):
+    """
+    ViewSet para manejar Claims:
+     - Listado, creación, detalle, actualización y eliminación.
+     - Acción personalizada para cambiar estado.
+    """
     queryset = ClaimModel.objects.all()
     serializer_class = ClaimSerializer
-    permission_classes = []
+    permission_classes = []  # Agrega tus permisos según convenga
 
-    # Si usas filtros:
+    # Configuración de filtros y ordenación
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     # filterset_class = ReclamoFilter  # Descomenta si defines un FilterSet
-    search_fields = ["tipo", "descripcion"]  # Ajusta según campos
+    search_fields = ["tipo", "descripcion"]
     ordering_fields = ["created_at", "tipo", "status"]
 
     PERMISSION_MAPPING = {
@@ -41,11 +44,15 @@ class ClaimViewSet(
         return self.PERMISSION_MAPPING.get(http_method, [])
 
     def get_permissions(self):
-
+        # Aquí podrías integrar tu CustomAccessPermission si lo deseas.
         return super().get_permissions()
 
     def create(self, request, *args, **kwargs):
-
+        """
+        Espera en request.data:
+         - tracker_id, assigned_user_id, tipo, descripcion
+         - y en request.FILES: doc_trailer, doc_descarga, doc_contenido, doc_producto
+        """
         tracker_id = request.data.get("tracker_id")
         assigned_user_id = request.data.get("assigned_user_id")
         tipo = request.data.get("tipo")
@@ -62,7 +69,7 @@ class ClaimViewSet(
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Llamamos la función utilitaria
+        # Llamamos la función utilitaria para crear el claim
         reclamo = create_reclamo(
             tracker_id=int(tracker_id),
             assigned_user_id=int(assigned_user_id) if assigned_user_id else None,
@@ -79,12 +86,15 @@ class ClaimViewSet(
 
     @action(methods=["post"], detail=True, url_path="change-state")
     def change_state(self, request, pk=None):
-
+        """
+        Cambia el estado del claim.
+        Se espera en el body: { "new_state": "...", "changed_by_id": <id> }
+        """
         new_state = request.data.get("new_state")
         changed_by_id = request.data.get("changed_by_id")
 
         if not new_state:
-            return Response({"detail": "Falta 'new_state' en el body"}, status=400)
+            return Response({"detail": "Falta 'new_state' en el body"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             reclamo = change_reclamo_state(
@@ -93,7 +103,26 @@ class ClaimViewSet(
                 changed_by_id=int(changed_by_id) if changed_by_id else None
             )
         except ClaimModel.DoesNotExist:
-            return Response({"detail": "Reclamo no encontrado"}, status=404)
+            return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = self.get_serializer(reclamo)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=["get"], detail=False, url_path="mis-claims")
+    def mis_claims(self, request):
+        """
+        Devuelve los reclamos asociados a los centros de distribución a los que tiene acceso el usuario.
+        Se obtienen tanto del campo 'centro_distribucion' como de la relación 'distributions_centers'.
+        """
+        user = request.user
+        dc_ids = []
+        # Si el usuario tiene asignado un centro de distribución principal
+        if hasattr(user, "centro_distribucion") and user.centro_distribucion:
+            dc_ids.append(user.centro_distribucion.id)
+        # Agregar los centros a los que el usuario tiene acceso (many-to-many)
+        if hasattr(user, "distributions_centers"):
+            dc_ids += list(user.distributions_centers.values_list("id", flat=True))
+        # Filtrar reclamos cuyo tracker tenga uno de esos centros
+        queryset = self.get_queryset().filter(tracker__distributor_center__id__in=dc_ids)
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
