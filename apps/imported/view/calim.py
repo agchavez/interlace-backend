@@ -7,6 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from apps.imported.model.claim import ClaimModel
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
+from apps.imported.utils.validation_claim import validate_create_claim
 
 
 class ClaimViewSet(
@@ -51,34 +52,57 @@ class ClaimViewSet(
         """
         Espera en request.data:
          - tracker_id, assigned_user_id, tipo, descripcion
-         - y en request.FILES: doc_trailer, doc_descarga, doc_contenido, doc_producto
+         - claimNumber, discardDoc, observations
+         - y en request.FILES: diversos archivos de fotos y documentos
         """
         tracker_id = request.data.get("tracker_id")
+
+        # Validamos los datos del request usando nuestra nueva utilidad
+        user, tracker, _ = validate_create_claim(request, tracker_id=tracker_id)
+
+        # Extraemos los datos del request
         assigned_user_id = request.data.get("assigned_user_id")
-        tipo = request.data.get("tipo")
+        claim_type = request.data.get("claim_type")
         descripcion = request.data.get("descripcion")
 
-        doc_trailer_file = request.FILES.get("doc_trailer")
-        doc_descarga_file = request.FILES.get("doc_descarga")
-        doc_contenido_file = request.FILES.get("doc_contenido")
-        doc_producto_file = request.FILES.get("doc_producto")
+        # Campos adicionales
+        claim_number = request.data.get("claim_number")
+        discard_doc = request.data.get("discard_doc")
+        observations = request.data.get("observations")
 
-        if not tracker_id or not tipo or not descripcion:
-            return Response(
-                {"detail": "Faltan datos obligatorios (tracker_id, tipo, descripcion)"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Archivos de documentos
+        claim_file = request.FILES.get("claim_file")
+        credit_memo_file = request.FILES.get("credit_memo_file")
+        observations_file = request.FILES.get("observations_file")
+
+        # Fotografías por categoría
+        photo_files = {}
+        photo_categories = [
+            "photos_container_closed", "photos_container_one_open",
+            "photos_container_two_open", "photos_container_top",
+            "photos_during_unload", "photos_pallet_damage",
+            "photos_damaged_product_base", "photos_damaged_product_dents",
+            "photos_damaged_boxes", "photos_grouped_bad_product",
+            "photos_repalletized"
+        ]
+
+        for category in photo_categories:
+            if category in request.FILES:
+                photo_files[category] = request.FILES.getlist(category)
 
         # Llamamos la función utilitaria para crear el claim
         reclamo = create_reclamo(
             tracker_id=int(tracker_id),
             assigned_user_id=int(assigned_user_id) if assigned_user_id else None,
-            tipo=tipo,
-            descripcion=descripcion,
-            doc_trailer_file=doc_trailer_file,
-            doc_descarga_file=doc_descarga_file,
-            doc_contenido_file=doc_contenido_file,
-            doc_producto_file=doc_producto_file,
+            claim_type=claim_type,
+            description=descripcion,
+            claim_number=claim_number,
+            discard_doc=discard_doc,
+            observations=observations,
+            claim_file=claim_file,
+            credit_memo_file=credit_memo_file,
+            observations_file=observations_file,
+            photo_files=photo_files
         )
 
         serializer = self.get_serializer(reclamo)

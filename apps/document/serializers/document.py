@@ -1,8 +1,9 @@
 import uuid
-import os
+import re
 from rest_framework import serializers
 from apps.document.models.document import DocumentModel
 from apps.document.utils.documents import get_sas_url
+
 
 class DocumentSerializer(serializers.ModelSerializer):
     access_url = serializers.SerializerMethodField()
@@ -11,69 +12,94 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = DocumentModel
         fields = [
             "id",
-            "name",       # Aquí guardaremos el nombre original
-            "file",       # Archivo en Azure
+            "name",
+            "file",
             "extension",
             "type",
             "created_at",
-            "access_url", # URL (con SAS) para acceder al archivo
+            "access_url",
+            "folder",
+            "subfolder"
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "access_url"]
 
     def get_access_url(self, obj):
-        """
-        Genera una URL con SAS (token de acceso temporal) si tu contenedor es privado.
-        Así, el usuario podrá descargar con un enlace temporal.
-        """
         if obj.file:
             return get_sas_url(obj.file.name)
         return None
 
+    def validate_folder(self, value):
+        """
+        Valida que el folder, si se proporciona, tenga entre 3 y 50 caracteres y
+        contenga solo letras, números, guiones o guiones bajos.
+        """
+        if value:
+            if not re.match(r'^[A-Za-z0-9_-]{3,50}$', value):
+                raise serializers.ValidationError(
+                    "El folder debe contener entre 3 y 50 caracteres y solo letras, números, guiones o guiones bajos."
+                )
+        return value
+
+    def validate_subfolder(self, value):
+        """
+        Valida que la subcarpeta, si se proporciona, tenga entre 3 y 50 caracteres y
+        contenga solo letras, números, guiones o guiones bajos.
+        """
+        if value:
+            if not re.match(r'^[A-Za-z0-9_-]{3,50}$', value):
+                raise serializers.ValidationError(
+                    "La subcarpeta debe contener entre 3 y 50 caracteres y solo letras, números, guiones o guiones bajos."
+                )
+        return value
+
     def create(self, validated_data):
-        """
-        - Conservamos 'name' con el nombre original.
-        - Renombramos el 'file' para subirlo con UUID y evitar colisiones.
-        """
         uploaded_file = validated_data.get("file", None)
+
         if uploaded_file:
-            # Guardamos el nombre original en 'name' si no está en validated_data
-            # (o si deseas forzarlo a ser el nombre del archivo).
             original_filename = uploaded_file.name
-            if "name" not in validated_data or not validated_data["name"]:
+            if not validated_data.get("name"):
                 validated_data["name"] = original_filename
 
-            # Extraer la extensión
             ext = ""
             if "." in original_filename:
                 ext = original_filename.split(".")[-1]
 
-            # Generar un nombre único
+            folder = validated_data.get("folder", "general")
+            subfolder = validated_data.get("subfolder", "")
+
             new_filename = f"{uuid.uuid4()}.{ext}" if ext else str(uuid.uuid4())
 
-            # Prefijar subcarpeta, por ejemplo "document/"
-            new_path = os.path.join("document", new_filename)
+            if subfolder:
+                new_path = f"document/{folder}/{subfolder}/{new_filename}"
+            else:
+                new_path = f"document/{folder}/{new_filename}"
 
-            # Asignar el nombre único para el archivo
             uploaded_file.name = new_path
 
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        """
-        Mismo proceso para cuando se actualiza el 'file'.
-        """
         uploaded_file = validated_data.get("file", None)
+
         if uploaded_file:
             original_filename = uploaded_file.name
-            if "name" not in validated_data or not validated_data["name"]:
+            if not validated_data.get("name"):
                 validated_data["name"] = original_filename
 
             ext = ""
             if "." in original_filename:
                 ext = original_filename.split(".")[-1]
 
+            folder = validated_data.get("folder", instance.folder)
+            subfolder = validated_data.get("subfolder", instance.subfolder or "")
+
             new_filename = f"{uuid.uuid4()}.{ext}" if ext else str(uuid.uuid4())
-            new_path = os.path.join("document", new_filename)
+
+            if subfolder:
+                new_path = f"document/{folder}/{subfolder}/{new_filename}"
+            else:
+                new_path = f"document/{folder}/{new_filename}"
+
             uploaded_file.name = new_path
 
         return super().update(instance, validated_data)

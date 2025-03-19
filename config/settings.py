@@ -175,8 +175,8 @@ CHANNEL_LAYERS = {
         },
     },
 }
-
-
+#sp=racwdli&st=2025-03-19T15:09:16Z&se=2025-12-06T23:09:16Z&sip=181.115.60.7&sv=2022-11-02&sr=c&sig=***REMOVED***
+#https://trackerlogisticstorage.blob.core.windows.net/tracker?sp=racwdli&st=2025-03-19T15:09:16Z&se=2025-12-06T23:09:16Z&sip=181.115.60.7&sv=2022-11-02&sr=c&sig=***REMOVED***
 AZURE_ACCOUNT_NAME = "trackerlogisticstorage"
 AZURE_ACCOUNT_KEY = "***REMOVED***"
 AZURE_CONTAINER = "tracker"
@@ -188,4 +188,5 @@ MEDIA_URL = f"https://{AZURE_CUSTOM_DOMAIN}/{AZURE_CONTAINER}/"
 # Configuracion de configuracion de seguridad de azure blob
 AZURE_OBJECT_PARAMETERS = {
     "CacheControl": "max-age=86400",
+
 }

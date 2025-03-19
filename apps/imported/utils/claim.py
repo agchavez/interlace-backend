@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from apps.document.models.document import DocumentModel
+from apps.document.utils.documents import create_documento
 from apps.imported.model.claim import ClaimModel
 from apps.tracker.models import TrackerModel
 
@@ -40,84 +41,126 @@ def add_reclamo_log(reclamo: ClaimModel, old_state: str, new_state: str, changed
     """
     pass
 
-
-# 3) Función para crear documentos (cuando suben archivos)
-def create_documento(file_obj: File, name: Optional[str] = None) -> DocumentModel:
-    """
-    Crea un DocumentoModel usando el File subido (sube a Azure).
-    """
-    doc = DocumentModel(name=name if name else file_obj.name)
-    doc.file = file_obj
-    # Podrías extraer extension, content_type, etc. si gustas
-    doc.save()
-    return doc
-
-
-# 4) Función para crear un reclamo con sus 4 documentos
 def create_reclamo(
-    tracker_id: int,
-    assigned_user_id: Optional[int],
-    tipo: str,
-    descripcion: str,
-    doc_trailer_file: Optional[File],
-    doc_descarga_file: Optional[File],
-    doc_contenido_file: Optional[File],
-    doc_producto_file: Optional[File]
-) -> ClaimModel:
-    """
-    Crea un ReclamoModel, registra los documentos (si existen) y
-    retorna el reclamo creado.
-    Luego, podría enviar notificación/correo a assigned_user_id,
-    o lo que se requiera.
-    """
-    tracker = TrackerModel.objects.get(pk=tracker_id)
+        tracker_id: int,
+        assigned_user_id: Optional[int],
+        claim_type: str,
+        description: str,
+        claim_number: Optional[str] = None,
+        discard_doc: Optional[str] = None,
+        observations: Optional[str] = None,
+        claim_file: Optional[File] = None,
+        credit_memo_file: Optional[File] = None,
+        observations_file: Optional[File] = None,
+        photo_files: Optional[dict] = None
+    ) -> ClaimModel:
+        """
+        Crea un ClaimModel con todos los campos necesarios y adjunta los documentos.
 
-    assigned_user = None
-    if assigned_user_id:
-        assigned_user = User.objects.get(pk=assigned_user_id)
+        Args:
+            tracker_id: ID del tracker asociado
+            assigned_user_id: ID del usuario asignado (opcional)
+            claim_type: Tipo de reclamo (FALTANTE, SOBRANTE, DAÑOS_CALIDAD_TRANSPORTE)
+            description: Descripción del reclamo
+            claim_number: Número de claim (opcional)
+            discard_doc: Documento de descarte (opcional)
+            observations: Observaciones adicionales (opcional)
+            claim_file: Archivo del claim (opcional)
+            credit_memo_file: Archivo de nota de crédito (opcional)
+            observations_file: Archivo de observaciones (opcional)
+            photo_files: Diccionario con listas de archivos por categoría
+        """
+        tracker = TrackerModel.objects.get(pk=tracker_id)
 
-    # 1. Creamos reclamo
-    reclamo = ClaimModel.objects.create(
-        tracker=tracker,
-        assigned_to=assigned_user,
-        tipo=tipo,
-        descripcion=descripcion,
-        status="PENDIENTE"
-    )
+        assigned_user = None
+        if assigned_user_id:
+            assigned_user = User.objects.get(pk=assigned_user_id)
 
-    # 2. Creamos los documentos (si se subieron archivos) y asignamos
-    if doc_trailer_file:
-        doc_trailer = create_documento(doc_trailer_file, name="Foto del Tráiler")
-        reclamo.doc_trailer = doc_trailer
-
-    if doc_descarga_file:
-        doc_descarga = create_documento(doc_descarga_file, name="Foto de la Descarga")
-        reclamo.doc_descarga = doc_descarga
-
-    if doc_contenido_file:
-        doc_contenido = create_documento(doc_contenido_file, name="Foto del Contenido")
-        reclamo.doc_contenido = doc_contenido
-
-    if doc_producto_file:
-        doc_producto = create_documento(doc_producto_file, name="Foto del Producto")
-        reclamo.doc_producto = doc_producto
-
-    reclamo.save()
-
-    # 3. Opcional: Enviar notificación/correo
-    if assigned_user:
-        send_notification(
-            user=assigned_user,
-            title=f"Nuevo reclamo #{reclamo.id}",
-            description=f"Se te ha asignado un reclamo de tipo {tipo}"
-        )
-        send_email(
-            user=assigned_user,
-            subject=f"Reclamo #{reclamo.id} asignado",
-            message=f"Reclamo de tipo {tipo}, descripción: {descripcion}."
+        # 1. Creamos reclamo con todos los campos
+        reclamo = ClaimModel.objects.create(
+            tracker=tracker,
+            assigned_to=assigned_user,
+            claim_type=claim_type,
+            description=description,
+            status="PENDIENTE",
+            claim_number=claim_number,
+            discard_doc=discard_doc,
+            observations=observations
         )
 
-    return reclamo
+        # 2. Añadimos los archivos de documentos principales
+        if claim_file:
+            # En lugar de asignar directamente, usar create_documento()
+            doc_claim = create_documento(claim_file,"Document Claim",  "Claim", reclamo.claim_code)
+            reclamo.claim_file = doc_claim.file
+
+        if credit_memo_file:
+            doc_credit = create_documento(credit_memo_file, "Credit Memo", "Claim", reclamo.claim_code)
+            reclamo.credit_memo_file = doc_credit.file
+
+        if observations_file:
+            doc_obs = create_documento(observations_file, "Observations", "Claim", reclamo.claim_code)
+            reclamo.observations_file = doc_obs.file
+
+        reclamo.save()
+
+        # 3. Procesamos los archivos de fotos por categoría
+        if photo_files:
+            # Mapeo de nombres de campo a relaciones ManyToMany
+            photo_fields = {
+                "photos_container_closed": reclamo.photos_container_closed,
+                "photos_container_one_open": reclamo.photos_container_one_open,
+                "photos_container_two_open": reclamo.photos_container_two_open,
+                "photos_container_top": reclamo.photos_container_top,
+                "photos_during_unload": reclamo.photos_during_unload,
+                "photos_pallet_damage": reclamo.photos_pallet_damage,
+                "photos_damaged_product_base": reclamo.photos_damaged_product_base,
+                "photos_damaged_product_dents": reclamo.photos_damaged_product_dents,
+                "photos_damaged_boxes": reclamo.photos_damaged_boxes,
+                "photos_grouped_bad_product": reclamo.photos_grouped_bad_product,
+                "photos_repalletized": reclamo.photos_repalletized
+            }
+
+            # Para cada categoría de fotos
+            for field_name, file_list in photo_files.items():
+                if field_name in photo_fields and file_list:
+                    # Nombres descriptivos según la categoría
+                    field_descriptions = {
+                        "photos_container_closed": "Contenedor cerrado",
+                        "photos_container_one_open": "Contenedor con 1 puerta abierta",
+                        "photos_container_two_open": "Contenedor con 2 puertas abiertas",
+                        "photos_container_top": "Vista superior del contenedor",
+                        "photos_during_unload": "Durante la descarga",
+                        "photos_pallet_damage": "Daños en pallets",
+                        "photos_damaged_product_base": "Base de producto dañado",
+                        "photos_damaged_product_dents": "Abolladuras en producto",
+                        "photos_damaged_boxes": "Cajas dañadas",
+                        "photos_grouped_bad_product": "Producto en mal estado agrupado",
+                        "photos_repalletized": "Producto repaletizado"
+                    }
+
+                    # Descripción para el documento
+                    desc = field_descriptions.get(field_name, field_name)
+
+                    # Creamos un documento para cada archivo y lo añadimos a la relación
+                    for i, file_obj in enumerate(file_list):
+                        doc = create_documento(file_obj, name=f"{desc} #{i+1}", folder="Claim", subfolder=reclamo.claim_code)
+                        photo_fields[field_name].add(doc)
+
+        # 4. Enviar notificación/correo si hay un usuario asignado
+        if assigned_user:
+            send_notification(
+                user=assigned_user,
+                title=f"Nuevo reclamo #{reclamo.id}",
+                description=f"Se te ha asignado un reclamo de tipo {claim_type}"
+            )
+            send_email(
+                user=assigned_user,
+                subject=f"Reclamo #{reclamo.id} asignado",
+                message=f"Reclamo de tipo {claim_type}, descripción: {description}."
+            )
+
+        return reclamo
 
 
 # 5) Función para cambiar estado de un reclamo

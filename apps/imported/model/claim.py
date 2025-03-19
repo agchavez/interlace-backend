@@ -46,7 +46,7 @@ class ClaimModel(BaseModel):
         choices=CLAIM_TYPE_CHOICES,
         default="FALTANTE"
     )
-    description = models.TextField("Descripción del Reclamo")
+    description = models.TextField("Descripción del Reclamo", null=True, blank=True)
     status = models.CharField(
         "Estado",
         max_length=20,
@@ -156,8 +156,21 @@ class ClaimModel(BaseModel):
         verbose_name="Fotografías: Repaletizado de producto dañado"
     )
 
+    claim_code = models.CharField("Código de Claim", max_length=20, blank=True, null=True)
+
     def __str__(self):
         return f"Claim #{self.id} - {self.claim_type} [{self.status}]"
+
+    def save(self, *args, **kwargs):
+        # Guardamos normalmente para asignar el id
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        # Si es nuevo y aún no se generó el claim_code, lo generamos
+        if is_new and not self.claim_code:
+            self.claim_code = f"CLM-{self.id:05d}"
+            # Actualizamos solo el campo claim_code para evitar un bucle infinito
+            super().save(update_fields=["claim_code"])
+
 
     class Meta:
         db_table = "app_claim"

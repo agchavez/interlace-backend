@@ -1,22 +1,41 @@
-
+import uuid
 from django.db import models
-
 from utils import BaseModel
+
+
+def document_upload_path(instance, filename):
+    """
+    Devuelve la ruta donde se almacenará el archivo, usando la estructura:
+      document/<folder>[/<subfolder>]/<unique_name>.<extension>
+    """
+    # Usa los campos del modelo en lugar de atributos temporales
+    folder = instance.folder or "general"
+    subfolder = instance.subfolder or ""
+
+    extension = filename.split('.')[-1].lower() if '.' in filename else ""
+    unique_name = f"{uuid.uuid4()}.{extension}" if extension else str(uuid.uuid4())
+
+    if subfolder:
+        return f"document/{folder}/{subfolder}/{unique_name}"
+    else:
+        return f"document/{folder}/{unique_name}"
 
 
 class DocumentModel(BaseModel):
     """
     Modelo que representa un documento/archivo almacenado en Azure Blob Storage.
-    Usar FileField (o ImageField) para guardar la ruta.
+    Se utilizará la función 'document_upload_path' para definir la ruta de almacenamiento.
     """
     name = models.CharField(max_length=255)
     file = models.FileField(
-        upload_to="document/",   # subcarpeta en tu contenedor
+        upload_to=document_upload_path,  # Usamos la función callable
         blank=True,
         null=True
     )
     extension = models.CharField(max_length=10, blank=True, null=True)
     type = models.CharField(max_length=50, blank=True, null=True)
+    folder = models.CharField(max_length=50, default="general")
+    subfolder = models.CharField(max_length=50, blank=True, null=True)
 
     def __str__(self):
         return self.name
@@ -27,10 +46,8 @@ class DocumentModel(BaseModel):
         verbose_name_plural = ""
 
     def save(self, *args, **kwargs):
-        """Sobrescribir para, por ejemplo, extraer extension, mime-type, etc."""
         if self.file and not self.extension:
-            # Ejemplo simple para extraer extensión
-            filename = self.file.name  # "documentos/loquesea.png"
+            filename = self.file.name
             if "." in filename:
                 self.extension = filename.split(".")[-1].lower()
         super().save(*args, **kwargs)
