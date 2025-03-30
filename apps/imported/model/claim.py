@@ -4,6 +4,7 @@ from django.conf import settings
 
 from apps.document.models.document import DocumentModel
 from apps.tracker.models import TrackerModel
+from apps.maintenance.models.product import ProductModel
 from utils import BaseModel
 
 # Nuevas opciones para el tipo de reclamo
@@ -20,6 +21,12 @@ CLAIM_STATUS_CHOICES = (
     ("RECHAZADO", "Rechazado"),
     ("APROBADO", "Aprobado"),
 )
+
+# TYPE
+TYPES_CLAIM = {
+    "CLAIM": "Claim",
+    "ALERT_QUALITY": "ALERT_QUALITY",
+}
 
 class ClaimModel(BaseModel):
     """
@@ -38,6 +45,13 @@ class ClaimModel(BaseModel):
         blank=True,
         related_name="claims_assigned",
         verbose_name="Asignado a"
+    )
+
+    type = models.CharField(
+        "Tipo",
+        max_length=50,
+        choices=TYPES_CLAIM.items(),
+        default="CLAIM"
     )
 
     claim_type = models.CharField(
@@ -176,3 +190,27 @@ class ClaimModel(BaseModel):
         db_table = "app_claim"
         verbose_name = "Claim"
         verbose_name_plural = "Claims"
+
+# Productos asociados al reclamo
+class ClaimProductModel(BaseModel):
+    """
+    Modelo para asociar productos a un reclamo.
+    """
+    claim = models.ForeignKey(
+        ClaimModel,
+        on_delete=models.CASCADE,
+        related_name="claim_products",
+        verbose_name="Reclamo asociado"
+    )
+    product = models.ForeignKey(
+        ProductModel,
+        on_delete=models.CASCADE,
+        related_name="claim_products",
+        verbose_name="Producto asociado"
+    )
+
+    quantity = models.IntegerField("Cantidad", default=0)
+
+    def __str__(self):
+        return f"Claim #{self.claim.id} - Producto: {self.product.name} ({self.quantity})"
+

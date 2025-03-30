@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
+from apps.document.utils.documents import create_documento
 from apps.imported.model.claim import ClaimModel
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
@@ -108,14 +109,133 @@ class ClaimViewSet(
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(methods=["post"], detail=True, url_path="upload-photos")
+    def upload_photos(self, request, pk=None):
+        """
+        API para cargar fotos adicionales o sustituir existentes en un claim.
+
+        Parámetros esperados:
+        - photo_category: Categoría de foto (requerido)
+        - mode: "add" (agregar) o "replace" (sustituir), por defecto "add"
+        - FILES: Los archivos a cargar
+
+        Ejemplos de categorías:
+        - photos_container_closed
+        - photos_damaged_boxes
+        - etc.
+        """
+        try:
+            claim = self.get_object()
+        except ClaimModel.DoesNotExist:
+            return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Obtener categoría de fotos
+        photo_category = request.data.get("photo_category")
+        if not photo_category:
+            return Response(
+                {"detail": "Falta el parámetro 'photo_category'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validar categoría
+        valid_categories = [
+            "photos_container_closed", "photos_container_one_open",
+            "photos_container_two_open", "photos_container_top",
+            "photos_during_unload", "photos_pallet_damage",
+            "photos_damaged_product_base", "photos_damaged_product_dents",
+            "photos_damaged_boxes", "photos_grouped_bad_product",
+            "photos_repalletized"
+        ]
+
+        if photo_category not in valid_categories:
+            return Response(
+                {"detail": f"Categoría de foto inválida. Opciones válidas: {', '.join(valid_categories)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Modo: add (agregar) o replace (sustituir)
+        mode = request.data.get("mode", "add")
+        if mode not in ["add", "replace"]:
+            return Response(
+                {"detail": "El parámetro 'mode' debe ser 'add' o 'replace'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Obtener archivos
+        files = request.FILES.getlist("files")
+        if not files:
+            return Response(
+                {"detail": "No se encontraron archivos para subir"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Mapeo de nombres a relaciones M2M
+        photo_fields = {
+            "photos_container_closed": claim.photos_container_closed,
+            "photos_container_one_open": claim.photos_container_one_open,
+            "photos_container_two_open": claim.photos_container_two_open,
+            "photos_container_top": claim.photos_container_top,
+            "photos_during_unload": claim.photos_during_unload,
+            "photos_pallet_damage": claim.photos_pallet_damage,
+            "photos_damaged_product_base": claim.photos_damaged_product_base,
+            "photos_damaged_product_dents": claim.photos_damaged_product_dents,
+            "photos_damaged_boxes": claim.photos_damaged_boxes,
+            "photos_grouped_bad_product": claim.photos_grouped_bad_product,
+            "photos_repalletized": claim.photos_repalletized
+        }
+
+        # Nombres descriptivos para las categorías
+        field_descriptions = {
+            "photos_container_closed": "Contenedor cerrado",
+            "photos_container_one_open": "Contenedor con 1 puerta abierta",
+            "photos_container_two_open": "Contenedor con 2 puertas abiertas",
+            "photos_container_top": "Vista superior del contenido",
+            "photos_during_unload": "Durante la descarga",
+            "photos_pallet_damage": "Fisuras/abolladuras de pallets",
+            "photos_damaged_product_base": "Base de producto dañada",
+            "photos_damaged_product_dents": "Abolladuras del producto",
+            "photos_damaged_boxes": "Cajas dañadas",
+            "photos_grouped_bad_product": "Producto en mal estado agrupado",
+            "photos_repalletized": "Repaletizado de producto dañado"
+        }
+
+        # Si es modo "replace", eliminar fotos existentes
+        if mode == "replace":
+            photo_fields[photo_category].clear()
+
+        # Obtener el número de fotos actuales para la categoría
+        current_count = photo_fields[photo_category].count()
+
+        # Agregar fotos nuevas
+        desc = field_descriptions.get(photo_category, photo_category)
+        uploaded_docs = []
+
+        for i, file_obj in enumerate(files):
+            doc = create_documento(
+                file_obj,
+                name=f"{desc} #{current_count + i + 1}",
+                folder="Claim",
+                subfolder=claim.claim_code
+            )
+            photo_fields[photo_category].add(doc)
+            uploaded_docs.append(doc)
+
+        return Response({
+            "detail": f"{len(files)} fotos {mode == 'replace' and 'reemplazadas' or 'agregadas'} correctamente",
+            "count": photo_fields[photo_category].count(),
+            "category": photo_category,
+            "claim_id": claim.id
+        }, status=status.HTTP_200_OK)
+
     @action(methods=["post"], detail=True, url_path="change-state")
     def change_state(self, request, pk=None):
         """
         Cambia el estado del claim.
-        Se espera en el body: { "new_state": "...", "changed_by_id": <id> }
+        Se espera en el body: { "new_state": "...", "changed_by_id": <id> , "observations": "..." }
         """
         new_state = request.data.get("new_state")
         changed_by_id = request.data.get("changed_by_id")
+        observations = request.data.get("observations")
 
         if not new_state:
             return Response({"detail": "Falta 'new_state' en el body"}, status=status.HTTP_400_BAD_REQUEST)
