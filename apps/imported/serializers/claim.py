@@ -31,6 +31,7 @@ class ClaimSerializer(serializers.ModelSerializer):
     credit_memo_file = DocumentSerializer(read_only=True)
     observations_file = DocumentSerializer(read_only=True)
 
+    claim_products = ClaimProductSerializer(many=True, read_only=True)
     class Meta:
         model = ClaimModel
         fields = [

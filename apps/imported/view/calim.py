@@ -5,7 +5,9 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.document.utils.documents import create_documento
+from apps.imported.model import ClaimProductModel
 from apps.imported.model.claim import ClaimModel
+from apps.imported.serializers import ClaimProductSerializer
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
 from apps.imported.utils.validation_claim import validate_create_claim
@@ -270,3 +272,32 @@ class ClaimViewSet(
         queryset = self.get_queryset().filter(tracker__distributor_center__id__in=dc_ids)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# Vista de productos asociados a un reclamo
+class ClaimProductViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """
+    ViewSet para manejar los productos asociados a un reclamo.
+    """
+    queryset = ClaimProductModel.objects.all()
+    serializer_class = ClaimProductSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["claim"]
+    search_fields = ["claim__description", "product__name"]
+    ordering_fields = ["claim__created_at", "product__name"]
+    ordering = ["claim__created_at"]
+    permission_classes = []
+
+    PERMISSION_MAPPING = {
+        "GET": ["claims.view_reclamomodel"],
+        "POST": ["claims.add_reclamomodel"],
+        "PUT": ["claims.change_reclamomodel"],
+        "PATCH": ["claims.change_reclamomodel"],
+        "DELETE": ["claims.delete_reclamomodel"],
+    }
+
+    # Puedes agregar permisos específicos aquí si lo deseas
+    def get_permissions(self):
+        # Aquí podrías integrar tu CustomAccessPermission si lo deseas.
+        return super().get_permissions()
+    #     def get_queryset(self):}
