@@ -4,3 +4,4 @@ from .trailer import TrailerModel, TransporterModel
 from .product import ProductModel, OutputTypeModel
 from .driver import DriverModel
 from .period import PeriodModel
+from .country import CountryModel

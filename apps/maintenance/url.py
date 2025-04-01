@@ -12,7 +12,8 @@ from .views import (
         ProductModelViewSet,
         OutputTypeModelViewSet,
         LotModelViewSet,
-        PeriodViewSet)
+        PeriodViewSet,
+        CountryViewSet)
 
 # Routers
 router = routers.DefaultRouter()
@@ -27,3 +28,4 @@ router.register(r'product', ProductModelViewSet)
 router.register(r'output-type', OutputTypeModelViewSet)
 router.register(r'period', PeriodViewSet)
 router.register(r'lot', LotModelViewSet)
+router.register(r'country', CountryViewSet)

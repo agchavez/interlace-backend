@@ -1,6 +1,7 @@
 
 from django.db import models
 from utils.BaseModel import BaseModel
+from .country import CountryModel
 # Modelo para el mantenimiento de los centros de distribución
 class DistributorCenter(models.Model):
     name = models.CharField(
@@ -12,6 +13,16 @@ class DistributorCenter(models.Model):
     country_code = models.CharField(
         "Código de País",
         max_length=5, null=True)
+
+    country = models.ForeignKey(
+        CountryModel,
+        on_delete=models.SET_NULL,
+        verbose_name="País",
+        related_name="distributor_center_country",
+        null=True,
+        blank=True,
+        default=None)
+
 
     def __str__(self):
         return self.name
@@ -49,6 +60,16 @@ class LocationModel(BaseModel):
             "unique": "Ya existe una localización con este código"
         }
     )
+
+    country = models.ForeignKey(
+        CountryModel,
+        on_delete=models.SET_NULL,
+        verbose_name="País",
+        related_name="location_country",
+        null=True,
+        blank=True,
+        default=None)
+
 
 
     def __str__(self):

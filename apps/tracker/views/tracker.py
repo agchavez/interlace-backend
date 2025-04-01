@@ -10,72 +10,27 @@ from rest_framework import status
 # django filters
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
+
+from ..filters import TrackerFilter, TrackerDetailProductModelFilter
 # Models
 from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel, TrackerOutputT2Model
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
-from apps.maintenance.models import TrailerModel, TransporterModel, DistributorCenter, ProductModel
-from apps.user.models import UserModel as User
+from apps.maintenance.models import ProductModel
+
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
-    TrackerCompletedDetailProduct, InputDocumentNumberRegistered, InputDocumentNumberIsNotNumber, QuantityRequired, \
-    TrackerCompletedDetailRequired, InputDocumentNumberRequired, OutputDocumentNumberRequired, TransferNumberRequired, \
-    OperatorRequired, OutputTypeRequired, InvoiceRequired, ContainerNumberRequired, PlateNumberRequired, DriverRequired, \
-    OriginLocationRequired, AccountedRequired, FileTooLarge, FileNotExists, ProductIdRequired
+    TrackerCompletedDetailProduct, FileTooLarge, FileNotExists, ProductIdRequired
 
 from apps.user.views.user import CustomAccessPermission
 from apps.tracker.models import TrackerDetailOutputModel
 from rest_framework.filters import OrderingFilter
 from django.http import HttpResponse
 from ..utils.processes import apply_output_movements
-from ...order.utils.update import validate_and_update_order_detail, update_order_detail
+from ..utils.validate_tracker import validate_complete_tracker, validate_create_tracker
+from ...document.utils.documents import create_documento
+from ...order.utils.update import update_order_detail
 
 
-class TrackerFilter(django_filters.FilterSet):
-    transporter = django_filters.ModelMultipleChoiceFilter(
-        queryset=TransporterModel.objects.all(),
-        field_name='transporter__id',
-        to_field_name='id'
-    )
-    trailer = django_filters.ModelMultipleChoiceFilter(
-        queryset=TrailerModel.objects.all(),
-        field_name='trailer__id',
-        to_field_name='id'
-    )
-    user = django_filters.ModelMultipleChoiceFilter(
-        queryset=User.objects.all(),
-        field_name='user__id',
-        to_field_name='id'
-    )
-
-    date = django_filters.DateFromToRangeFilter(
-        field_name='created_at',
-        label='Fecha de creación'
-    )
-
-    distributor_center = django_filters.ModelMultipleChoiceFilter(
-        queryset=DistributorCenter.objects.all(),
-        field_name='distributor_center__id',
-        to_field_name='id'
-    )
-
-    id = django_filters.NumberFilter(
-        field_name='id',
-        label='ID'
-    )
-
-    status = django_filters.CharFilter(
-        field_name='status',
-        label='Status',
-        method='filter_status',
-    )
-
-    def filter_status(self, queryset, name, value):
-        values = value.split(',')
-        return queryset.filter(status__in=values)
-
-    class Meta:
-        model = TrackerModel
-        fields = ('transporter', 'trailer', 'status','type', 'user', 'date', 'distributor_center', 'id')
 
 
 class TrackerModelViewSet(mixins.ListModelMixin,
@@ -89,7 +44,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ('plate_number', 'input_document_number', 'output_document_number')
     filterset_class = TrackerFilter
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
@@ -128,11 +83,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        try:
-            if user.centro_distribucion:
-                queryset = queryset.filter(distributor_center=user.centro_distribucion)
-        except:
-            pass
+        # try:
+        #     if user.centro_distribucion:
+        #         queryset = queryset.filter(distributor_center=user.centro_distribucion)
+        # except:
+        #     pass
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -182,14 +137,24 @@ class TrackerModelViewSet(mixins.ListModelMixin,
 
 
         tracker.complete()
-        # la fecha de completado se actualiza en el modelo
-        tracker.completed_date = datetime.now()
-        tracker.save()
+
+        # si el time invested es 10 minutos superior al promedio del mes, se excluye del TAT
+        # verificar si hay trackers completados
+        if TrackerModel.objects.filter(status='COMPLETE', distributor_center=tracker.distributor_center).count() > 0:
+            tat_average = (TrackerModel.objects.filter(status='COMPLETE', distributor_center=tracker.distributor_center, exclude_tat=False)
+                           .aggregate(Sum('time_invested')))
+            tat_average = tat_average.get('time_invested__sum') / TrackerModel.objects.filter(status='COMPLETE', distributor_center=tracker.distributor_center, exclude_tat=False).count()
+            if tracker.time_invested > tat_average + 600:
+                tracker.exclude_tat = True
+                tracker.save()
+            # la fecha de completado se actualiza en el modelo
+            tracker.completed_date = datetime.now()
+            tracker.save()
 
         # aplicar movimientos de salida
         return Response({'detail': 'Se completo el tracker'}, status=status.HTTP_200_OK)
 
-    # Informacion del dashboard por centro de distribucion de usuarios
+    # Información del dashboard por centro de distribucion de usuarios
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request, *args, **kwargs):
         # Solo para los usuario con centro de distribucion
@@ -204,9 +169,10 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         # Total de trackers pendientes
         total_trackers_pending = queryset.filter(status='PENDING').values('created_at', 'status', 'id').order_by('created_at')[:10]
         # Tiempo promedio en completar un tracker
-        time_average = queryset.filter(status='COMPLETE').aggregate(Sum('time_invested'))
+        tracker_average_complete = queryset.filter(status='COMPLETE', exclude_tat=False).count()
+        time_average = queryset.filter(status='COMPLETE', exclude_tat=False).aggregate(Sum('time_invested'))
         # Tiempo promedio en completar un tracker
-        time_average = time_average.get('time_invested__sum') / total_trackers_completed if total_trackers_completed > 0 else 0
+        time_average = time_average.get('time_invested__sum') / tracker_average_complete if tracker_average_complete > 0 else 0
         return Response({
             'total_trackers_completed': total_trackers_completed,
             'total_trackers_pending': total_trackers_pending,
@@ -219,16 +185,49 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         tracker = self.get_object()
         if tracker.status != "EDITED":
             raise TrackerCompleted
-        archivo = request.data.get("archivo")
-        name = request.data.get("name")
-        if archivo is not None:
-            if archivo.size > 20*1024*1024:
+
+        # Detectar qué archivos se envían y qué operación realizar para cada uno
+        file_1 = request.FILES.get("file_1")
+        file_2 = request.FILES.get("file_2")
+
+        # Campo para identificar qué archivo eliminar (si corresponde)
+        delete_file_1 = request.data.get("delete_file_1") == "true"
+        delete_file_2 = request.data.get("delete_file_2") == "true"
+
+        # Procesar file_1
+        if file_1 is not None:
+            if file_1.size > 20 * 1024 * 1024:
                 raise FileTooLarge
-            content = archivo.read()
-            tracker.archivo = content
-        if name:
-            tracker.archivo_name = name
+            # Crear documento para file_1
+            document_1 = create_documento(
+                file_1,
+                name=file_1.name,
+                folder="Tracker",
+                subfolder=str(tracker.id)
+            )
+            tracker.file_1 = document_1
+        elif delete_file_1:
+            tracker.file_1 = None
+
+        # Procesar file_2
+        if file_2 is not None:
+            if file_2.size > 20 * 1024 * 1024:
+                raise FileTooLarge
+            # Crear documento para file_2
+            document_2 = create_documento(
+                file_2,
+                name=file_2.name,
+                folder="Tracker",
+                subfolder=str(tracker.id)
+            )
+            tracker.file_2 = document_2
+        elif delete_file_2:
+            tracker.file_2 = None
+
+        # Guardar cambios
         tracker.save()
+
+        # Devolver datos actualizados
         serializer = TrackerSerializer(tracker)
         return Response(serializer.data, status=status.HTTP_200_OK)
     # Descargar archivo
@@ -337,29 +336,7 @@ class TrackerDetailModelViewSet(mixins.ListModelMixin,
         return super().destroy(request, *args, **kwargs)
 
 
-class TrackerDetailProductModelFilter(django_filters.FilterSet):
-        order_by = django_filters.OrderingFilter(
-            fields=(
-                ('created_at', 'created_at')
-            )
-        )
 
-
-        class Meta:
-            model = TrackerDetailProductModel
-            fields = {
-                'tracker_detail': ['exact'],
-                'tracker_detail__tracker': ['exact'],
-                'tracker_detail__tracker__distributor_center': ['exact'],
-                'tracker_detail__product': ['exact'],
-                'created_at': ['gte', 'lte'],
-                'expiration_date': ['gte', 'lte', 'exact'],
-                'id': ['exact'],
-                'tracker_detail__tracker__status': ['exact'],
-                'tracker_detail__tracker__user': ['exact'],
-                'available_quantity': ['gt', 'lt', 'exact'],
-
-            }
 
 class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
                                        mixins.RetrieveModelMixin,
@@ -399,9 +376,9 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
 
         user = request.user
 
-        if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
-            if user.centro_distribucion:
-                queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
+        # if user is not isinstance(user, AnonymousUser) and hasattr(user, 'centro_distribucion'):
+        #     if user.centro_distribucion:
+        #         queryset = queryset.filter(tracker_detail__tracker__distributor_center=user.centro_distribucion)
 
         # filtrar por turno segun query param 'A': 06:00:00 - 14:00:00, 'B': 14:00:00 - 22:30:00, 'C': 22:30:00 - 06:00:00
         shift = request.GET.get('shift')
@@ -484,108 +461,3 @@ class TrackerDetailProductModelViewSet(mixins.ListModelMixin,
         return super().destroy(request, *args, **kwargs) 
 
 
-def validate_create_tracker(request, id=None):
-    usuario = request.user
-    distribuidor = usuario.centro_distribucion
-    data = request.data
-    instance = None
-    if id is not None:
-        instance = TrackerModel.objects.filter(id=id).first()
-
-    # Validar si el documento de entrada ya esta registrado
-    if data.get('input_document_number') and instance:
-        if TrackerModel.objects.filter(input_document_number=data.get('input_document_number')).exclude(
-                id=instance.id).exists():
-            raise InputDocumentNumberRegistered()
-        # El documento de entrada no debe ser numerico en el caso que lo mande
-        if not data.get('input_document_number').isnumeric():
-            raise InputDocumentNumberIsNotNumber()
-
-    # Validaciones de documento de salida
-    if data.get('output_document_number') and instance:
-        if TrackerModel.objects.filter(output_document_number=data.get('output_document_number')).exclude(
-                id=instance.id).exists():
-            raise InputDocumentNumberRegistered()
-        # El documento de salida no debe ser numerico en el caso que lo mande
-        if not data.get('output_document_number').isnumeric():
-            raise InputDocumentNumberIsNotNumber()
-
-    # Validaciones de numero de traslado
-    if data.get('transfer_number') and instance:
-        #if TrackerModel.objects.filter(transfer_number=data.get('transfer_number')).exclude(
-                #id=instance.id).exists():
-            #raise InputDocumentNumberRegistered()
-        # El numero de traslado no debe ser numerico en el caso que lo mande
-        if not data.get('transfer_number').isnumeric():
-            raise InputDocumentNumberIsNotNumber()
-
-    # Validacion de contabilzado
-    if data.get('accounted') and instance:
-        if not data.get('accounted').isnumeric():
-            raise InputDocumentNumberIsNotNumber()
-
-    # Vlidar centro de distribucion del usuario
-    if distribuidor is None:
-        raise UserWithoutDistributorCenter()
-    return (usuario, distribuidor)
-
-
-# Validaciones para marcar completado un tracker
-def validate_complete_tracker(tracker):
-    # Si ya esta completado, no se puede completar de nuevo
-    if tracker.status == 'COMPLETE':
-        raise TrackerCompleted()
-    # Debe exister almenos un detalle de tracker
-    if tracker.tracker_detail.count() == 0:
-        raise TrackerCompletedDetailRequired()
-
-    # la localidad de origen es requerida
-    if not tracker.origin_location:
-        raise OriginLocationRequired()
-    # Validar que si hay una orden
-    if tracker.order:
-        validate_and_update_order_detail(tracker.order, tracker)
-
-    if tracker.type == 'LOCAL':
-        # Validar numero de entrada, salida y traslado
-        if not tracker.input_document_number:
-            raise InputDocumentNumberRequired()
-        if not tracker.output_document_number:
-            raise OutputDocumentNumberRequired()
-        if not tracker.transfer_number:
-            raise TransferNumberRequired()
-        if not tracker.driver:
-            raise DriverRequired()
-
-        # Validar la data del oeperador y las fechas de entrada y salida
-        if not tracker.operator_1 or not tracker.input_date or not tracker.output_date:
-            raise OperatorRequired()
-
-        # Validaciones para el tipo de salida del producto
-        if not tracker.output_type:
-            raise OutputTypeRequired()
-        # El contabilizado es obligatorio solo si el tipo de salida no es VACIO
-        if not tracker.accounted and tracker.output_type.id != 9:
-            raise AccountedRequired()
-
-    if tracker.type == 'IMPORT':
-        # Validar numero de factura y numero de contenedor
-        if not tracker.invoice_number:
-            raise InvoiceRequired()
-        if not tracker.container_number:
-            raise ContainerNumberRequired()
-        if not tracker.driver_import:
-            raise DriverRequired()
-        if not tracker.transfer_number:
-            raise TransferNumberRequired()
-    # validar numero de placa y driver
-    if not tracker.plate_number:
-        raise PlateNumberRequired()
-
-    # Validar que todos los detalles de tracker tengan la cantidad completa
-    for tracker_detail in tracker.tracker_detail.all():
-        sum_quantity = TrackerDetailProductModel.objects.filter(tracker_detail=tracker_detail).aggregate(
-            Sum('quantity'))
-        if sum_quantity.get('quantity__sum') != tracker_detail.quantity:
-            raise QuantityRequired()
-    return True

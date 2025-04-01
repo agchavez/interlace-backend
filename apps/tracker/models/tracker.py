@@ -9,7 +9,7 @@ from apps.user.models import UserModel
 from apps.order.models.order import OrderModel
 from django.db import models
 from utils.BaseModel import BaseModel
-
+from apps.document.models.document import DocumentModel
 regex_number = '^[0-9]+$'
 
 
@@ -199,6 +199,11 @@ class TrackerModel(BaseModel):
         null=True,
         blank=True)
 
+    # excluir del tat
+    exclude_tat = models.BooleanField(
+        "Excluir del TAT",
+        default=False)
+
     STATUS_CHOICES = (
         ('PENDING', 'PENDING'),
         ('COMPLETE', 'COMPLETE'),
@@ -252,16 +257,22 @@ class TrackerModel(BaseModel):
         blank=True,
     )
 
-    archivo = models.BinaryField(
-        "Archivo", 
-        null=True, 
-        blank=True,
+    file_1 = models.ForeignKey(
+        DocumentModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Archivo 1",
+        related_name='tracker_file_1',
+        null=True,
+        blank=True
     )
 
-    archivo_name = models.TextField(
-        "Nombre del Archivo",
+    file_2 = models.ForeignKey(
+        DocumentModel,
+        on_delete=models.SET_NULL,
+        verbose_name="Archivo 2",
+        related_name='tracker_file_2',
         null=True,
-        blank=True,
+        blank=True
     )
 
     class Meta:
@@ -282,11 +293,7 @@ class TrackerModel(BaseModel):
         if self.input_date and self.output_date:
             self.time_invested = (self.output_date - self.input_date).total_seconds()
         super(TrackerModel, self).save(*args, **kwargs)
-    
-    def save_file_and_name(self, archivo, nombre):
-        self.archivo = archivo
-        self.archivo_name = nombre
-        self.save()
+
 
 
 # Modelo para los detalles de los trackers
