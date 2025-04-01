@@ -8,7 +8,24 @@ from apps.imported.model.claim import ClaimModel
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
 from apps.imported.utils.validation_claim import validate_create_claim
+from django_filters import rest_framework as django_filters
+from django.db.models import Q
+from azure.storage.blob import BlobServiceClient
+from django.conf import settings
+from django.http import FileResponse
+import io
 
+class ClaimFilter(django_filters.FilterSet):
+    tipo = django_filters.CharFilter(
+        field_name='claim_type',
+        lookup_expr='exact'
+    )
+    class Meta:
+        model = ClaimModel
+        fields = {
+            'id': ['exact'],
+            'status': ['exact'],
+        }
 
 class ClaimViewSet(
     mixins.ListModelMixin,      # GET /claims/
@@ -29,8 +46,9 @@ class ClaimViewSet(
 
     # Configuración de filtros y ordenación
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = ClaimFilter
     # filterset_class = ReclamoFilter  # Descomenta si defines un FilterSet
-    search_fields = ["tipo", "descripcion"]
+    search_fields = ["claim_type", "status", "tracker__distributor_center__name"]
     ordering_fields = ["created_at", "tipo", "status"]
 
     PERMISSION_MAPPING = {
@@ -148,5 +166,108 @@ class ClaimViewSet(
             dc_ids += list(user.distributions_centers.values_list("id", flat=True))
         # Filtrar reclamos cuyo tracker tenga uno de esos centros
         queryset = self.get_queryset().filter(tracker__distributor_center__id__in=dc_ids)
+        filters = {}
+        if request.query_params.get('status'):
+            filters['status'] = request.query_params.get('status')
+        if request.query_params.get('tipo'):
+            filters['claim_type'] = request.query_params.get('tipo')
+        if request.query_params.get('distributor_center'):
+            filters['tracker__distributor_center__id'] = request.query_params.get('distributor_center')
+        if request.query_params.get('date_after'):
+            filters['created_at__gte'] = request.query_params.get('date_after')
+        if request.query_params.get('date_before'):
+            filters['created_at__lte'] = request.query_params.get('date_before')
+        queryset = queryset.filter(**filters)
+        
+        if request.query_params.get('search'):
+            search = request.query_params.get('search')
+            queryset = queryset.filter(
+                Q(claim_type__icontains=search) | 
+                Q(description__icontains=search) |
+                Q(tracker__distributor_center__name__icontains=search)
+            )
+
+        # limit y offset para paginación
+        limit = int(self.request.query_params.get('limit', 10))
+        offset = int(self.request.query_params.get('offset', 0))
+        count = queryset.count()
+        queryset = queryset[offset:offset+limit]
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        # Resultados paginados
+        body = {
+            "count": count,
+            "results": serializer.data
+        }
+        return Response(body, status=status.HTTP_200_OK)
+    
+
+    @action(methods=["get"], detail=True, url_path="download-file")
+    def download_file(self, request, pk=None):
+        """
+        Descarga un archivo de la reclamación
+        """
+        reclamo = self.get_object()
+        if reclamo is None:
+            return Response({"detail": "No se encontró el archivo"}, status=status.HTTP_404_NOT_FOUND)
+        # validar el nombre del archivo
+        valido = False
+        filename = request.GET.get('filename')
+        if reclamo.claim_file is not None and reclamo.claim_file == filename:
+            valido = True
+        elif reclamo.credit_memo_file is not None and reclamo.credit_memo_file == filename:
+            valido = True
+        elif reclamo.observations_file is not None and reclamo.observations_file == filename:
+            valido = True
+        
+        for photo in reclamo.photos_container_closed.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_container_one_open.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_container_two_open.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_container_top.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_during_unload.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_pallet_damage.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_damaged_product_base.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_damaged_product_dents.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_damaged_boxes.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_grouped_bad_product.all():
+            if photo.file == filename:
+                valido = True
+                break
+        for photo in reclamo.photos_repalletized.all():
+            if photo.file == filename:
+                valido = True
+                break
+        
+        if not valido:
+            return Response({"detail": "No se encontró el archivo"}, status=status.HTTP_404_NOT_FOUND)
+        
+        blob_service_client = BlobServiceClient(account_url=f"https://{settings.AZURE_ACCOUNT_NAME}.blob.core.windows.net", credential=settings.AZURE_ACCOUNT_KEY)
+        blob_client = blob_service_client.get_blob_client(container=settings.AZURE_CONTAINER, blob=filename)
+        blob_data = blob_client.download_blob().readall()
+        return FileResponse(io.BytesIO(blob_data), as_attachment=True, filename=filename)
