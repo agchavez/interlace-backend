@@ -6,7 +6,7 @@ from apps.imported.model.claim import ClaimModel, CLAIM_TYPE_CHOICES, CLAIM_STAT
 from apps.imported.exceptions.claim import (
     ClaimTypeInvalid, ClaimDescriptionRequired, ClaimTrackerRequired,
     ClaimStatusInvalid, ClaimStatusTransitionInvalid, FileTooLarge,
-    UnsupportedFileType, TooManyPhotos, PhotoRequiredForDamage
+    UnsupportedFileType, TooManyPhotos, PhotoRequiredForDamage, ClaimAlreadyExists
 )
 from apps.tracker.exceptions.tracker import UserWithoutDistributorCenter
 from apps.tracker.models import TrackerModel
@@ -46,6 +46,8 @@ def validate_create_claim(request, tracker_id=None, claim_id=None):
             from rest_framework.exceptions import NotFound
             raise NotFound(detail="Tracker no encontrado")
 
+    if not claim_id and hasattr(tracker, 'claim') and tracker.claim is not None:
+        raise ClaimAlreadyExists()
     # Get claim instance if claim_id provided
     claim = None
     if claim_id:
@@ -92,9 +94,9 @@ def validate_document_files(files):
 
             # Check file type for documents
             file_name = file_obj.name.lower()
-            if not (file_name.endswith('.pdf') or
-                    file_name.endswith('.xlsx') or
-                    file_name.endswith('.xls')):
+            file_extension = file_name.split('.')[-1] if '.' in file_name else ''
+
+            if file_extension not in ['pdf', 'xlsx', 'xls']:
                 raise UnsupportedFileType()
 
     # Validate photo files
@@ -122,10 +124,9 @@ def validate_document_files(files):
 
                 # Check file type for photos
                 file_name = photo.name.lower()
-                if not (file_name.endswith('.jpg') or
-                        file_name.endswith('.jpeg') or
-                        file_name.endswith('.png') or
-                        file_name.endswith('.gif')):
+                file_extension = file_name.split('.')[-1] if '.' in file_name else ''
+
+                if file_extension not in ['jpg', 'jpeg', 'png', 'gif']:
                     raise UnsupportedFileType()
 
 

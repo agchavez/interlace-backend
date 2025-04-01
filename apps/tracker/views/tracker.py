@@ -27,6 +27,7 @@ from rest_framework.filters import OrderingFilter
 from django.http import HttpResponse
 from ..utils.processes import apply_output_movements
 from ..utils.validate_tracker import validate_complete_tracker, validate_create_tracker
+from ...document.utils.documents import create_documento
 from ...order.utils.update import update_order_detail
 
 
@@ -184,16 +185,49 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         tracker = self.get_object()
         if tracker.status != "EDITED":
             raise TrackerCompleted
-        archivo = request.data.get("archivo")
-        name = request.data.get("name")
-        if archivo is not None:
-            if archivo.size > 20*1024*1024:
+
+        # Detectar qué archivos se envían y qué operación realizar para cada uno
+        file_1 = request.FILES.get("file_1")
+        file_2 = request.FILES.get("file_2")
+
+        # Campo para identificar qué archivo eliminar (si corresponde)
+        delete_file_1 = request.data.get("delete_file_1") == "true"
+        delete_file_2 = request.data.get("delete_file_2") == "true"
+
+        # Procesar file_1
+        if file_1 is not None:
+            if file_1.size > 20 * 1024 * 1024:
                 raise FileTooLarge
-            content = archivo.read()
-            tracker.archivo = content
-        if name:
-            tracker.archivo_name = name
+            # Crear documento para file_1
+            document_1 = create_documento(
+                file_1,
+                name=file_1.name,
+                folder="Tracker",
+                subfolder=str(tracker.id)
+            )
+            tracker.file_1 = document_1
+        elif delete_file_1:
+            tracker.file_1 = None
+
+        # Procesar file_2
+        if file_2 is not None:
+            if file_2.size > 20 * 1024 * 1024:
+                raise FileTooLarge
+            # Crear documento para file_2
+            document_2 = create_documento(
+                file_2,
+                name=file_2.name,
+                folder="Tracker",
+                subfolder=str(tracker.id)
+            )
+            tracker.file_2 = document_2
+        elif delete_file_2:
+            tracker.file_2 = None
+
+        # Guardar cambios
         tracker.save()
+
+        # Devolver datos actualizados
         serializer = TrackerSerializer(tracker)
         return Response(serializer.data, status=status.HTTP_200_OK)
     # Descargar archivo

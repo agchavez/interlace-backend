@@ -7,10 +7,11 @@ from django.conf import settings
 # Supongamos que tienes estos modelos (ajusta import según tu estructura real):
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 
 from apps.document.models.document import DocumentModel
 from apps.document.utils.documents import create_documento
-from apps.imported.model.claim import ClaimModel
+from apps.imported.model.claim import ClaimModel, ClaimProductModel
 from apps.tracker.models import TrackerModel
 
 User = get_user_model()
@@ -41,6 +42,7 @@ def add_reclamo_log(reclamo: ClaimModel, old_state: str, new_state: str, changed
     """
     pass
 
+@transaction.atomic
 def create_reclamo(
         tracker_id: int,
         assigned_user_id: Optional[int],
@@ -52,7 +54,8 @@ def create_reclamo(
         claim_file: Optional[File] = None,
         credit_memo_file: Optional[File] = None,
         observations_file: Optional[File] = None,
-        photo_files: Optional[dict] = None
+        photo_files: Optional[dict] = None,
+        products_data: Optional[List[dict]] = None
     ) -> ClaimModel:
         """
         Crea un ClaimModel con todos los campos necesarios y adjunta los documentos.
@@ -71,8 +74,9 @@ def create_reclamo(
             photo_files: Diccionario con listas de archivos por categoría
         """
         tracker = TrackerModel.objects.get(pk=tracker_id)
-
-        assigned_user = None
+        assigned_user = User.objects.filter(
+            groups__name="Claim Service User"
+        ).first()
         if assigned_user_id:
             assigned_user = User.objects.get(pk=assigned_user_id)
 
@@ -147,8 +151,19 @@ def create_reclamo(
                         doc = create_documento(file_obj, name=file_obj.name, folder="Claim", subfolder=reclamo.claim_code)
                         photo_fields[field_name].add(doc)
 
+        if products_data:
+            for product_item in products_data:
+                # Ajusta a tu ClaimProductModel
+                ClaimProductModel.objects.create(
+                    claim=reclamo,
+                    product_name=product_item.get("product", ""),
+                    quantity=product_item.get("quantity", 0),
+                    batch=product_item.get("batch", ""),
+                )
+
         # 4. Enviar notificación/correo si hay un usuario asignado
         if assigned_user:
+
             send_notification(
                 user=assigned_user,
                 title=f"Nuevo reclamo #{reclamo.id}",

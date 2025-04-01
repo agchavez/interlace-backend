@@ -81,3 +81,9 @@ class PhotoRequiredForDamage(APIException):
         'error_code': 'photo_required_for_damage'
     }
     default_code = 'photo_required_for_damage'
+
+
+class ClaimAlreadyExists(Exception):
+    """Lanzada cuando se intenta crear un claim para un tracker que ya tiene uno asociado"""
+    def __str__(self):
+        return "Ya existe un reclamo asociado a este tracker. No se puede crear otro."

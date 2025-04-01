@@ -211,6 +211,13 @@ class ClaimProductModel(BaseModel):
 
     quantity = models.IntegerField("Cantidad", default=0)
 
+    batch = models.CharField(
+        "Lote",
+        max_length=50,
+        blank=True,
+        null=True
+    )
+
     def __str__(self):
         return f"Claim #{self.claim.id} - Producto: {self.product.name} ({self.quantity})"
 
