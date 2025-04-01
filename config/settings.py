@@ -30,9 +30,12 @@ LOCAL_APPS = [
     'apps.report',
     'apps.order',
     'apps.inventory',
+    'apps.imported',
+    'apps.document',
 ]
 
 INSTALLED_APPS = [
+                    'daphne',
                      'django.contrib.admin',
                      'django.contrib.auth',
                      'django.contrib.contenttypes',
@@ -45,6 +48,8 @@ INSTALLED_APPS = [
                      'import_export',
                      'django_celery_beat',
                      'django_celery_results',
+                          'channels',
+                            'storages',
                  ] + LOCAL_APPS
 
 MIDDLEWARE = [
@@ -78,6 +83,7 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = 'config.asgi.application'
 WSGI_APPLICATION = 'config.wsgi.application'
 
 AUTH_USER_MODEL = 'user.UserModel'
@@ -156,3 +162,31 @@ CELERY_RESULT_EXPIRES = 86400  # Tiempo en segundos (un día)
 
 
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Configuracion de canales
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("localhost", 6379)],
+        },
+    },
+}
+#sp=racwdli&st=2025-03-19T15:09:16Z&se=2025-12-06T23:09:16Z&sip=181.115.60.7&sv=2022-11-02&sr=c&sig=***REMOVED***
+#https://trackerlogisticstorage.blob.core.windows.net/tracker?sp=racwdli&st=2025-03-19T15:09:16Z&se=2025-12-06T23:09:16Z&sip=181.115.60.7&sv=2022-11-02&sr=c&sig=***REMOVED***
+AZURE_ACCOUNT_NAME = "trackerlogisticstorage"
+AZURE_ACCOUNT_KEY = "***REMOVED***"
+AZURE_CONTAINER = "tracker"
+AZURE_CUSTOM_DOMAIN = f"{AZURE_ACCOUNT_NAME}.blob.core.windows.net"
+
+DEFAULT_FILE_STORAGE = "storages.backends.azure_storage.AzureStorage"
+MEDIA_URL = f"https://{AZURE_CUSTOM_DOMAIN}/{AZURE_CONTAINER}/"
+
+# Configuracion de configuracion de seguridad de azure blob
+AZURE_OBJECT_PARAMETERS = {
+    "CacheControl": "max-age=86400",
+
+}

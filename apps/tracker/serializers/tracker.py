@@ -16,7 +16,7 @@ from apps.maintenance.serializer import TrailerModelSerializer, TransporterModel
 
 from .typeDetailOutput import TrackerDetailOutputSerializer
 from ...maintenance.models import OutputTypeModel
-
+from apps.document.serializers.document import DocumentSerializer
 
 class TrackerDetailProductModelSerializer(serializers.ModelSerializer):
     tracker_id = serializers.ReadOnlyField(source='tracker_detail.tracker.id')
@@ -92,13 +92,38 @@ class TrackerSerializer(serializers.ModelSerializer):
     tracker_detail = TrackerDetailModelSerializer(many=True, read_only=True)
     location_data = LocationModelSerializer(source = 'origin_location', read_only=True)
     tracker_detail_output = TrackerDetailOutputSerializer(many=True, read_only=True)
-    is_archivo_up = serializers.SerializerMethodField('archivo_up')
+    operator_1_name = serializers.SerializerMethodField()
+    operator_2_name = serializers.SerializerMethodField()
+    claim = serializers.SerializerMethodField()
+    file_data_1 = serializers.SerializerMethodField()
+    file_data_2 = serializers.SerializerMethodField()
 
-    def archivo_up(self, obj):
-        if obj.archivo is None:
-            return False
-        else:
-            return True
+    def get_file_data_1(self, obj):
+        if obj.file_1:
+            try:
+                document = DocumentSerializer(obj.file_1).data
+                return document
+            except DocumentSerializer.DoesNotExist:
+                return None
+        return None
+
+    def get_file_data_2(self, obj):
+        if obj.file_2:
+            try:
+                document = DocumentSerializer(obj.file_2).data
+                return document
+            except DocumentSerializer.DoesNotExist:
+                return None
+        return None
+
+
+    def get_claim(self, obj):
+        try:
+            if hasattr(obj, 'claim') and obj.claim is not None:
+                return obj.claim.id
+            return None
+        except:
+            return None
         
     def get_tariler(self, obj):
         return TrailerModelSerializer(obj.trailer).data
@@ -106,10 +131,22 @@ class TrackerSerializer(serializers.ModelSerializer):
     def get_transporter(self, obj):
         return TransporterModelSerializer(obj.transporter).data
 
+    def get_operator_1_name(self, obj):
+        if obj.operator_1 is not None:
+            return obj.operator_1.get_full_name()
+        else:
+            return None
+
+    def get_operator_2_name(self, obj):
+        if obj.operator_2 is not None:
+            return obj.operator_2.get_full_name()
+        else:
+            return None
+
     class Meta:
         model = TrackerModel
-        # fields = '__all__'
-        exclude = ('archivo',)
+        fields = '__all__'
+        # exclude = ('archivo',)
 
     def validate(self, data):
         # solo se pueden actualizar si el estado es PENDING

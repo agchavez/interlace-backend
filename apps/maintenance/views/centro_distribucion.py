@@ -24,15 +24,16 @@ class CentroDistribucionFilter(django_filters.FilterSet):
 
 class CentroDistribucionViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin
+                                ,mixins.CreateModelMixin,
+                                mixins.UpdateModelMixin
                                 , viewsets.GenericViewSet):
     queryset = DistributorCenter.objects.all()
     serializer_class = DistributorCenterSerializer
     filter_backends = (DjangoFilterBackend, filters.SearchFilter)
-    search_fields = ('name')
+    search_fields = ['name', 'location_distributor_center__code']
     filterset_class = CentroDistribucionFilter
     # Quitar la paginacion
-    pagination_class = None
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
 
     PERMISSION_MAPPING = {
         'GET': ['maintenance.view_distributorcenter'],
@@ -93,7 +94,7 @@ class LocationModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['name', 'code']
     filterset_class = LocationFilter
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
 
     PERMISSION_MAPPING = {
         'GET': ['maintenance.view_locationmodel'],

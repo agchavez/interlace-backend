@@ -12,6 +12,6 @@ class BaseModel(models.Model):
         abstract = True
         verbose_name = "Modelo Base"
         verbose_name_plural = "Modelos Base"
-        ordering = ['created_at', 'updated_at']
+        ordering = ['created_at']
 
 
