@@ -91,15 +91,15 @@ def create_reclamo(
         # 2. Añadimos los archivos de documentos principales
         if claim_file:
             # En lugar de asignar directamente, usar create_documento()
-            doc_claim = create_documento(claim_file,"Document Claim",  "Claim", reclamo.claim_code)
+            doc_claim = create_documento(claim_file,claim_file.name,  "Claim", reclamo.claim_code)
             reclamo.claim_file = doc_claim.file
 
         if credit_memo_file:
-            doc_credit = create_documento(credit_memo_file, "Credit Memo", "Claim", reclamo.claim_code)
+            doc_credit = create_documento(credit_memo_file, credit_memo_file.name, "Claim", reclamo.claim_code)
             reclamo.credit_memo_file = doc_credit.file
 
         if observations_file:
-            doc_obs = create_documento(observations_file, "Observations", "Claim", reclamo.claim_code)
+            doc_obs = create_documento(observations_file, observations_file.name, "Claim", reclamo.claim_code)
             reclamo.observations_file = doc_obs.file
 
         reclamo.save()
@@ -144,7 +144,7 @@ def create_reclamo(
 
                     # Creamos un documento para cada archivo y lo añadimos a la relación
                     for i, file_obj in enumerate(file_list):
-                        doc = create_documento(file_obj, name=f"{desc} #{i+1}", folder="Claim", subfolder=reclamo.claim_code)
+                        doc = create_documento(file_obj, name=file_obj.name, folder="Claim", subfolder=reclamo.claim_code)
                         photo_fields[field_name].add(doc)
 
         # 4. Enviar notificación/correo si hay un usuario asignado
