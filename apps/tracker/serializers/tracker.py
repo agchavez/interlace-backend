@@ -95,7 +95,15 @@ class TrackerSerializer(serializers.ModelSerializer):
     is_archivo_up = serializers.SerializerMethodField('archivo_up')
     operator_1_name = serializers.SerializerMethodField()
     operator_2_name = serializers.SerializerMethodField()
+    claim = serializers.SerializerMethodField()
 
+    def get_claim(self, obj):
+        try:
+            if hasattr(obj, 'claim') and obj.claim is not None:
+                return obj.claim.id
+            return None
+        except:
+            return None
     def archivo_up(self, obj):
         if obj.archivo is None:
             return False

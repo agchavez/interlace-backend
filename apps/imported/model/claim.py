@@ -32,10 +32,10 @@ class ClaimModel(BaseModel):
     """
     Modelo para reclamos de productos, con carga de documentos en diversas categorías.
     """
-    tracker = models.ForeignKey(
+    tracker = models.OneToOneField(
         TrackerModel,
         on_delete=models.CASCADE,
-        related_name="claims",
+        related_name="claim",
         verbose_name="Tracker asociado"
     )
     assigned_to = models.ForeignKey(
