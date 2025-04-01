@@ -3,6 +3,7 @@ from apps.document.serializers.document import DocumentSerializer
 from apps.imported.model.claim import ClaimModel, ClaimProductModel
 from apps.maintenance.serializer.trailer import TrailerModelSerializer, TransporterModelSerializer
 from apps.tracker.serializers import TrackerSerializer
+from apps.document.models.document import DocumentModel
 
 
 class ClaimProductSerializer(serializers.ModelSerializer):
@@ -31,9 +32,10 @@ class ClaimSerializer(serializers.ModelSerializer):
     photos_grouped_bad_product = DocumentSerializer(many=True, read_only=True)
     photos_repalletized = DocumentSerializer(many=True, read_only=True)
 
-    claim_file = DocumentSerializer(read_only=True)
-    credit_memo_file = DocumentSerializer(read_only=True)
-    observations_file = DocumentSerializer(read_only=True)
+    # Serializamos los documentos usando SerializerMethodField para manejar valores nulos
+    claim_file = serializers.SerializerMethodField()
+    credit_memo_file = serializers.SerializerMethodField()
+    observations_file = serializers.SerializerMethodField()
 
     claim_products = ClaimProductSerializer(many=True, read_only=True)
     tracking = TrackerSerializer(read_only=True, many=False, source="tracker")
@@ -58,3 +60,29 @@ class ClaimSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id", "status", "created_at", "assigned_to", "trailer", "transporter"
         ]
+    def get_claim_file(self, obj):
+        if obj.claim_file and obj.claim_file.name:
+            try:
+                document = DocumentModel.objects.get(file=obj.claim_file.name)
+                return DocumentSerializer(document).data
+            except DocumentModel.DoesNotExist:
+                return None
+        return None
+
+    def get_credit_memo_file(self, obj):
+        if obj.credit_memo_file and obj.credit_memo_file.name:
+            try:
+                document = DocumentModel.objects.get(file=obj.credit_memo_file.name)
+                return DocumentSerializer(document).data
+            except DocumentModel.DoesNotExist:
+                return None
+        return None
+
+    def get_observations_file(self, obj):
+        if obj.observations_file and obj.observations_file.name:
+            try:
+                document = DocumentModel.objects.get(file=obj.observations_file.name)
+                return DocumentSerializer(document).data
+            except DocumentModel.DoesNotExist:
+                return None
+        return None

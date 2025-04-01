@@ -79,7 +79,7 @@ class ClaimViewSet(
         tracker_id = request.data.get("tracker_id")
 
         # Validamos los datos del request usando nuestra nueva utilidad
-        user, tracker, _ = validate_create_claim(request, tracker_id=tracker_id)
+        user, tracker, _ = validate_create_claim(request, tracker_id=int(tracker_id))
 
         # Extraemos los datos del request
         assigned_user_id = request.data.get("assigned_user_id")
@@ -92,9 +92,9 @@ class ClaimViewSet(
         observations = request.data.get("observations")
 
         # Archivos de documentos
-        claim_file = request.FILES.get("claim_file")
-        credit_memo_file = request.FILES.get("credit_memo_file")
-        observations_file = request.FILES.get("observations_file")
+        claim_file = request.FILES.get("claim_file") if "claim_file" in request.FILES else None
+        credit_memo_file = request.FILES.get("credit_memo_file") if "credit_memo_file" in request.FILES else None
+        observations_file = request.FILES.get("observations_file") if "observations_file" in request.FILES else None
 
         # Fotografías por categoría
         photo_files = {}
@@ -457,13 +457,13 @@ class ClaimViewSet(
         y gestiona campos principales, archivos, fotos y productos.
         """
         try:
-            claim = self.get_object()  # ClaimModel con pk=pk
+            claim = self.get_object()
         except ClaimModel.DoesNotExist:
             return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
         data = request.data
 
-        # 1. Actualizar campos principales
+        # 1) Actualizar campos principales
         claim_type = data.get("claim_type", claim.claim_type)
         description = data.get("description", claim.description)
         claim_number = data.get("claim_number", claim.claim_number)
@@ -476,45 +476,34 @@ class ClaimViewSet(
         claim.discard_doc = discard_doc
         claim.observations = observations
 
-        # 2. Actualizar archivos principales (claim_file, credit_memo_file, observations_file)
-        #    - Si te envían un file nuevo, lo reemplazas
-        #    - Si te envían null y antes existía, decides si borrar o no
+        # 2) Actualizar archivos principales
         if "claim_file" in request.FILES:
-            file_obj = request.FILES["claim_file"]
-            doc_claim = create_documento(file_obj, file_obj.name, "Claim", claim.claim_code)
+            f = request.FILES["claim_file"]
+            doc_claim = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.claim_file = doc_claim.file
-        elif data.get("claim_file") is None:
-            # Te están indicando que ya no quieren el archivo
-            claim.claim_file = None
+        # elif data.get("claim_file") is None:
+        #     claim.claim_file = None
 
         if "credit_memo_file" in request.FILES:
-            file_obj = request.FILES["credit_memo_file"]
-            doc_credit = create_documento(file_obj, file_obj.name, "Claim", claim.claim_code)
+            f = request.FILES["credit_memo_file"]
+            doc_credit = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.credit_memo_file = doc_credit.file
-        elif data.get("credit_memo_file") is None:
-            claim.credit_memo_file = None
+        # elif data.get("credit_memo_file") is None:
+        #     claim.credit_memo_file = None
 
         if "observations_file" in request.FILES:
-            file_obj = request.FILES["observations_file"]
-            doc_obs = create_documento(file_obj, file_obj.name, "Claim", claim.claim_code)
+            f = request.FILES["observations_file"]
+            doc_obs = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.observations_file = doc_obs.file
-        elif data.get("observations_file") is None:
-            claim.observations_file = None
+        # elif data.get("observations_file") is None:
+        #     claim.observations_file = None
 
         claim.save()
 
-        # 3. Actualizar fotos (M2M). Esperamos un formato como:
-        #
-        #   {
-        #     "photos_container_closed": {
-        #        "remove": [ID1, ID2],
-        #        "add": [ <File1>, <File2> ]
-        #     },
-        #     "photos_container_one_open": { ... },
-        #     ...
-        #   }
-        #
-        # Si no recibes JSON anidado sino algo distinto, ajústalo.
+        # 3) Actualizar fotos M2M
+        #    Usamos 2 llaves por cada categoría:
+        #    Ej: "photos_container_closed_meta" para la metadata JSON,
+        #        "photos_container_closed" para los archivos.
         photo_fields = {
             "photos_container_closed": claim.photos_container_closed,
             "photos_container_one_open": claim.photos_container_one_open,
@@ -529,87 +518,74 @@ class ClaimViewSet(
             "photos_repalletized": claim.photos_repalletized,
         }
 
+        import json
         for field_name, m2m_relation in photo_fields.items():
-            if field_name in data:
-                cat_data = data[field_name]  # { "remove": [...], "add": [...] }
+            meta_key = f"{field_name}_meta"  # "photos_container_closed_meta", etc.
 
-                # a) Eliminar fotos
-                to_remove = cat_data.get("remove", [])
-                if to_remove:
-                    m2m_relation.remove(*to_remove)  # Elimina esos DocumentModel IDs de la M2M
-                    # Opcionalmente, podrías borrarlos definitivamente de DocumentModel.objects.get(pk=)
-                    # si tu lógica lo requiere.
+            cat_data = {"remove": []}
+            if meta_key in data:
+                cat_data_str = data[meta_key]
+                try:
+                    cat_data = json.loads(cat_data_str)  # parse => dict
+                except json.JSONDecodeError:
+                    cat_data = {"remove": []}
 
-                # b) Agregar fotos nuevas
-                if field_name in request.FILES:
-                    # Dependiendo de cómo envíes el form, puede que vengan muchos
-                    # Archivos "photos_container_closed" o que vengan en un array con un nombre distinto.
-                    # Ejemplo, si los subes con "photos_container_closed.add" = [File1, File2],
-                    # DRF no lo parsea nativamente como tu JSON.
-                    #
-                    # Lo más sencillo es usar un approach en front de “campo repetido”
-                    # o un FormData con “photos_container_closed” repetido.
-                    # Ajusta según tu estructura.
-                    files_to_add = request.FILES.getlist(field_name)
-                    for fobj in files_to_add:
-                        doc = create_documento(fobj, fobj.name, "Claim", claim.claim_code)
-                        m2m_relation.add(doc)
+            # a) Eliminar
+            to_remove = cat_data.get("remove", [])
+            if to_remove:
+                m2m_relation.remove(*to_remove)
 
-                # Si tu JSON con “add” no viaja en la parte de FILES sino como otra cosa,
-                # habría que ajustarlo. Normalmente, “add” lo esperas en request.FILES.
+            # b) Agregar => usando request.FILES.getlist(field_name)
+            if field_name in request.FILES:
+                files_to_add = request.FILES.getlist(field_name)
+                for fobj in files_to_add:
+                    doc = create_documento(fobj, fobj.name, "Claim", claim.claim_code)
+                    m2m_relation.add(doc)
 
         claim.save()
 
-        # 4. Actualizar ClaimProducts
-        # Se espera algo como:
-        # "products": [
-        #   { "id": 100, "product": "...", "quantity": 2, "batch": "...", "_delete": false },
-        #   { "id": 101, "product": "...", "quantity": 5, "batch": "...", "_delete": true },
-        #   { "product": "...", "quantity": 3, "batch": "nuevo" }
-        # ]
-        #
-        # Donde `id` es el ID del ClaimProduct y `_delete` indica si borrarlo.
-        # `product` podría ser un ID de “product” real, o un simple texto, depende de tu modelado.
-        #
-        # Adicionalmente, tu ClaimProduct puede tener su propio ViewSet, pero si prefieres
-        # manejarlo central aquí, sin anidar serializers, se puede hacer como sigue:
+        # 4) Actualizar ClaimProducts
         from apps.imported.model import ClaimProductModel
+        raw_products_str = data.get("products", "[]")
+        try:
+            products_data = json.loads(raw_products_str)
+        except json.JSONDecodeError:
+            products_data = []
 
-        products_data = data.get("products", [])
         for p in products_data:
-            product_id = p.get("id")  # ID del ClaimProduct
+            product_id = p.get("id")
             delete_flag = p.get("_delete", False)
-
             if product_id:
-                # ClaimProduct existente
                 try:
                     cp = ClaimProductModel.objects.get(pk=product_id, claim=claim)
                 except ClaimProductModel.DoesNotExist:
-                    continue  # O devuelves un error, depende.
+                    continue
 
                 if delete_flag:
                     cp.delete()
                     continue
 
-                # Actualizar
-                cp.product_name = p.get("product", cp.product_name)
+                cp.product_id = p.get("product", cp.product)
                 cp.quantity = p.get("quantity", cp.quantity)
                 cp.batch = p.get("batch", cp.batch)
                 cp.save()
             else:
-                # Nuevo ClaimProduct
                 if not delete_flag:
-                    new_cp = ClaimProductModel.objects.create(
-                        claim=claim,
-                        product_name=p.get("product", ""),
-                        quantity=p.get("quantity", 0),
-                        batch=p.get("batch", ""),
-                    )
-                    new_cp.save()
+                    if not ClaimProductModel.objects.filter(
+                            claim=claim,
+                            product_id=p.get("product", "")
+                    ).exists():
+                        ClaimProductModel.objects.create(
+                            claim=claim,
+                            product_id=p.get("product", ""),
+                            quantity=p.get("quantity", 0),
+                            batch=p.get("batch", ""),
+                        )
 
-        # Al final, serializas y devuelves el reclamo
+        # 5) Serializar y devolver
         serializer = self.get_serializer(claim)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 # Vista de productos asociados a un reclamo
 class ClaimProductViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
