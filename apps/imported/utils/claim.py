@@ -35,7 +35,7 @@ def send_email(user: User, subject: str, message: str):
 
 
 # 2) Función para registrar logs de cambios (historial)
-def add_reclamo_log(reclamo: ClaimModel, old_state: str, new_state: str, changed_by: Optional[User] = None):
+def add_reclamo_log(reclamo: ClaimModel, old_state: str, new_state: str, changed_by: Optional[User] = None, observations: Optional[str] = None):
     """
     Placeholder para guardar en un modelo de logs (o en la tabla de historial de estados).
     """
@@ -167,6 +167,7 @@ def create_reclamo(
 def change_reclamo_state(
     reclamo_id: int,
     new_state: str,
+    observations: Optional[str] = None,
     changed_by_id: Optional[int] = None,
     send_notifications: bool = True
 ) -> ClaimModel:
@@ -183,7 +184,7 @@ def change_reclamo_state(
 
     # Guardar log de cambios
     changed_by = User.objects.get(pk=changed_by_id) if changed_by_id else None
-    add_reclamo_log(reclamo, old_state, new_state, changed_by)
+    add_reclamo_log(reclamo, old_state, new_state, changed_by, observations)
 
     # Notificar si corresponde
     if send_notifications and reclamo.assigned_to:

@@ -4,7 +4,10 @@ from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
+from apps.document.utils.documents import create_documento
+from apps.imported.model import ClaimProductModel
 from apps.imported.model.claim import ClaimModel
+from apps.imported.serializers import ClaimProductSerializer
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
 from apps.imported.utils.validation_claim import validate_create_claim
@@ -126,14 +129,133 @@ class ClaimViewSet(
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(methods=["post"], detail=True, url_path="upload-photos")
+    def upload_photos(self, request, pk=None):
+        """
+        API para cargar fotos adicionales o sustituir existentes en un claim.
+
+        Parámetros esperados:
+        - photo_category: Categoría de foto (requerido)
+        - mode: "add" (agregar) o "replace" (sustituir), por defecto "add"
+        - FILES: Los archivos a cargar
+
+        Ejemplos de categorías:
+        - photos_container_closed
+        - photos_damaged_boxes
+        - etc.
+        """
+        try:
+            claim = self.get_object()
+        except ClaimModel.DoesNotExist:
+            return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Obtener categoría de fotos
+        photo_category = request.data.get("photo_category")
+        if not photo_category:
+            return Response(
+                {"detail": "Falta el parámetro 'photo_category'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validar categoría
+        valid_categories = [
+            "photos_container_closed", "photos_container_one_open",
+            "photos_container_two_open", "photos_container_top",
+            "photos_during_unload", "photos_pallet_damage",
+            "photos_damaged_product_base", "photos_damaged_product_dents",
+            "photos_damaged_boxes", "photos_grouped_bad_product",
+            "photos_repalletized"
+        ]
+
+        if photo_category not in valid_categories:
+            return Response(
+                {"detail": f"Categoría de foto inválida. Opciones válidas: {', '.join(valid_categories)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Modo: add (agregar) o replace (sustituir)
+        mode = request.data.get("mode", "add")
+        if mode not in ["add", "replace"]:
+            return Response(
+                {"detail": "El parámetro 'mode' debe ser 'add' o 'replace'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Obtener archivos
+        files = request.FILES.getlist("files")
+        if not files:
+            return Response(
+                {"detail": "No se encontraron archivos para subir"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Mapeo de nombres a relaciones M2M
+        photo_fields = {
+            "photos_container_closed": claim.photos_container_closed,
+            "photos_container_one_open": claim.photos_container_one_open,
+            "photos_container_two_open": claim.photos_container_two_open,
+            "photos_container_top": claim.photos_container_top,
+            "photos_during_unload": claim.photos_during_unload,
+            "photos_pallet_damage": claim.photos_pallet_damage,
+            "photos_damaged_product_base": claim.photos_damaged_product_base,
+            "photos_damaged_product_dents": claim.photos_damaged_product_dents,
+            "photos_damaged_boxes": claim.photos_damaged_boxes,
+            "photos_grouped_bad_product": claim.photos_grouped_bad_product,
+            "photos_repalletized": claim.photos_repalletized
+        }
+
+        # Nombres descriptivos para las categorías
+        field_descriptions = {
+            "photos_container_closed": "Contenedor cerrado",
+            "photos_container_one_open": "Contenedor con 1 puerta abierta",
+            "photos_container_two_open": "Contenedor con 2 puertas abiertas",
+            "photos_container_top": "Vista superior del contenido",
+            "photos_during_unload": "Durante la descarga",
+            "photos_pallet_damage": "Fisuras/abolladuras de pallets",
+            "photos_damaged_product_base": "Base de producto dañada",
+            "photos_damaged_product_dents": "Abolladuras del producto",
+            "photos_damaged_boxes": "Cajas dañadas",
+            "photos_grouped_bad_product": "Producto en mal estado agrupado",
+            "photos_repalletized": "Repaletizado de producto dañado"
+        }
+
+        # Si es modo "replace", eliminar fotos existentes
+        if mode == "replace":
+            photo_fields[photo_category].clear()
+
+        # Obtener el número de fotos actuales para la categoría
+        current_count = photo_fields[photo_category].count()
+
+        # Agregar fotos nuevas
+        desc = field_descriptions.get(photo_category, photo_category)
+        uploaded_docs = []
+
+        for i, file_obj in enumerate(files):
+            doc = create_documento(
+                file_obj,
+                name=f"{desc} #{current_count + i + 1}",
+                folder="Claim",
+                subfolder=claim.claim_code
+            )
+            photo_fields[photo_category].add(doc)
+            uploaded_docs.append(doc)
+
+        return Response({
+            "detail": f"{len(files)} fotos {mode == 'replace' and 'reemplazadas' or 'agregadas'} correctamente",
+            "count": photo_fields[photo_category].count(),
+            "category": photo_category,
+            "claim_id": claim.id
+        }, status=status.HTTP_200_OK)
+
     @action(methods=["post"], detail=True, url_path="change-state")
     def change_state(self, request, pk=None):
         """
         Cambia el estado del claim.
-        Se espera en el body: { "new_state": "...", "changed_by_id": <id> }
+        Se espera en el body: { "new_state": "...", "changed_by_id": <id> , "observations": "..." }
         """
         new_state = request.data.get("new_state")
         changed_by_id = request.data.get("changed_by_id")
+        observations = request.data.get("observations")
 
         if not new_state:
             return Response({"detail": "Falta 'new_state' en el body"}, status=status.HTTP_400_BAD_REQUEST)
@@ -271,3 +393,33 @@ class ClaimViewSet(
         blob_client = blob_service_client.get_blob_client(container=settings.AZURE_CONTAINER, blob=filename)
         blob_data = blob_client.download_blob().readall()
         return FileResponse(io.BytesIO(blob_data), as_attachment=True, filename=filename)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# Vista de productos asociados a un reclamo
+class ClaimProductViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """
+    ViewSet para manejar los productos asociados a un reclamo.
+    """
+    queryset = ClaimProductModel.objects.all()
+    serializer_class = ClaimProductSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["claim"]
+    search_fields = ["claim__description", "product__name"]
+    ordering_fields = ["claim__created_at", "product__name"]
+    ordering = ["claim__created_at"]
+    permission_classes = []
+
+    PERMISSION_MAPPING = {
+        "GET": ["claims.view_reclamomodel"],
+        "POST": ["claims.add_reclamomodel"],
+        "PUT": ["claims.change_reclamomodel"],
+        "PATCH": ["claims.change_reclamomodel"],
+        "DELETE": ["claims.delete_reclamomodel"],
+    }
+
+    # Puedes agregar permisos específicos aquí si lo deseas
+    def get_permissions(self):
+        # Aquí podrías integrar tu CustomAccessPermission si lo deseas.
+        return super().get_permissions()
+    #     def get_queryset(self):

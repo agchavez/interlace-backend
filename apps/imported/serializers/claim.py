@@ -2,6 +2,17 @@ from rest_framework import serializers
 from apps.document.serializers.document import DocumentSerializer
 from apps.imported.model.claim import ClaimModel
 from apps.tracker.serializers.tracker import TrackerSerializer
+from apps.imported.model.claim import ClaimModel, ClaimProductModel
+
+class ClaimProductSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    product_code = serializers.CharField(source="product.code", read_only=True)
+    product_id = serializers.IntegerField(source="product.id", read_only=True)
+
+    class Meta:
+        model = ClaimProductModel
+        fields = "__all__"
+        read_only_fields = ["id", "product_id"]
 
 
 class ClaimSerializer(serializers.ModelSerializer):
@@ -21,9 +32,9 @@ class ClaimSerializer(serializers.ModelSerializer):
     claim_file = DocumentSerializer(read_only=True)
     credit_memo_file = DocumentSerializer(read_only=True)
     observations_file = DocumentSerializer(read_only=True)
-
     tracking = TrackerSerializer(read_only=True, many=False, source="tracker")
-
+    claim_products = ClaimProductSerializer(many=True, read_only=True)
+    
     class Meta:
         model = ClaimModel
         fields = [
