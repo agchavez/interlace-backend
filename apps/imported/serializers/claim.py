@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from apps.document.serializers.document import DocumentSerializer
 from apps.imported.model.claim import ClaimModel, ClaimProductModel
+from apps.maintenance.serializer.trailer import TrailerModelSerializer, TransporterModelSerializer
 from apps.tracker.serializers import TrackerSerializer
 from apps.document.models.document import DocumentModel
 
@@ -9,6 +10,7 @@ class ClaimProductSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
     product_code = serializers.CharField(source="product.code", read_only=True)
     product_id = serializers.IntegerField(source="product.id", read_only=True)
+    sap_code = serializers.CharField(source="product.sap_code", read_only=True)
 
     class Meta:
         model = ClaimProductModel
@@ -37,6 +39,8 @@ class ClaimSerializer(serializers.ModelSerializer):
 
     claim_products = ClaimProductSerializer(many=True, read_only=True)
     tracking = TrackerSerializer(read_only=True, many=False, source="tracker")
+    trailer = TrailerModelSerializer(source='tracker.trailer', read_only=True)
+    transporter = TransporterModelSerializer(source='tracker.transporter', read_only=True)
 
     class Meta:
         model = ClaimModel
@@ -51,12 +55,11 @@ class ClaimSerializer(serializers.ModelSerializer):
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
             "photos_repalletized",
-            "created_at","claim_products", "tracking"
+            "created_at","claim_products", "tracking", "trailer", "transporter"
         ]
         read_only_fields = [
-            "id", "status", "created_at", "assigned_to"
+            "id", "status", "created_at", "assigned_to", "trailer", "transporter"
         ]
-
     def get_claim_file(self, obj):
         if obj.claim_file and obj.claim_file.name:
             try:

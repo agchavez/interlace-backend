@@ -253,6 +253,7 @@ class ClaimViewSet(
         Cambia el estado del claim.
         Se espera en el body: { "new_state": "...", "changed_by_id": <id> , "observations": "..." }
         """
+        # State
         new_state = request.data.get("new_state")
         changed_by_id = request.data.get("changed_by_id")
         observations = request.data.get("observations")
@@ -268,7 +269,52 @@ class ClaimViewSet(
             )
         except ClaimModel.DoesNotExist:
             return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Claim Number
+        if "new_claim_number" in request.data:
+            claim_number = request.data.get("new_claim_number")
+            try:
+                reclamo.claim_number = claim_number
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        # Discard Doc
+        if "new_discard_doc" in request.data:
+            discard_doc = request.data.get("new_discard_doc")
+            try:
+                reclamo.discard_doc = discard_doc
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        # Observations
+        if "new_observations" in request.data:
+            observations = request.data.get("new_observations")
+            try:
+                reclamo.observations = observations
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Claim File
+        new_claim_file = request.FILES.get("new_claim_file")
+        if new_claim_file:
+            # En lugar de asignar directamente, usar create_documento()
+            doc_claim = create_documento(new_claim_file,new_claim_file.name,  "Claim", reclamo.claim_code)
+            reclamo.claim_file = doc_claim.file
 
+        # Claim Credit Memo File
+        new_credit_memo_file = request.FILES.get("new_credit_memo_file")
+        if new_credit_memo_file:
+            doc_credit = create_documento(new_credit_memo_file, new_credit_memo_file.name, "Claim", reclamo.claim_code)
+            reclamo.credit_memo_file = doc_credit.file
+
+        # Claim Observations File
+        new_observations_file = request.FILES.get("new_observations_file")
+        if new_observations_file:
+            doc_obs = create_documento(new_observations_file, new_observations_file.name, "Claim", reclamo.claim_code)
+            reclamo.observations_file = doc_obs.file
+
+        reclamo.save()
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
