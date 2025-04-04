@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.document.serializers.document import DocumentSerializer
-from apps.imported.model.claim import ClaimModel, ClaimProductModel
+from apps.imported.model.claim import ClaimModel, ClaimProductModel, ClaimTypeModel
 from apps.maintenance.serializer.trailer import TrailerModelSerializer, TransporterModelSerializer
 from apps.tracker.serializers import TrackerSerializer
 from apps.document.models.document import DocumentModel
@@ -31,6 +31,7 @@ class ClaimSerializer(serializers.ModelSerializer):
     photos_damaged_boxes = DocumentSerializer(many=True, read_only=True)
     photos_grouped_bad_product = DocumentSerializer(many=True, read_only=True)
     photos_repalletized = DocumentSerializer(many=True, read_only=True)
+    claim_type = serializers.CharField(source="claim_type.name", read_only=True)
 
     # Serializamos los documentos usando SerializerMethodField para manejar valores nulos
     claim_file = serializers.SerializerMethodField()
@@ -86,3 +87,9 @@ class ClaimSerializer(serializers.ModelSerializer):
             except DocumentModel.DoesNotExist:
                 return None
         return None
+
+class ClaimTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClaimTypeModel
+        fields = "__all__"
+        read_only_fields = ["id"]
