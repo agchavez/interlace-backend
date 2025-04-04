@@ -1,1 +1,1 @@
-from .claim import ClaimModel, ClaimProductModel 
+from .claim import ClaimModel, ClaimProductModel, ClaimTypeModel

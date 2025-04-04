@@ -28,6 +28,22 @@ TYPES_CLAIM = {
     "ALERT_QUALITY": "ALERT_QUALITY",
 }
 
+# Modelo para los tipo de reclamos
+class ClaimTypeModel(BaseModel):
+    """
+    Modelo para los tipos de reclamos.
+    """
+    name = models.CharField("Nombre", max_length=50, unique=True)
+    description = models.TextField("Descripción", blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = "app_claim_type"
+        verbose_name = "Tipo de Reclamo"
+        verbose_name_plural = "Tipos de Reclamos"
+
 class ClaimModel(BaseModel):
     """
     Modelo para reclamos de productos, con carga de documentos en diversas categorías.
@@ -54,11 +70,13 @@ class ClaimModel(BaseModel):
         default="CLAIM"
     )
 
-    claim_type = models.CharField(
-        "Tipo de Reclamo",
-        max_length=50,
-        choices=CLAIM_TYPE_CHOICES,
-        default="FALTANTE"
+    claim_type = models.ForeignKey(
+        ClaimTypeModel,
+        on_delete=models.CASCADE,
+        related_name="claims",
+        verbose_name="Tipo de Reclamo",
+        null=True,
+        blank=True
     )
     description = models.TextField("Descripción del Reclamo", null=True, blank=True)
     status = models.CharField(
