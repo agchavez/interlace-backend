@@ -91,7 +91,7 @@ class OutputT2Model(BaseModel):
     # fecha de preventa
     pre_sale_date = models.DateField(
         "Fecha de preventa",
-        default= datetime.date.today
+        default=timezone.now
         )
 
 
