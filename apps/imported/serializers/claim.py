@@ -55,7 +55,7 @@ class ClaimSerializer(serializers.ModelSerializer):
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
             "photos_repalletized",
-            "created_at","claim_products", "tracking", "trailer", "transporter"
+            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", 'type'
         ]
         read_only_fields = [
             "id", "status", "created_at", "assigned_to", "trailer", "transporter"

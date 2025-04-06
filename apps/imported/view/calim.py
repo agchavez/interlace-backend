@@ -19,16 +19,24 @@ from django.http import FileResponse
 import io
 
 class ClaimFilter(django_filters.FilterSet):
-    tipo = django_filters.CharFilter(
-        field_name='claim_type',
-        lookup_expr='exact'
-    )
+    id = django_filters.NumberFilter()
+    status = django_filters.CharFilter()
+    tipo = django_filters.CharFilter(field_name='claim_type')
+    distributor_center = django_filters.NumberFilter(field_name='tracker__distributor_center__id')
+    date_after = django_filters.DateTimeFilter(field_name='created_at', lookup_expr='gte')
+    date_before = django_filters.DateTimeFilter(field_name='created_at', lookup_expr='lte')
+    claim_type = django_filters.CharFilter(method='filter_claim_type_custom')
+
     class Meta:
-        model = ClaimModel
-        fields = {
-            'id': ['exact'],
-            'status': ['exact'],
-        }
+        model = ClaimModel  # Reemplaza con tu modelo real
+        fields = ['id', 'status', 'tipo', 'distributor_center', 'date_after', 'date_before', 'claim_type']
+
+    def filter_claim_type_custom(self, queryset, name, value):
+        if value == "LOCAL":
+            return queryset.filter(type="ALERT_QUALITY")
+        elif value == "IMPORT":
+            return queryset.filter(type="CLAIM")
+        return queryset
 
 class ClaimViewSet(
     mixins.ListModelMixin,      # GET /claims/
@@ -51,7 +59,7 @@ class ClaimViewSet(
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ClaimFilter
     # filterset_class = ReclamoFilter  # Descomenta si defines un FilterSet
-    search_fields = ["claim_type", "status", "tracker__distributor_center__name"]
+    search_fields = ["claim_type", "description", "tracker__distributor_center__name"]
     ordering_fields = ["created_at", "tipo", "status"]
 
     PERMISSION_MAPPING = {
@@ -295,6 +303,15 @@ class ClaimViewSet(
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
+        # Reject Reason
+        if "reject_reason" in request.data:
+            reject_reason = request.data.get("reject_reason")
+            try:
+                reclamo.reject_reason = reject_reason
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
         # Claim File
         new_claim_file = request.FILES.get("new_claim_file")
         if new_claim_file:
@@ -335,6 +352,8 @@ class ClaimViewSet(
         # Filtrar reclamos cuyo tracker tenga uno de esos centros
         queryset = self.get_queryset().filter(tracker__distributor_center__id__in=dc_ids)
         filters = {}
+        if request.query_params.get('id'):
+            filters['id'] = request.query_params.get('id')
         if request.query_params.get('status'):
             filters['status'] = request.query_params.get('status')
         if request.query_params.get('tipo'):
@@ -345,6 +364,12 @@ class ClaimViewSet(
             filters['created_at__gte'] = request.query_params.get('date_after')
         if request.query_params.get('date_before'):
             filters['created_at__lte'] = request.query_params.get('date_before')
+        claim_type = request.query_params.get('claim_type')
+        if claim_type:
+            if claim_type == "LOCAL":
+                filters['type'] = "ALERT_QUALITY"
+            elif claim_type == "IMPORT":
+                filters['type'] = "CLAIM"
         queryset = queryset.filter(**filters)
         
         if request.query_params.get('search'):
