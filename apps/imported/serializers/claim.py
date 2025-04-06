@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.document.serializers.document import DocumentSerializer
-from apps.imported.model.claim import ClaimModel, ClaimProductModel
+from apps.imported.model.claim import ClaimModel, ClaimProductModel, ClaimTypeModel
 from apps.maintenance.serializer.trailer import TrailerModelSerializer, TransporterModelSerializer
 from apps.tracker.serializers import TrackerSerializer
 from apps.document.models.document import DocumentModel
@@ -86,3 +86,9 @@ class ClaimSerializer(serializers.ModelSerializer):
             except DocumentModel.DoesNotExist:
                 return None
         return None
+
+class ClaimTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClaimTypeModel
+        fields = "__all__"
+        read_only_fields = ["id"]

@@ -6,8 +6,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.document.utils.documents import create_documento
 from apps.imported.model import ClaimProductModel
-from apps.imported.model.claim import ClaimModel
-from apps.imported.serializers import ClaimProductSerializer
+from apps.imported.model.claim import ClaimModel, ClaimTypeModel
+from apps.imported.serializers import ClaimProductSerializer, ClaimTypeSerializer
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
 from apps.imported.utils.validation_claim import validate_create_claim
@@ -641,3 +641,18 @@ class ClaimProductViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
         # Aquí podrías integrar tu CustomAccessPermission si lo deseas.
         return super().get_permissions()
     #     def get_queryset(self):
+
+
+# Vista de tipos de reclamos
+class ClaimTypeViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
+                        mixins.CreateModelMixin, mixins.UpdateModelMixin,
+                        mixins.DestroyModelMixin):
+    """
+    ViewSet para manejar los tipos de reclamos.
+    """
+    queryset = ClaimTypeModel.objects.all()
+    serializer_class = ClaimTypeSerializer
+    permission_classes = []
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["id"]
+    search_fields = ["name", "id"]
