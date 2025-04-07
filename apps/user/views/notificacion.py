@@ -17,6 +17,10 @@ from apps.user.models.notificacion import NotificationModel
 from apps.user.serializers.notificacion import NotificationSerializer
 from apps.user.views.user import CustomAccessPermission
 
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from django.contrib.auth import get_user_model
 
 class NotificationFilter(django_filters.FilterSet):
     class Meta:
@@ -40,7 +44,7 @@ class NotificationViewSet(mixins.ListModelMixin,
     search_fields = ["title", "description", "subtitle"]
     ordering = ["-created_at"]
 
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     # Mapping of HTTP methods to required permissions
     PERMISSION_MAPPING = {
         'GET': [],
@@ -113,3 +117,57 @@ class NotificationViewSet(mixins.ListModelMixin,
         )
 
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='test', url_name='test_notification')
+    def test_notification(self, request):
+        """
+        Endpoint para probar el sistema de notificaciones.
+
+        POST /api/notification/test/
+        {
+            "user_id": 1,
+            "title": "Prueba de notificación",
+            "description": "Esta es una notificación de prueba",
+            "type": "INFO",
+            "module": "TRACKER"
+        }
+        """
+        user_id = request.query_params.get('user_id', 3)
+
+        try:
+            user = get_user_model().objects.get(id=user_id)
+        except get_user_model().DoesNotExist:
+            return Response({"error": f"Usuario con ID {user_id} no encontrado"},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        notification = NotificationModel.objects.create(
+            user=user,
+            type=request.data.get('type', NotificationModel.Type.INFO),
+            identifier=request.data.get('identifier', 1),
+            title=request.data.get('title', 'Notificación de prueba'),
+            subtitle=request.data.get('subtitle', 'Subtítulo de prueba'),
+            description=request.data.get('description', 'Esta es una notificación generada para pruebas'),
+            module=request.data.get('module', NotificationModel.Modules.TRACKER),
+            url=request.data.get('url', '/dashboard'),
+            json={
+                'test': True,
+                'timestamp': str(timezone.now()),
+                'data': request.data.get('json_data', {})
+            }
+        )
+
+        # Enviar notificación a través de websocket
+        group_name = str(user.id)
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': 'send_notification',
+                'data': NotificationSerializer(notification).data
+            }
+        )
+
+        return Response(
+            NotificationSerializer(notification).data,
+            status=status.HTTP_201_CREATED
+        )
