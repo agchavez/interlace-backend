@@ -5,6 +5,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.document.utils.documents import create_documento
+from apps.imported.exceptions.claim import ClaimTypeInvalid
 from apps.imported.model import ClaimProductModel
 from apps.imported.model.claim import ClaimModel, ClaimTypeModel
 from apps.imported.serializers import ClaimProductSerializer, ClaimTypeSerializer
@@ -21,7 +22,7 @@ import io
 class ClaimFilter(django_filters.FilterSet):
     id = django_filters.NumberFilter()
     status = django_filters.CharFilter()
-    tipo = django_filters.CharFilter(field_name='claim_type')
+    tipo = django_filters.NumberFilter(field_name='claim_type', lookup_expr='exact')
     distributor_center = django_filters.NumberFilter(field_name='tracker__distributor_center__id')
     date_after = django_filters.DateTimeFilter(field_name='created_at', lookup_expr='gte')
     date_before = django_filters.DateTimeFilter(field_name='created_at', lookup_expr='lte')
@@ -92,6 +93,7 @@ class ClaimViewSet(
         # Extraemos los datos del request
         assigned_user_id = request.data.get("assigned_user_id")
         claim_type = request.data.get("claim_type")
+        claim_type = ClaimTypeModel.objects.filter(id=int(claim_type)).first()
         descripcion = request.data.get("descripcion")
 
         # Campos adicionales
@@ -490,12 +492,14 @@ class ClaimViewSet(
 
         # 1) Actualizar campos principales
         claim_type = data.get("claim_type", claim.claim_type)
+        claim_type = ClaimTypeModel.objects.filter(id=claim_type).first()
+        if claim_type is not None:
+            claim.claim_type = claim_type
         description = data.get("description", claim.description)
         claim_number = data.get("claim_number", claim.claim_number)
         discard_doc = data.get("discard_doc", claim.discard_doc)
         observations = data.get("observations", claim.observations)
 
-        claim.claim_type = claim_type
         claim.description = description
         claim.claim_number = claim_number
         claim.discard_doc = discard_doc
