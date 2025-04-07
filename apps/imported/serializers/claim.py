@@ -18,6 +18,12 @@ class ClaimProductSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "product_id"]
 
 
+class ClaimTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClaimTypeModel
+        fields = "__all__"
+        read_only_fields = ["id"]
+
 class ClaimSerializer(serializers.ModelSerializer):
     # Serializamos las fotografías como listas de DocumentSerializer
     photos_container_closed = DocumentSerializer(many=True, read_only=True)
@@ -41,6 +47,7 @@ class ClaimSerializer(serializers.ModelSerializer):
     tracking = TrackerSerializer(read_only=True, many=False, source="tracker")
     trailer = TrailerModelSerializer(source='tracker.trailer', read_only=True)
     transporter = TransporterModelSerializer(source='tracker.transporter', read_only=True)
+    claim_type_data = ClaimTypeSerializer(read_only=True, many=False, source="claim_type")
 
     class Meta:
         model = ClaimModel
@@ -55,10 +62,10 @@ class ClaimSerializer(serializers.ModelSerializer):
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
             "photos_repalletized",
-            "created_at","claim_products", "tracking", "trailer", "transporter"
+            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", "type", "claim_type_data", "approve_observations"
         ]
         read_only_fields = [
-            "id", "status", "created_at", "assigned_to", "trailer", "transporter"
+            "id", "status", "created_at", "assigned_to", "trailer", "transporter", "claim_type_data"
         ]
     def get_claim_file(self, obj):
         if obj.claim_file and obj.claim_file.name:
@@ -87,8 +94,3 @@ class ClaimSerializer(serializers.ModelSerializer):
                 return None
         return None
 
-class ClaimTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ClaimTypeModel
-        fields = "__all__"
-        read_only_fields = ["id"]
