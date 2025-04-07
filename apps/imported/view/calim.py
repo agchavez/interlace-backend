@@ -305,6 +305,15 @@ class ClaimViewSet(
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
+        # Aprove Observations
+        if "new_approve_observations" in request.data:
+            approve_observations = request.data.get("new_approve_observations")
+            try:
+                reclamo.approve_observations = approve_observations
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
         # Reject Reason
         if "reject_reason" in request.data:
             reject_reason = request.data.get("reject_reason")

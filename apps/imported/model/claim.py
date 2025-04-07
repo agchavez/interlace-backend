@@ -193,6 +193,8 @@ class ClaimModel(BaseModel):
 
     reject_reason = models.CharField("Razón de Rechazo", max_length=150, blank=True, null=True)
 
+    approve_observations = models.TextField("Observaciones de Aprobación", blank=True, null=True)
+
     def __str__(self):
         return f"Claim #{self.id} - {self.claim_type} [{self.status}]"
 
