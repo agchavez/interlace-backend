@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from apps.document.serializers.document import DocumentSerializer
 from apps.imported.model.claim import ClaimModel, ClaimProductModel, ClaimTypeModel
+from apps.maintenance.serializer.centro_distribucion import LocationModelSerializer
+from apps.maintenance.serializer.driver import DriverModelSerializer
 from apps.maintenance.serializer.trailer import TrailerModelSerializer, TransporterModelSerializer
 from apps.tracker.serializers import TrackerSerializer
 from apps.document.models.document import DocumentModel
@@ -48,6 +50,8 @@ class ClaimSerializer(serializers.ModelSerializer):
     trailer = TrailerModelSerializer(source='tracker.trailer', read_only=True)
     transporter = TransporterModelSerializer(source='tracker.transporter', read_only=True)
     claim_type_data = ClaimTypeSerializer(read_only=True, many=False, source="claim_type")
+    origin_location_data = LocationModelSerializer(read_only=True, many=False, source="tracker.origin_location")
+    driver_data = DriverModelSerializer(read_only=True, many=False, source="tracker.driver")
 
     class Meta:
         model = ClaimModel
@@ -62,10 +66,10 @@ class ClaimSerializer(serializers.ModelSerializer):
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
             "photos_repalletized",
-            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", "type", "claim_type_data", "approve_observations"
+            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", "type", "claim_type_data", "approve_observations", "origin_location_data", "driver_data"
         ]
         read_only_fields = [
-            "id", "status", "created_at", "assigned_to", "trailer", "transporter", "claim_type_data"
+            "id", "status", "created_at", "assigned_to", "trailer", "transporter", "claim_type_data", "origin_location_data", "driver_data"
         ]
     def get_claim_file(self, obj):
         if obj.claim_file and obj.claim_file.name:
