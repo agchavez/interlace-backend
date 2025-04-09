@@ -54,6 +54,7 @@ def create_reclamo(
         claim_file: Optional[File] = None,
         credit_memo_file: Optional[File] = None,
         observations_file: Optional[File] = None,
+        claim_production_batches: Optional[List[File]] = None,
         photo_files: Optional[dict] = None,
         products_data: Optional[List[dict]] = None
     ) -> ClaimModel:
@@ -106,6 +107,10 @@ def create_reclamo(
             doc_obs = create_documento(observations_file, observations_file.name, "Claim", reclamo.claim_code)
             reclamo.observations_file = doc_obs.file
 
+        if claim_production_batches:
+            for file in claim_production_batches:
+                doc_prod = create_documento(file, file.name, "Claim", reclamo.claim_code)
+                reclamo.production_batch_file = doc_prod.file
         reclamo.save()
 
         # 3. Procesamos los archivos de fotos por categoría

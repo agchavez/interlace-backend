@@ -100,6 +100,13 @@ class ClaimModel(BaseModel):
         blank=True,
         null=True
     )
+
+    production_batch_file = models.FileField(
+        "Archivo de Lotes de Producción (PDF)",
+        upload_to="claim_production_batches/",
+        blank=True,
+        null=True
+    )
     credit_memo_file = models.FileField(
         "Nota de Crédito",
         upload_to="claim_credit_memos/",

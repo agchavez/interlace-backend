@@ -18,6 +18,7 @@ from azure.storage.blob import BlobServiceClient
 from django.conf import settings
 from django.http import FileResponse
 import io
+import json
 
 class ClaimFilter(django_filters.FilterSet):
     id = django_filters.NumberFilter()
@@ -105,7 +106,7 @@ class ClaimViewSet(
         claim_file = request.FILES.get("claim_file") if "claim_file" in request.FILES else None
         credit_memo_file = request.FILES.get("credit_memo_file") if "credit_memo_file" in request.FILES else None
         observations_file = request.FILES.get("observations_file") if "observations_file" in request.FILES else None
-
+        claim_production_batches = request.FILES.get("claim_production_batches") if "claim_production_batches" in request.FILES else None
         # Fotografías por categoría
         photo_files = {}
         photo_categories = [
@@ -133,8 +134,43 @@ class ClaimViewSet(
             claim_file=claim_file,
             credit_memo_file=credit_memo_file,
             observations_file=observations_file,
+            claim_production_batches=claim_production_batches,
             photo_files=photo_files
         )
+
+        # Guardar productos
+        from apps.imported.model import ClaimProductModel
+        raw_products_str = request.data.get("products", "[]")
+
+        try:
+            products_data = json.loads(raw_products_str)
+        except json.JSONDecodeError:
+            products_data = []
+
+        for p in products_data:
+            product_id = p.get("id")
+            if product_id:
+                try:
+                    cp = ClaimProductModel.objects.get(pk=product_id, claim=reclamo)
+                except ClaimProductModel.DoesNotExist:
+                    continue
+
+                cp.product_id = p.get("product", cp.product)
+                cp.quantity = p.get("quantity", cp.quantity)
+                cp.batch = p.get("batch", cp.batch)
+                cp.save()
+            else:
+                if not ClaimProductModel.objects.filter(
+                        claim=reclamo,
+                        product_id=p.get("product", "")
+                ).exists():
+                    ClaimProductModel.objects.create(
+                        claim=reclamo,
+                        product_id=p.get("product", ""),
+                        quantity=p.get("quantity", 0),
+                        batch=p.get("batch", ""),
+                    )
+
 
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -533,8 +569,11 @@ class ClaimViewSet(
             f = request.FILES["observations_file"]
             doc_obs = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.observations_file = doc_obs.file
-        # elif data.get("observations_file") is None:
-        #     claim.observations_file = None
+
+        if "production_batch_file" in request.FILES:
+            f = request.FILES["production_batch_file"]
+            doc_prod = create_documento(f, f.name, "Claim", claim.claim_code)
+            claim.production_batch_file = doc_prod.file
 
         claim.save()
 
@@ -556,7 +595,7 @@ class ClaimViewSet(
             "photos_repalletized": claim.photos_repalletized,
         }
 
-        import json
+
         for field_name, m2m_relation in photo_fields.items():
             meta_key = f"{field_name}_meta"  # "photos_container_closed_meta", etc.
 
