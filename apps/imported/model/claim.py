@@ -221,6 +221,14 @@ class ClaimModel(BaseModel):
         verbose_name = "Claim"
         verbose_name_plural = "Claims"
 
+    # AL GUARDAR SEGUN EL TIPO QUE ESTA EN TRACKER SERA EL TIPO DE RECLAMO
+    def save(self, *args, **kwargs):
+        if self.tracker.type == 'IMPORT':
+            self.type = "ALERT_QUALITY"
+        else:
+            self.type = "CLAIM"
+        super().save(*args, **kwargs)
+
 # Productos asociados al reclamo
 class ClaimProductModel(BaseModel):
     """

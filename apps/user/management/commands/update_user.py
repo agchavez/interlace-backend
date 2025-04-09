@@ -51,7 +51,7 @@ class Command(BaseCommand):
             'change_status_claimmodel'
         ]
         # Obtener y asignar los permisos
-        for codename in permission_codenames:
+        for codename in permission_codenames_service_user:
             try:
                 permission, created = Permission.objects.get_or_create(
                     codename=codename,
@@ -63,10 +63,14 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f'Error con permiso {codename}: {str(e)}'))
 
+
         # A los supervisores se les asigna el permiso de change_status_claimmodelLocal
 
-
-
+        permission_codenames_service_user = [
+            'view_claimmodel',
+            'add_claimmodel',
+            'change_claimmodel'
+        ]
         grup_supervisor = Group.objects.get(name='SUPERVISOR')
         permission, created = Permission.objects.get_or_create(
             codename='change_status_claimmodelLocal',

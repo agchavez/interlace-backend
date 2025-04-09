@@ -35,9 +35,9 @@ class ClaimFilter(django_filters.FilterSet):
 
     def filter_claim_type_custom(self, queryset, name, value):
         if value == "LOCAL":
-            return queryset.filter(type="ALERT_QUALITY")
+            return queryset.filter(tracker__type="LOCAL")
         elif value == "IMPORT":
-            return queryset.filter(type="CLAIM")
+            return queryset.filter(tracker__type="IMPORT")
         return queryset
 
 class ClaimViewSet(
@@ -414,15 +414,15 @@ class ClaimViewSet(
         claim_type = request.query_params.get('claim_type')
         if claim_type:
             if claim_type == "LOCAL":
-                filters['type'] = "ALERT_QUALITY"
+                filters['tracker__type'] = "LOCAL"
             elif claim_type == "IMPORT":
-                filters['type'] = "CLAIM"
+                filters['tracker__type'] = "IMPORT"
         queryset = queryset.filter(**filters)
         
         if request.query_params.get('search'):
             search = request.query_params.get('search')
             queryset = queryset.filter(
-                Q(claim_type__icontains=search) | 
+                Q(claim_type__icontains=search) |
                 Q(description__icontains=search) |
                 Q(tracker__distributor_center__name__icontains=search)
             )
