@@ -20,6 +20,12 @@ class NotificationModel(BaseModel):
         ALERT = 'ALERTA'
         REMINDER = 'RECORDATORIO'
         TASK = 'TAREA'
+        UPDATE = 'ACTUALIZACION'
+        WARNING = 'ADVERTENCIA'
+        INFO = 'INFORMACION'
+        ERROR = 'ERROR'
+        REGISTRATION = 'REGISTRO'
+        APROVAL = 'APROBACION'
         CONFIRMATION = 'CONFIRMACION'
         REJECTION = 'RECHAZO'
 
@@ -27,6 +33,10 @@ class NotificationModel(BaseModel):
     class Modules(models.TextChoices):
         T1 = 'T1'
         T2 = 'T2'
+        CLAIM = 'RECLAMO'
+        TRACKER = 'TRACKER'
+        USER = 'USUARIO'
+        PRODUCT = 'PRODUCTO'
         OTHERS = 'OTROS'
 
     # The user to whom the notification is sent

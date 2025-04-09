@@ -1,1 +1,1 @@
-from .claim import ClaimProductSerializer, ClaimSerializer, ClaimTypeSerializer 
+from .claim import ClaimProductSerializer, ClaimSerializer, ClaimTypeSerializer
