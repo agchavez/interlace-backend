@@ -5,9 +5,10 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.document.utils.documents import create_documento
+from apps.imported.exceptions.claim import ClaimTypeInvalid
 from apps.imported.model import ClaimProductModel
-from apps.imported.model.claim import ClaimModel
-from apps.imported.serializers import ClaimProductSerializer
+from apps.imported.model.claim import ClaimModel, ClaimTypeModel
+from apps.imported.serializers import ClaimProductSerializer, ClaimTypeSerializer
 from apps.imported.serializers.claim import ClaimSerializer
 from apps.imported.utils.claim import create_reclamo, change_reclamo_state
 from apps.imported.utils.validation_claim import validate_create_claim
@@ -17,18 +18,27 @@ from azure.storage.blob import BlobServiceClient
 from django.conf import settings
 from django.http import FileResponse
 import io
+import json
 
 class ClaimFilter(django_filters.FilterSet):
-    tipo = django_filters.CharFilter(
-        field_name='claim_type',
-        lookup_expr='exact'
-    )
+    id = django_filters.NumberFilter()
+    status = django_filters.CharFilter()
+    tipo = django_filters.NumberFilter(field_name='claim_type', lookup_expr='exact')
+    distributor_center = django_filters.NumberFilter(field_name='tracker__distributor_center__id')
+    date_after = django_filters.DateTimeFilter(field_name='created_at', lookup_expr='gte')
+    date_before = django_filters.DateTimeFilter(field_name='created_at', lookup_expr='lte')
+    claim_type = django_filters.CharFilter(method='filter_claim_type_custom')
+
     class Meta:
-        model = ClaimModel
-        fields = {
-            'id': ['exact'],
-            'status': ['exact'],
-        }
+        model = ClaimModel  # Reemplaza con tu modelo real
+        fields = ['id', 'status', 'tipo', 'distributor_center', 'date_after', 'date_before', 'claim_type']
+
+    def filter_claim_type_custom(self, queryset, name, value):
+        if value == "LOCAL":
+            return queryset.filter(tracker__type="LOCAL")
+        elif value == "IMPORT":
+            return queryset.filter(tracker__type="IMPORT")
+        return queryset
 
 class ClaimViewSet(
     mixins.ListModelMixin,      # GET /claims/
@@ -51,7 +61,7 @@ class ClaimViewSet(
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = ClaimFilter
     # filterset_class = ReclamoFilter  # Descomenta si defines un FilterSet
-    search_fields = ["claim_type", "status", "tracker__distributor_center__name"]
+    search_fields = ["claim_type", "description", "tracker__distributor_center__name"]
     ordering_fields = ["created_at", "tipo", "status"]
 
     PERMISSION_MAPPING = {
@@ -84,6 +94,7 @@ class ClaimViewSet(
         # Extraemos los datos del request
         assigned_user_id = request.data.get("assigned_user_id")
         claim_type = request.data.get("claim_type")
+        claim_type = ClaimTypeModel.objects.filter(id=int(claim_type)).first()
         descripcion = request.data.get("descripcion")
 
         # Campos adicionales
@@ -95,7 +106,7 @@ class ClaimViewSet(
         claim_file = request.FILES.get("claim_file") if "claim_file" in request.FILES else None
         credit_memo_file = request.FILES.get("credit_memo_file") if "credit_memo_file" in request.FILES else None
         observations_file = request.FILES.get("observations_file") if "observations_file" in request.FILES else None
-
+        claim_production_batches = request.FILES.get("claim_production_batches") if "claim_production_batches" in request.FILES else None
         # Fotografías por categoría
         photo_files = {}
         photo_categories = [
@@ -123,8 +134,43 @@ class ClaimViewSet(
             claim_file=claim_file,
             credit_memo_file=credit_memo_file,
             observations_file=observations_file,
+            claim_production_batches=claim_production_batches,
             photo_files=photo_files
         )
+
+        # Guardar productos
+        from apps.imported.model import ClaimProductModel
+        raw_products_str = request.data.get("products", "[]")
+
+        try:
+            products_data = json.loads(raw_products_str)
+        except json.JSONDecodeError:
+            products_data = []
+
+        for p in products_data:
+            product_id = p.get("id")
+            if product_id:
+                try:
+                    cp = ClaimProductModel.objects.get(pk=product_id, claim=reclamo)
+                except ClaimProductModel.DoesNotExist:
+                    continue
+
+                cp.product_id = p.get("product", cp.product)
+                cp.quantity = p.get("quantity", cp.quantity)
+                cp.batch = p.get("batch", cp.batch)
+                cp.save()
+            else:
+                if not ClaimProductModel.objects.filter(
+                        claim=reclamo,
+                        product_id=p.get("product", "")
+                ).exists():
+                    ClaimProductModel.objects.create(
+                        claim=reclamo,
+                        product_id=p.get("product", ""),
+                        quantity=p.get("quantity", 0),
+                        batch=p.get("batch", ""),
+                    )
+
 
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -295,6 +341,24 @@ class ClaimViewSet(
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
+        # Aprove Observations
+        if "new_approve_observations" in request.data:
+            approve_observations = request.data.get("new_approve_observations")
+            try:
+                reclamo.approve_observations = approve_observations
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Reject Reason
+        if "reject_reason" in request.data:
+            reject_reason = request.data.get("reject_reason")
+            try:
+                reclamo.reject_reason = reject_reason
+                reclamo.save()
+            except ClaimModel.DoesNotExist:
+                return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
         # Claim File
         new_claim_file = request.FILES.get("new_claim_file")
         if new_claim_file:
@@ -335,6 +399,8 @@ class ClaimViewSet(
         # Filtrar reclamos cuyo tracker tenga uno de esos centros
         queryset = self.get_queryset().filter(tracker__distributor_center__id__in=dc_ids)
         filters = {}
+        if request.query_params.get('id'):
+            filters['id'] = request.query_params.get('id')
         if request.query_params.get('status'):
             filters['status'] = request.query_params.get('status')
         if request.query_params.get('tipo'):
@@ -345,12 +411,18 @@ class ClaimViewSet(
             filters['created_at__gte'] = request.query_params.get('date_after')
         if request.query_params.get('date_before'):
             filters['created_at__lte'] = request.query_params.get('date_before')
+        claim_type = request.query_params.get('claim_type')
+        if claim_type:
+            if claim_type == "LOCAL":
+                filters['tracker__type'] = "LOCAL"
+            elif claim_type == "IMPORT":
+                filters['tracker__type'] = "IMPORT"
         queryset = queryset.filter(**filters)
         
         if request.query_params.get('search'):
             search = request.query_params.get('search')
             queryset = queryset.filter(
-                Q(claim_type__icontains=search) | 
+                Q(claim_type__icontains=search) |
                 Q(description__icontains=search) |
                 Q(tracker__distributor_center__name__icontains=search)
             )
@@ -465,12 +537,14 @@ class ClaimViewSet(
 
         # 1) Actualizar campos principales
         claim_type = data.get("claim_type", claim.claim_type)
+        claim_type = ClaimTypeModel.objects.filter(id=claim_type).first()
+        if claim_type is not None:
+            claim.claim_type = claim_type
         description = data.get("description", claim.description)
         claim_number = data.get("claim_number", claim.claim_number)
         discard_doc = data.get("discard_doc", claim.discard_doc)
         observations = data.get("observations", claim.observations)
 
-        claim.claim_type = claim_type
         claim.description = description
         claim.claim_number = claim_number
         claim.discard_doc = discard_doc
@@ -495,8 +569,11 @@ class ClaimViewSet(
             f = request.FILES["observations_file"]
             doc_obs = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.observations_file = doc_obs.file
-        # elif data.get("observations_file") is None:
-        #     claim.observations_file = None
+
+        if "production_batch_file" in request.FILES:
+            f = request.FILES["production_batch_file"]
+            doc_prod = create_documento(f, f.name, "Claim", claim.claim_code)
+            claim.production_batch_file = doc_prod.file
 
         claim.save()
 
@@ -518,7 +595,7 @@ class ClaimViewSet(
             "photos_repalletized": claim.photos_repalletized,
         }
 
-        import json
+
         for field_name, m2m_relation in photo_fields.items():
             meta_key = f"{field_name}_meta"  # "photos_container_closed_meta", etc.
 
@@ -616,3 +693,18 @@ class ClaimProductViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
         # Aquí podrías integrar tu CustomAccessPermission si lo deseas.
         return super().get_permissions()
     #     def get_queryset(self):
+
+
+# Vista de tipos de reclamos
+class ClaimTypeViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
+                        mixins.CreateModelMixin, mixins.UpdateModelMixin,
+                        mixins.DestroyModelMixin):
+    """
+    ViewSet para manejar los tipos de reclamos.
+    """
+    queryset = ClaimTypeModel.objects.all()
+    serializer_class = ClaimTypeSerializer
+    permission_classes = []
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["id"]
+    search_fields = ["name", "id"]

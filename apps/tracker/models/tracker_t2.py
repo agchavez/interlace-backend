@@ -1,6 +1,4 @@
 # django
-import datetime
-
 from django.db import models
 from django.utils import timezone
 
@@ -91,7 +89,7 @@ class OutputT2Model(BaseModel):
     # fecha de preventa
     pre_sale_date = models.DateField(
         "Fecha de preventa",
-        default= datetime.date.today
+        default=timezone.now
         )
 
 

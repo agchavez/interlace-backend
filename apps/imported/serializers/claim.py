@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from apps.document.serializers.document import DocumentSerializer
-from apps.imported.model.claim import ClaimModel, ClaimProductModel
+from apps.imported.model.claim import ClaimModel, ClaimProductModel, ClaimTypeModel
+from apps.maintenance.serializer.centro_distribucion import LocationModelSerializer
+from apps.maintenance.serializer.driver import DriverModelSerializer
 from apps.maintenance.serializer.trailer import TrailerModelSerializer, TransporterModelSerializer
 from apps.tracker.serializers import TrackerSerializer
 from apps.document.models.document import DocumentModel
@@ -17,6 +19,12 @@ class ClaimProductSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ["id", "product_id"]
 
+
+class ClaimTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClaimTypeModel
+        fields = "__all__"
+        read_only_fields = ["id"]
 
 class ClaimSerializer(serializers.ModelSerializer):
     # Serializamos las fotografías como listas de DocumentSerializer
@@ -36,12 +44,15 @@ class ClaimSerializer(serializers.ModelSerializer):
     claim_file = serializers.SerializerMethodField()
     credit_memo_file = serializers.SerializerMethodField()
     observations_file = serializers.SerializerMethodField()
-
+    production_batch_file = serializers.SerializerMethodField()
     claim_products = ClaimProductSerializer(many=True, read_only=True)
     tracking = TrackerSerializer(read_only=True, many=False, source="tracker")
     trailer = TrailerModelSerializer(source='tracker.trailer', read_only=True)
     transporter = TransporterModelSerializer(source='tracker.transporter', read_only=True)
-
+    claim_type_data = ClaimTypeSerializer(read_only=True, many=False, source="claim_type")
+    origin_location_data = LocationModelSerializer(read_only=True, many=False, source="tracker.origin_location")
+    driver_data = DriverModelSerializer(read_only=True, many=False, source="tracker.driver")
+    assigned_to_name = serializers.CharField(source="assigned_to.get_full_name()", read_only=True)
     class Meta:
         model = ClaimModel
         fields = [
@@ -54,11 +65,11 @@ class ClaimSerializer(serializers.ModelSerializer):
             "photos_during_unload", "photos_pallet_damage",
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
-            "photos_repalletized",
-            "created_at","claim_products", "tracking", "trailer", "transporter"
+            "photos_repalletized", "assigned_to_name","production_batch_file",
+            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", "type", "claim_type_data", "approve_observations", "origin_location_data", "driver_data"
         ]
         read_only_fields = [
-            "id", "status", "created_at", "assigned_to", "trailer", "transporter"
+            "id", "status", "created_at", "assigned_to", "trailer", "transporter", "claim_type_data", "origin_location_data", "driver_data"
         ]
     def get_claim_file(self, obj):
         if obj.claim_file and obj.claim_file.name:
@@ -86,3 +97,13 @@ class ClaimSerializer(serializers.ModelSerializer):
             except DocumentModel.DoesNotExist:
                 return None
         return None
+
+    def get_production_batch_file(self, obj):
+        if obj.production_batch_file and obj.production_batch_file.name:
+            try:
+                document = DocumentModel.objects.get(file=obj.production_batch_file.name)
+                return DocumentSerializer(document).data
+            except DocumentModel.DoesNotExist:
+                return None
+        return None
+

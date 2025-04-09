@@ -2,7 +2,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from apps.imported.model.claim import ClaimModel, CLAIM_TYPE_CHOICES, CLAIM_STATUS_CHOICES
+from apps.imported.model.claim import ClaimModel, CLAIM_STATUS_CHOICES, ClaimTypeModel
 from apps.imported.exceptions.claim import (
     ClaimTypeInvalid, ClaimDescriptionRequired, ClaimTrackerRequired,
     ClaimStatusInvalid, ClaimStatusTransitionInvalid, FileTooLarge,
@@ -63,16 +63,20 @@ def validate_create_claim(request, tracker_id=None, claim_id=None):
         raise ClaimTrackerRequired()
 
     # Validate claim type if provided
-    claim_type = data.get("tipo") or data.get("claim_type")
-    if claim_type and claim_type not in [choice[0] for choice in CLAIM_TYPE_CHOICES]:
+    claim_type = data.get("claim_type") or data.get("tipo")
+    try:
+        print("claim_type", claim_type)
+        claim_type = ClaimTypeModel.objects.filter(id=int(claim_type)).first()
+        print("claim_type", claim_type)
+    except ClaimTypeModel.DoesNotExist:
         raise ClaimTypeInvalid()
 
     # Validate document files (size and type)
     validate_document_files(request.FILES)
 
     # If claim type is DAÑOS_CALIDAD_TRANSPORTE, validate required photos
-    if claim_type == "DAÑOS_CALIDAD_TRANSPORTE":
-        validate_damage_photos(request.FILES)
+    # if claim_type == "DAÑOS_CALIDAD_TRANSPORTE":
+    #     validate_damage_photos(request.FILES)
 
     # Return validated user, tracker and claim (if applicable)
     return (user, tracker, claim)

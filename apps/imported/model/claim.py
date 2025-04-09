@@ -28,6 +28,22 @@ TYPES_CLAIM = {
     "ALERT_QUALITY": "ALERT_QUALITY",
 }
 
+# Modelo para tipos de reclamos
+class ClaimTypeModel(BaseModel):
+    """
+    Modelo para los tipos de reclamos.
+    """
+    name = models.CharField("Nombre", max_length=50, unique=True)
+    description = models.TextField("Descripción", blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = "app_claim_type"
+        verbose_name = "Tipo de Reclamo"
+        verbose_name_plural = "Tipos de Reclamos"
+
 class ClaimModel(BaseModel):
     """
     Modelo para reclamos de productos, con carga de documentos en diversas categorías.
@@ -54,12 +70,15 @@ class ClaimModel(BaseModel):
         default="CLAIM"
     )
 
-    claim_type = models.CharField(
-        "Tipo de Reclamo",
-        max_length=50,
-        choices=CLAIM_TYPE_CHOICES,
-        default="FALTANTE"
+    claim_type = models.ForeignKey(
+        ClaimTypeModel,
+        on_delete=models.CASCADE,
+        related_name="claims",
+        verbose_name="Tipo de Reclamo",
+        blank=True,
+        null=True
     )
+
     description = models.TextField("Descripción del Reclamo", null=True, blank=True)
     status = models.CharField(
         "Estado",
@@ -78,6 +97,13 @@ class ClaimModel(BaseModel):
     claim_file = models.FileField(
         "Archivo Claim (PDF o Excel)",
         upload_to="claim_files/",
+        blank=True,
+        null=True
+    )
+
+    production_batch_file = models.FileField(
+        "Archivo de Lotes de Producción (PDF)",
+        upload_to="claim_production_batches/",
         blank=True,
         null=True
     )
@@ -172,6 +198,10 @@ class ClaimModel(BaseModel):
 
     claim_code = models.CharField("Código de Claim", max_length=20, blank=True, null=True)
 
+    reject_reason = models.CharField("Razón de Rechazo", max_length=150, blank=True, null=True)
+
+    approve_observations = models.TextField("Observaciones de Aprobación", blank=True, null=True)
+
     def __str__(self):
         return f"Claim #{self.id} - {self.claim_type} [{self.status}]"
 
@@ -190,6 +220,14 @@ class ClaimModel(BaseModel):
         db_table = "app_claim"
         verbose_name = "Claim"
         verbose_name_plural = "Claims"
+
+    # AL GUARDAR SEGUN EL TIPO QUE ESTA EN TRACKER SERA EL TIPO DE RECLAMO
+    def save(self, *args, **kwargs):
+        if self.tracker.type == 'IMPORT':
+            self.type = "ALERT_QUALITY"
+        else:
+            self.type = "CLAIM"
+        super().save(*args, **kwargs)
 
 # Productos asociados al reclamo
 class ClaimProductModel(BaseModel):
@@ -220,4 +258,9 @@ class ClaimProductModel(BaseModel):
 
     def __str__(self):
         return f"Claim #{self.claim.id} - Producto: {self.product.name} ({self.quantity})"
+
+    class Meta:
+        db_table = "app_claim_product"
+        verbose_name = "Producto del Claim"
+        verbose_name_plural = "Productos del Claim"
 

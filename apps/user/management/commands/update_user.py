@@ -38,15 +38,20 @@ class Command(BaseCommand):
             'change_claimmodel', # Modificar reclamos
             'delete_claimmodel'  # Eliminar reclamos
         ]
+
         # crear permiso change_status_claimmodel
         Permission.objects.get_or_create(
             codename='change_status_claimmodel',
             name='Can change status of ClaimModel',
             content_type=content_type
         )
-        permission_codenames.append('change_status_claimmodel')
+        permission_codenames_service_user = [
+            'view_claimmodel',
+            'change_claimmodel',
+            'change_status_claimmodel'
+        ]
         # Obtener y asignar los permisos
-        for codename in permission_codenames:
+        for codename in permission_codenames_service_user:
             try:
                 permission, created = Permission.objects.get_or_create(
                     codename=codename,
@@ -57,5 +62,43 @@ class Command(BaseCommand):
                 self.stdout.write(f'Permiso {codename} asignado correctamente')
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f'Error con permiso {codename}: {str(e)}'))
+
+
+        # A los supervisores se les asigna el permiso de change_status_claimmodelLocal
+
+        permission_codenames_service_user = [
+            'view_claimmodel',
+            'add_claimmodel',
+            'change_claimmodel'
+        ]
+        grup_supervisor = Group.objects.get(name='SUPERVISOR')
+        permission, created = Permission.objects.get_or_create(
+            codename='change_status_claimmodelLocal',
+            content_type=content_type,
+            defaults={'name': 'Can change status of ClaimModel Local'}
+        )
+        grup_supervisor.permissions.add(permission)
+        for codename in permission_codenames_service_user:
+            try:
+                permission = Permission.objects.get(codename=codename, content_type=content_type)
+                grup_supervisor.permissions.add(permission)
+                self.stdout.write(f'Permiso {codename} asignado al grupo SUPERVISOR')
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'Error con permiso {codename}: {str(e)}'))
+
+        self.stdout.write(self.style.SUCCESS('Permisos asignados correctamente'))
+
+        group_ayudante_bodega = Group.objects.get(name='AYUDANTE DE BODEGA INTERNA')
+
+        for codename in permission_codenames:
+            try:
+                permission = Permission.objects.get(codename=codename, content_type=content_type)
+                group_ayudante_bodega.permissions.add(permission)
+                self.stdout.write(f'Permiso {codename} asignado al grupo AYUDANTE DE BODEGA INTERNA')
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'Error con permiso {codename}: {str(e)}'))
+
+        self.stdout.write(self.style.SUCCESS('Proceso completado con éxito'))
+
 
         self.stdout.write(self.style.SUCCESS('Proceso completado con éxito'))
