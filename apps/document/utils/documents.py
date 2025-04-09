@@ -10,7 +10,38 @@ import uuid
 from typing import Optional
 from django.core.files.uploadedfile import File
 from apps.document.models.document import DocumentModel
+from PIL import Image
+from django.core.files.base import ContentFile
+import io
 
+
+def compress_image(image_file, quality=70):
+    """
+    image_file: InMemoryUploadedFile (u otro tipo de File) a comprimir
+    Retorna un ContentFile comprimido (JPEG) con la misma extensión en el nombre.
+    """
+    try:
+        # Abre la imagen
+        img = Image.open(image_file)
+
+        # Si tiene transparencia, pasamos a RGB (pierdes transparencia si era PNG)
+        if img.mode in ("RGBA", "LA"):
+            img = img.convert("RGB")
+
+        buffer = io.BytesIO()
+        # Guardamos en JPEG por simplicidad, pero podrías condicionar a PNG/JPEG/WebP
+        img.save(buffer, format='JPEG', optimize=True, quality=quality)
+        buffer.seek(0)
+
+        # Retornamos un ContentFile que Django entienda
+        compressed_file = ContentFile(buffer.read())
+        # Mantén la extensión .jpg aunque el original sea .png si usas JPEG
+        return compressed_file
+    except Exception as e:
+        # Si falla, retornas el archivo original sin compresión
+        print(f"Error al comprimir imagen: {e}")
+        image_file.seek(0)
+        return image_file
 
 def get_sas_url(blob_name: str):
     # blob_name = "path/en/el/container/archivo.jpg"
@@ -67,8 +98,21 @@ def create_documento(file_obj: File, name: Optional[str] = None, folder: str = "
         new_path = f"document/{folder}/{new_filename}"
 
     # Asignar el nombre al archivo antes de guardarlo
-    file_obj.name = new_path
-    doc.file = file_obj
+    if doc_type == "image":
+        compressed_file = compress_image(file_obj)  # quality=70 default
+        compressed_file.name = new_path  # Asigna la ruta final
+        doc.file = compressed_file
+
+        # Comprimir si es PDF
+    # elif doc_type == "pdf":
+    #     compressed_file = compress_pdf_ghostscript(file_obj)  # o compress_pdf_pikepdf(file_obj)
+    #     compressed_file.name = new_path
+    #     doc.file = compressed_file
+
+    else:
+        # Otros tipos de archivos, no se comprimen
+        file_obj.name = new_path
+        doc.file = file_obj
     doc.save()
 
     return doc
