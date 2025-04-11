@@ -115,7 +115,7 @@ class ClaimViewSet(
             "photos_during_unload", "photos_pallet_damage",
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
-            "photos_repalletized"
+            "photos_repalletized", "photos_production_batch"
         ]
 
         for category in photo_categories:
@@ -210,7 +210,7 @@ class ClaimViewSet(
             "photos_during_unload", "photos_pallet_damage",
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
-            "photos_repalletized"
+            "photos_repalletized", "photos_production_batch"
         ]
 
         if photo_category not in valid_categories:
@@ -247,7 +247,8 @@ class ClaimViewSet(
             "photos_damaged_product_dents": claim.photos_damaged_product_dents,
             "photos_damaged_boxes": claim.photos_damaged_boxes,
             "photos_grouped_bad_product": claim.photos_grouped_bad_product,
-            "photos_repalletized": claim.photos_repalletized
+            "photos_repalletized": claim.photos_repalletized,
+            "photos_production_batch": claim.photos_production_batch
         }
 
         # Nombres descriptivos para las categorías
@@ -262,7 +263,8 @@ class ClaimViewSet(
             "photos_damaged_product_dents": "Abolladuras del producto",
             "photos_damaged_boxes": "Cajas dañadas",
             "photos_grouped_bad_product": "Producto en mal estado agrupado",
-            "photos_repalletized": "Repaletizado de producto dañado"
+            "photos_repalletized": "Repaletizado de producto dañado",
+            "photos_production_batch": "Lote de producción"
         }
 
         # Si es modo "replace", eliminar fotos existentes
@@ -503,6 +505,10 @@ class ClaimViewSet(
             if photo.file == filename:
                 valido = True
                 break
+        for photo in reclamo.photos_production_batch.all():
+            if photo.file == filename:
+                valido = True
+                break
         
         if not valido:
             return Response({"detail": "No se encontró el archivo"}, status=status.HTTP_404_NOT_FOUND)
@@ -570,10 +576,6 @@ class ClaimViewSet(
             doc_obs = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.observations_file = doc_obs.file
 
-        if "production_batch_file" in request.FILES:
-            f = request.FILES["production_batch_file"]
-            doc_prod = create_documento(f, f.name, "Claim", claim.claim_code)
-            claim.production_batch_file = doc_prod.file
 
         claim.save()
 
@@ -593,6 +595,7 @@ class ClaimViewSet(
             "photos_damaged_boxes": claim.photos_damaged_boxes,
             "photos_grouped_bad_product": claim.photos_grouped_bad_product,
             "photos_repalletized": claim.photos_repalletized,
+            "photos_production_batch": claim.photos_production_batch
         }
 
 
