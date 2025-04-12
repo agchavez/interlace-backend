@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import mixins, viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,6 +20,13 @@ from django.conf import settings
 from django.http import FileResponse
 import io
 import json
+
+from apps.user.models.notificacion import NotificationModel
+
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from apps.user.models import UserModel
+from apps.user.serializers.notificacion import NotificationSerializer
 
 class ClaimFilter(django_filters.FilterSet):
     id = django_filters.NumberFilter()
@@ -86,6 +94,7 @@ class ClaimViewSet(
          - claimNumber, discardDoc, observations
          - y en request.FILES: diversos archivos de fotos y documentos
         """
+        changes = {}
         tracker_id = request.data.get("tracker_id")
 
         # Validamos los datos del request usando nuestra nueva utilidad
@@ -106,7 +115,6 @@ class ClaimViewSet(
         claim_file = request.FILES.get("claim_file") if "claim_file" in request.FILES else None
         credit_memo_file = request.FILES.get("credit_memo_file") if "credit_memo_file" in request.FILES else None
         observations_file = request.FILES.get("observations_file") if "observations_file" in request.FILES else None
-        claim_production_batches = request.FILES.get("claim_production_batches") if "claim_production_batches" in request.FILES else None
         # Fotografías por categoría
         photo_files = {}
         photo_categories = [
@@ -118,9 +126,28 @@ class ClaimViewSet(
             "photos_repalletized", "photos_production_batch"
         ]
 
+        photo_categories_verbose = {
+            "photos_container_closed": "Foto Contenedor cerrado",
+            "photos_container_one_open": "Foto Contenedor con 1 puerta abierta",
+            "photos_container_two_open": "Foto Contenedor con 2 puertas abiertas",
+            "photos_container_top": "Foto Vista superior del contenedor",
+            "photos_during_unload": "Foto Durante la descarga",
+            "photos_pallet_damage": "Foto Fisuras/abolladuras de pallets",
+            "photos_damaged_product_base": "Foto Base de producto dañado",
+            "photos_damaged_product_dents": "Foto Abolladuras del producto",
+            "photos_damaged_boxes": "Foto Cajas dañadas",
+            "photos_grouped_bad_product": "Foto Producto en mal estado agrupado",
+            "photos_repalletized": "Foto Repaletizado de producto dañado",
+            "photos_production_batch": "Foto Lote de producción"
+        }
+
         for category in photo_categories:
             if category in request.FILES:
                 photo_files[category] = request.FILES.getlist(category)
+                cuenta = 0
+                for doc in photo_files[category]:
+                    cuenta += 1
+                    changes[f'{photo_categories_verbose.get(category, "Foto")} #{cuenta}'] = f'nombre: {doc.name}'
 
         # Llamamos la función utilitaria para crear el claim
         reclamo = create_reclamo(
@@ -134,7 +161,6 @@ class ClaimViewSet(
             claim_file=claim_file,
             credit_memo_file=credit_memo_file,
             observations_file=observations_file,
-            claim_production_batches=claim_production_batches,
             photo_files=photo_files
         )
 
@@ -159,6 +185,7 @@ class ClaimViewSet(
                 cp.quantity = p.get("quantity", cp.quantity)
                 cp.batch = p.get("batch", cp.batch)
                 cp.save()
+                changes[f'Actualizado: {cp.product.name}'] = f"cantidad: {cp.quantity}, lote: {cp.batch}"
             else:
                 if not ClaimProductModel.objects.filter(
                         claim=reclamo,
@@ -170,10 +197,58 @@ class ClaimViewSet(
                         quantity=p.get("quantity", 0),
                         batch=p.get("batch", ""),
                     )
+                    changes[f'Agregado: {cp.product.name}'] = f'cantidad: {cp.quantity}, lote: {cp.batch}'
 
-
+        # Notificación
+        if reclamo.type == "CLAIM":
+            self.send_notification(
+                title="Nuevo Claim", 
+                subtitle='Se ha registrado un nuevo claim', 
+                description='Se ha registrado un nuevo claim sobre el tracker ' + str(reclamo.tracker.pk), 
+                reclamo=reclamo,
+                json={
+                    'timestamp': str(timezone.now()),
+                    'tracker': reclamo.tracker.pk,
+                    'Asignado a': reclamo.assigned_to.username if reclamo.assigned_to else None,
+                    'Tipo de Reclamo': reclamo.claim_type.name,
+                    "Descripción": reclamo.description,
+                    "Numero de Reclamo": reclamo.claim_number,
+                    "Observaciones": reclamo.observations,
+                    "Documento de Descarte": reclamo.discard_doc,
+                    "Archivo Claim": reclamo.claim_file.name if reclamo.claim_file else None,
+                    "Archivo Nota de Crédito": reclamo.credit_memo_file.name if reclamo.credit_memo_file else None,
+                    "Archivo Observaciones": reclamo.observations_file.name if reclamo.observations_file else None,
+                    **changes
+                })
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def send_notification(self, title, subtitle, description, reclamo, json: dict = None):
+        """
+        Envia una notificación a los usuarios de tipo Claim Service User.
+        """
+        users = UserModel.objects.filter(is_active=True, groups__id=5, distributions_centers__id=reclamo.tracker.distributor_center.id)
+        for user in users:
+            notification = NotificationModel.objects.create(
+                user=user,
+                type=NotificationModel.Type.CLAIM,
+                title=title,
+                subtitle=subtitle,
+                description=description,
+                module=NotificationModel.Modules.OTHERS,
+                url=f'/claim/editstatus/{reclamo.id}' if reclamo else None,
+                json=json
+            )
+            # Enviar notificación a través de websocket
+            group_name = str(user.id)
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    'type': 'send_notification',
+                    'data': NotificationSerializer(notification).data
+                }
+            )
 
     @action(methods=["post"], detail=True, url_path="upload-photos")
     def upload_photos(self, request, pk=None):
@@ -287,7 +362,6 @@ class ClaimViewSet(
             )
             photo_fields[photo_category].add(doc)
             uploaded_docs.append(doc)
-
         return Response({
             "detail": f"{len(files)} fotos {mode == 'replace' and 'reemplazadas' or 'agregadas'} correctamente",
             "count": photo_fields[photo_category].count(),
@@ -301,6 +375,7 @@ class ClaimViewSet(
         Cambia el estado del claim.
         Se espera en el body: { "new_state": "...", "changed_by_id": <id> , "observations": "..." }
         """
+        changes = {}
         # State
         new_state = request.data.get("new_state")
         changed_by_id = request.data.get("changed_by_id")
@@ -315,6 +390,8 @@ class ClaimViewSet(
                 new_state=new_state,
                 changed_by_id=int(changed_by_id) if changed_by_id else None
             )
+            changes["Estado del Reclamo"] = reclamo.status
+            changes["Asignado a"] = reclamo.assigned_to.username if reclamo.assigned_to else None
         except ClaimModel.DoesNotExist:
             return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -324,6 +401,7 @@ class ClaimViewSet(
             try:
                 reclamo.claim_number = claim_number
                 reclamo.save()
+                changes["Numero de Reclamo"] = reclamo.claim_number
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         # Discard Doc
@@ -332,6 +410,7 @@ class ClaimViewSet(
             try:
                 reclamo.discard_doc = discard_doc
                 reclamo.save()
+                changes["Documento de Descarte"] = reclamo.discard_doc
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         # Observations
@@ -340,6 +419,7 @@ class ClaimViewSet(
             try:
                 reclamo.observations = observations
                 reclamo.save()
+                changes["Observaciones"] = reclamo.observations
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -349,6 +429,7 @@ class ClaimViewSet(
             try:
                 reclamo.approve_observations = approve_observations
                 reclamo.save()
+                changes["Observaciones de Aprobación"] = reclamo.approve_observations
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -358,6 +439,7 @@ class ClaimViewSet(
             try:
                 reclamo.reject_reason = reject_reason
                 reclamo.save()
+                changes["Razón de Rechazo"] = reclamo.reject_reason
             except ClaimModel.DoesNotExist:
                 return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -367,20 +449,36 @@ class ClaimViewSet(
             # En lugar de asignar directamente, usar create_documento()
             doc_claim = create_documento(new_claim_file,new_claim_file.name,  "Claim", reclamo.claim_code)
             reclamo.claim_file = doc_claim.file
+            changes["Archivo Claim"] = doc_claim.file.name
 
         # Claim Credit Memo File
         new_credit_memo_file = request.FILES.get("new_credit_memo_file")
         if new_credit_memo_file:
             doc_credit = create_documento(new_credit_memo_file, new_credit_memo_file.name, "Claim", reclamo.claim_code)
             reclamo.credit_memo_file = doc_credit.file
+            changes["Archivo Nota de Crédito"] = doc_credit.file.name
 
         # Claim Observations File
         new_observations_file = request.FILES.get("new_observations_file")
         if new_observations_file:
             doc_obs = create_documento(new_observations_file, new_observations_file.name, "Claim", reclamo.claim_code)
             reclamo.observations_file = doc_obs.file
+            changes["Archivo Observaciones"] = doc_obs.file.name
 
         reclamo.save()
+
+        # Notificación
+        if reclamo.type == "CLAIM":
+            self.send_notification(
+                title="Cambio de estado en claim",
+                subtitle='Se ha realizado un cambio de estado en el claim ',
+                description='Cambio de estado en el claim ' + str(reclamo.pk) + ' a ' + reclamo.status,
+                reclamo=reclamo,
+                json={
+                    'timestamp': str(timezone.now()),
+                    **changes
+                })
+
         serializer = self.get_serializer(reclamo)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -538,6 +636,8 @@ class ClaimViewSet(
             claim = self.get_object()
         except ClaimModel.DoesNotExist:
             return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
+        changes = {}
 
         data = request.data
 
@@ -546,10 +646,20 @@ class ClaimViewSet(
         claim_type = ClaimTypeModel.objects.filter(id=claim_type).first()
         if claim_type is not None:
             claim.claim_type = claim_type
+            if claim_type.name != claim.claim_type.name:
+                changes["Tipo de Reclamo"] = claim_type.name
         description = data.get("description", claim.description)
+        if description != claim.description:
+            changes["Descripción"] = description
         claim_number = data.get("claim_number", claim.claim_number)
+        if claim_number != claim.claim_number:
+            changes["Numero de Reclamo"] = claim_number
         discard_doc = data.get("discard_doc", claim.discard_doc)
+        if discard_doc != claim.discard_doc:
+            changes["Documento de Descarte"] = discard_doc
         observations = data.get("observations", claim.observations)
+        if observations != claim.observations:
+            changes["Observaciones"] = observations
 
         claim.description = description
         claim.claim_number = claim_number
@@ -561,6 +671,7 @@ class ClaimViewSet(
             f = request.FILES["claim_file"]
             doc_claim = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.claim_file = doc_claim.file
+            changes["Archivo Claim"] = doc_claim.file.name
         # elif data.get("claim_file") is None:
         #     claim.claim_file = None
 
@@ -568,6 +679,7 @@ class ClaimViewSet(
             f = request.FILES["credit_memo_file"]
             doc_credit = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.credit_memo_file = doc_credit.file
+            changes["Archivo Nota de Crédito"] = doc_credit.file.name
         # elif data.get("credit_memo_file") is None:
         #     claim.credit_memo_file = None
 
@@ -575,6 +687,7 @@ class ClaimViewSet(
             f = request.FILES["observations_file"]
             doc_obs = create_documento(f, f.name, "Claim", claim.claim_code)
             claim.observations_file = doc_obs.file
+            changes["Archivo Observaciones"] = doc_obs.file.name
 
 
         claim.save()
@@ -598,6 +711,21 @@ class ClaimViewSet(
             "photos_production_batch": claim.photos_production_batch
         }
 
+        photo_fields_verbose = {
+            "photos_container_closed": "Foto Contenedor cerrado",
+            "photos_container_one_open": "Foto Contenedor con 1 puerta abierta",
+            "photos_container_two_open": "Foto Contenedor con 2 puertas abiertas",
+            "photos_container_top": "Foto Vista superior del contenedor",
+            "photos_during_unload": "Foto Durante la descarga",
+            "photos_pallet_damage": "Foto Fisuras/abolladuras de pallets",
+            "photos_damaged_product_base": "Foto Base de producto dañado",
+            "photos_damaged_product_dents": "Foto Abolladuras del producto",
+            "photos_damaged_boxes": "Foto Cajas dañadas",
+            "photos_grouped_bad_product": "Foto Producto en mal estado agrupado",
+            "photos_repalletized": "Foto Repaletizado de producto dañado",
+            "photos_production_batch": "Foto Lote de producción"
+        }
+
 
         for field_name, m2m_relation in photo_fields.items():
             meta_key = f"{field_name}_meta"  # "photos_container_closed_meta", etc.
@@ -614,13 +742,18 @@ class ClaimViewSet(
             to_remove = cat_data.get("remove", [])
             if to_remove:
                 m2m_relation.remove(*to_remove)
+                for doc in to_remove:
+                    changes[f'Eliminado {photo_fields_verbose.get(field_name, "Foto")} id: {doc}'] = f'Archivo Eliminado'
 
             # b) Agregar => usando request.FILES.getlist(field_name)
             if field_name in request.FILES:
                 files_to_add = request.FILES.getlist(field_name)
+                cuenta = 0
                 for fobj in files_to_add:
+                    cuenta += 1
                     doc = create_documento(fobj, fobj.name, "Claim", claim.claim_code)
                     m2m_relation.add(doc)
+                    changes[f'Agregado {photo_fields_verbose.get(field_name, "Foto")} #{cuenta}'] = f'nombre: {doc.name}'
 
         claim.save()
 
@@ -643,11 +776,15 @@ class ClaimViewSet(
 
                 if delete_flag:
                     cp.delete()
+                    changes[f'Eliminado: {cp.product.name}'] = "Producto Eliminado del Reclamo"
                     continue
-
                 cp.product_id = p.get("product", cp.product)
+                initial_quantity = cp.quantity
+                initial_batch = cp.batch
                 cp.quantity = p.get("quantity", cp.quantity)
                 cp.batch = p.get("batch", cp.batch)
+                if initial_quantity != cp.quantity or initial_batch != cp.batch:
+                    changes[f'Actualizado: {cp.product.name}'] = f"cantidad inicial: {initial_quantity}, cantidad actualizada: {cp.quantity}, lote inicial: {initial_batch}, lote actualizado: {cp.batch}"
                 cp.save()
             else:
                 if not delete_flag:
@@ -655,12 +792,28 @@ class ClaimViewSet(
                             claim=claim,
                             product_id=p.get("product", "")
                     ).exists():
-                        ClaimProductModel.objects.create(
+                        cp = ClaimProductModel.objects.create(
                             claim=claim,
                             product_id=p.get("product", ""),
                             quantity=p.get("quantity", 0),
                             batch=p.get("batch", ""),
                         )
+                        changes[f'Agregado: {cp.product.name}'] = f'cantidad: {cp.quantity}, lote: {cp.batch}'
+
+        # Notificación
+        if claim.type == "CLAIM":
+            # si changes no es vacío, se envia notificación
+            changes_keys = list(changes.keys())
+            if (len(changes_keys) > 0):
+                self.send_notification(
+                    title="Actualización de claim",
+                    subtitle='Se ha actualizado el claim ',
+                    description='Se ha actualizado el claim con id ' + str(claim.pk),
+                    reclamo=claim,
+                    json={
+                        'timestamp': str(timezone.now()),
+                        **changes
+                    })
 
         # 5) Serializar y devolver
         serializer = self.get_serializer(claim)

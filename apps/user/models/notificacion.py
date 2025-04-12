@@ -28,6 +28,7 @@ class NotificationModel(BaseModel):
         APROVAL = 'APROBACION'
         CONFIRMATION = 'CONFIRMACION'
         REJECTION = 'RECHAZO'
+        CLAIM = 'RECLAMO'
 
     # Application modules
     class Modules(models.TextChoices):
