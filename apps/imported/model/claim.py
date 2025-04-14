@@ -101,12 +101,6 @@ class ClaimModel(BaseModel):
         null=True
     )
 
-    production_batch_file = models.FileField(
-        "Archivo de Lotes de Producción (PDF)",
-        upload_to="claim_production_batches/",
-        blank=True,
-        null=True
-    )
     credit_memo_file = models.FileField(
         "Nota de Crédito",
         upload_to="claim_credit_memos/",
@@ -195,6 +189,12 @@ class ClaimModel(BaseModel):
         related_name="claims_repalletized",
         verbose_name="Fotografías: Repaletizado de producto dañado"
     )
+    photos_production_batch = models.ManyToManyField(
+        DocumentModel,
+        blank=True,
+        related_name="claims_production_batch",
+        verbose_name="Fotografías: Lote de producción"
+    )
 
     claim_code = models.CharField("Código de Claim", max_length=20, blank=True, null=True)
 
@@ -224,9 +224,9 @@ class ClaimModel(BaseModel):
     # AL GUARDAR SEGUN EL TIPO QUE ESTA EN TRACKER SERA EL TIPO DE RECLAMO
     def save(self, *args, **kwargs):
         if self.tracker.type == 'IMPORT':
-            self.type = "ALERT_QUALITY"
-        else:
             self.type = "CLAIM"
+        else:
+            self.type = "ALERT_QUALITY"
         super().save(*args, **kwargs)
 
 # Productos asociados al reclamo

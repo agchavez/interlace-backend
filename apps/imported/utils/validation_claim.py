@@ -110,7 +110,7 @@ def validate_document_files(files):
         "photos_during_unload", "photos_pallet_damage",
         "photos_damaged_product_base", "photos_damaged_product_dents",
         "photos_damaged_boxes", "photos_grouped_bad_product",
-        "photos_repalletized"
+        "photos_repalletized", "photos_production_batch"
     ]
 
     for category in photo_categories:
