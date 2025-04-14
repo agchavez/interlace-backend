@@ -107,10 +107,6 @@ def create_reclamo(
             doc_obs = create_documento(observations_file, observations_file.name, "Claim", reclamo.claim_code)
             reclamo.observations_file = doc_obs.file
 
-        if claim_production_batches:
-            for file in claim_production_batches:
-                doc_prod = create_documento(file, file.name, "Claim", reclamo.claim_code)
-                reclamo.production_batch_file = doc_prod.file
         reclamo.save()
 
         # 3. Procesamos los archivos de fotos por categoría
@@ -127,7 +123,8 @@ def create_reclamo(
                 "photos_damaged_product_dents": reclamo.photos_damaged_product_dents,
                 "photos_damaged_boxes": reclamo.photos_damaged_boxes,
                 "photos_grouped_bad_product": reclamo.photos_grouped_bad_product,
-                "photos_repalletized": reclamo.photos_repalletized
+                "photos_repalletized": reclamo.photos_repalletized,
+                "photos_production_batch": reclamo.photos_production_batch
             }
 
             # Para cada categoría de fotos
@@ -145,7 +142,8 @@ def create_reclamo(
                         "photos_damaged_product_dents": "Abolladuras en producto",
                         "photos_damaged_boxes": "Cajas dañadas",
                         "photos_grouped_bad_product": "Producto en mal estado agrupado",
-                        "photos_repalletized": "Producto repaletizado"
+                        "photos_repalletized": "Producto repaletizado",
+                        "photos_production_batch": "Lote de producción"
                     }
 
                     # Descripción para el documento

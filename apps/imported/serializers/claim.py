@@ -39,12 +39,12 @@ class ClaimSerializer(serializers.ModelSerializer):
     photos_damaged_boxes = DocumentSerializer(many=True, read_only=True)
     photos_grouped_bad_product = DocumentSerializer(many=True, read_only=True)
     photos_repalletized = DocumentSerializer(many=True, read_only=True)
+    photos_production_batch = DocumentSerializer(many=True, read_only=True)
 
     # Serializamos los documentos usando SerializerMethodField para manejar valores nulos
     claim_file = serializers.SerializerMethodField()
     credit_memo_file = serializers.SerializerMethodField()
     observations_file = serializers.SerializerMethodField()
-    production_batch_file = serializers.SerializerMethodField()
     claim_products = ClaimProductSerializer(many=True, read_only=True)
     tracking = TrackerSerializer(read_only=True, many=False, source="tracker")
     trailer = TrailerModelSerializer(source='tracker.trailer', read_only=True)
@@ -65,8 +65,8 @@ class ClaimSerializer(serializers.ModelSerializer):
             "photos_during_unload", "photos_pallet_damage",
             "photos_damaged_product_base", "photos_damaged_product_dents",
             "photos_damaged_boxes", "photos_grouped_bad_product",
-            "photos_repalletized", "assigned_to_name","production_batch_file",
-            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", "type", "claim_type_data", "approve_observations", "origin_location_data", "driver_data"
+            "photos_repalletized", "assigned_to_name",
+            "created_at","claim_products", "tracking", "trailer", "transporter", "reject_reason", "type", "claim_type_data", "approve_observations", "origin_location_data", "driver_data", "photos_production_batch"
         ]
         read_only_fields = [
             "id", "status", "created_at", "assigned_to", "trailer", "transporter", "claim_type_data", "origin_location_data", "driver_data"
@@ -97,13 +97,3 @@ class ClaimSerializer(serializers.ModelSerializer):
             except DocumentModel.DoesNotExist:
                 return None
         return None
-
-    def get_production_batch_file(self, obj):
-        if obj.production_batch_file and obj.production_batch_file.name:
-            try:
-                document = DocumentModel.objects.get(file=obj.production_batch_file.name)
-                return DocumentSerializer(document).data
-            except DocumentModel.DoesNotExist:
-                return None
-        return None
-
