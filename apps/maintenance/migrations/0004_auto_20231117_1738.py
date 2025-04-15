@@ -26,3 +26,6 @@ class Migration(migrations.Migration):
             field=models.CharField(max_length=60, verbose_name='Apellido'),
         ),
     ]
+
+
+# la fecha es diferente
