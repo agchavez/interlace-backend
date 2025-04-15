@@ -118,7 +118,7 @@ def validate_document_files(files):
             photo_files = files.getlist(category)
 
             # Check number of photos (max 3 per category)
-            if len(photo_files) > 3:
+            if len(photo_files) > 5:
                 raise TooManyPhotos()
 
             for photo in photo_files:
