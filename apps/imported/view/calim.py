@@ -207,7 +207,6 @@ class ClaimViewSet(
                 description='Se ha registrado un nuevo claim sobre el tracker ' + str(reclamo.tracker.pk), 
                 reclamo=reclamo,
                 json={
-                    'Fecha': str(timezone.now()),
                     'tracker': reclamo.tracker.pk,
                     'Tipo de Reclamo': reclamo.claim_type.name if reclamo.claim_type else None,
                     "Descripción": reclamo.description,
@@ -473,7 +472,6 @@ class ClaimViewSet(
                 description='Cambio de estado en el claim ' + str(reclamo.pk) + ' a ' + reclamo.status,
                 reclamo=reclamo,
                 json={
-                    'Fecha': str(timezone.now()),
                     **changes
                 })
 
@@ -809,7 +807,6 @@ class ClaimViewSet(
                     description='Se ha actualizado el claim con id ' + str(claim.pk),
                     reclamo=claim,
                     json={
-                        'Fecha': str(timezone.now()),
                         **changes
                     })
 
