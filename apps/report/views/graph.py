@@ -82,21 +82,22 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
             data = []
 
             for month in months:
-                for year in years:
-                    for distributor_center in distributor_centers:
-                        queryset_filter = list(queryset.filter(
-                            created_at__month=month,
-                            created_at__year=year,
-                            distributor_center=distributor_center.id
-                        ))
+                            for year in years:
+                                for distributor_center in distributor_centers:
+                                    queryset_filter = list(queryset.filter(
+                                        created_at__month=month,
+                                        created_at__year=year,
+                                        distributor_center=distributor_center.id
+                                    ))
 
-                        avg_time_invested = queryset_filter[0]['avg_time_invested'] if queryset_filter else 0
+                                    # Verificar si queryset_filter tiene elementos antes de acceder al índice [0]
+                                    avg_time_invested = queryset_filter[0]['avg_time_invested'] if len(queryset_filter) > 0 else 0
 
-                        data.append({
-                            'month': month,
-                            'year': year,
-                            'distributor_center': distributor_center.id,
-                            'distributor_center_name': distributor_center.name,
-                            'avg_time_invested': avg_time_invested if avg_time_invested else 0
-                        })
+                                    data.append({
+                                        'month': month,
+                                        'year': year,
+                                        'distributor_center': distributor_center.id,
+                                        'distributor_center_name': distributor_center.name,
+                                        'avg_time_invested': avg_time_invested
+                                    })
             return Response(data)
