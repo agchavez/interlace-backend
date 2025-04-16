@@ -90,8 +90,10 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
                                         distributor_center=distributor_center.id
                                     ))
 
-                                    # Verificar si queryset_filter tiene elementos antes de acceder al índice [0]
-                                    avg_time_invested = queryset_filter[0]['avg_time_invested'] if len(queryset_filter) > 0 else 0
+                                    avg_time_invested = 0
+                                    if queryset_filter:
+                                        avg_time_invested = queryset_filter[0][
+                                            'avg_time_invested'] if 'avg_time_invested' in queryset_filter[0] else 0
 
                                     data.append({
                                         'month': month,
