@@ -13,11 +13,12 @@ from datetime import date
 import pandas as pd
 
 class PeriodViewSet(mixins.ListModelMixin, 
-                    mixins.RetrieveModelMixin, 
+                    mixins.RetrieveModelMixin,
+                    mixins.CreateModelMixin,
                     viewsets.GenericViewSet):
     queryset = PeriodModel.objects.all()
     serializer_class = PeriodModelSerializer
-    permission_classes = [CustomAccessPermission]
+    permission_classes = []
     PERMISSION_MAPPING = {
         'GET': [],
         'POST': [],
@@ -29,7 +30,7 @@ class PeriodViewSet(mixins.ListModelMixin,
     def get_required_permissions(self, http_method):
         return self.PERMISSION_MAPPING.get(http_method, [])
 
-
+    
     @action(detail=False, methods=['get'], url_path='last-period')
     def get_last_period(self, request, *args, **kwargs):
         user = request.user
