@@ -163,6 +163,9 @@ CELERY_RESULT_EXPIRES = 86400  # Tiempo en segundos (un día)
 
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 # Configuracion de canales
 CHANNEL_LAYERS = {
     "default": {
