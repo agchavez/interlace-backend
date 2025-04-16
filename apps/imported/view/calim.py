@@ -207,10 +207,8 @@ class ClaimViewSet(
                 description='Se ha registrado un nuevo claim sobre el tracker ' + str(reclamo.tracker.pk), 
                 reclamo=reclamo,
                 json={
-                    'timestamp': str(timezone.now()),
                     'tracker': reclamo.tracker.pk,
-                    'Asignado a': reclamo.assigned_to.username if reclamo.assigned_to else None,
-                    'Tipo de Reclamo': reclamo.claim_type.name,
+                    'Tipo de Reclamo': reclamo.claim_type.name if reclamo.claim_type else None,
                     "Descripción": reclamo.description,
                     "Numero de Reclamo": reclamo.claim_number,
                     "Observaciones": reclamo.observations,
@@ -391,7 +389,6 @@ class ClaimViewSet(
                 changed_by_id=int(changed_by_id) if changed_by_id else None
             )
             changes["Estado del Reclamo"] = reclamo.status
-            changes["Asignado a"] = reclamo.assigned_to.username if reclamo.assigned_to else None
         except ClaimModel.DoesNotExist:
             return Response({"detail": "Claim no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -475,7 +472,6 @@ class ClaimViewSet(
                 description='Cambio de estado en el claim ' + str(reclamo.pk) + ' a ' + reclamo.status,
                 reclamo=reclamo,
                 json={
-                    'timestamp': str(timezone.now()),
                     **changes
                 })
 
@@ -811,7 +807,6 @@ class ClaimViewSet(
                     description='Se ha actualizado el claim con id ' + str(claim.pk),
                     reclamo=claim,
                     json={
-                        'timestamp': str(timezone.now()),
                         **changes
                     })
 
