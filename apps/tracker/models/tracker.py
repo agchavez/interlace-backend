@@ -1,7 +1,7 @@
 import datetime
 
 from django.core.validators import RegexValidator
-
+from django.utils import timezone
 from apps.maintenance.models import DriverModel, ProductModel, TransporterModel, TrailerModel, LocationModel, \
     OperatorModel, OutputTypeModel, DistributorCenter
 
@@ -289,9 +289,20 @@ class TrackerModel(BaseModel):
         self.status = 'COMPLETE'
         self.save()
 
-    def save (self, *args, **kwargs):
+    def save(self, *args, **kwargs):
+        # Forzar a 'aware' si existen
+        if self.input_date and timezone.is_naive(self.input_date):
+            self.input_date = timezone.make_aware(
+                self.input_date, timezone.get_default_timezone()
+            )
+        if self.output_date and timezone.is_naive(self.output_date):
+            self.output_date = timezone.make_aware(
+                self.output_date, timezone.get_default_timezone()
+            )
+
         if self.input_date and self.output_date:
             self.time_invested = (self.output_date - self.input_date).total_seconds()
+
         super(TrackerModel, self).save(*args, **kwargs)
 
 
