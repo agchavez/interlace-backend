@@ -55,60 +55,48 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
         return TrackerModel.objects.all()
 
     def list(self, request, *args, **kwargs):
-        # si el usuario no tiene un centro de distribucion asignado se debe enviar los centros de distribucion
-        if request.user.distributions_centers.exists():
-            distributor_center = request.query_params.get('distributor_center')
-            if distributor_center:
-                distributor_center = [int(x) for x in distributor_center.split(',')]
+            if request.user.distributions_centers.exists():
+                distributor_center = request.query_params.get('distributor_center')
+                if distributor_center:
+                    distributor_center = [int(x) for x in distributor_center.split(',')]
+                else:
+                    distributor_center = []
             else:
-                distributor_center = []
-        else:
-            distributor_center = [request.user.centro_distribucion.id]
-        year = request.query_params.get('year')
-        if year:
-            year = [int(x) for x in year.split(',')]
-        else:
-            year = [date.today().year]
-        # obtener los datos de la grafica, created_at (para agrupar por mes y año), distributor_center (para agrupar por centro de distribucion), time_invested (tiempo promedio de entrega valor en minutos)
-        queryset = (TrackerModel.objects
-                    .filter(created_at__year__in=year, distributor_center__in=distributor_center, status='COMPLETE', exclude_tat=False)
-                    .values('created_at__month', 'created_at__year', 'distributor_center')
-                    .annotate(avg_time_invested=Avg('time_invested') / 60)
-                    .order_by('created_at__month', 'created_at__year', 'distributor_center')
-                    )
+                distributor_center = [request.user.centro_distribucion.id]
+            year = request.query_params.get('year')
+            if year:
+                year = [int(x) for x in year.split(',')]
+            else:
+                year = [date.today().year]
 
-        # lista de meses
-        months = [x for x in range(1, 13)]
-        # solo los años que se enviaron
-        years = year
-        # lista de centros de distribucion
-        distributor_centers = DistributorCenter.objects.filter(id__in=distributor_center)
-        # lista de datos de la grafica
-        data = []
+            queryset = (TrackerModel.objects
+                        .filter(created_at__year__in=year, distributor_center__in=distributor_center, status='COMPLETE', exclude_tat=False)
+                        .values('created_at__month', 'created_at__year', 'distributor_center')
+                        .annotate(avg_time_invested=Avg('time_invested') / 60)
+                        .order_by('created_at__month', 'created_at__year', 'distributor_center')
+                        )
 
-        # Recorrer los meses
-        for month in months:
-            # Recorrer los años
-            for year in years:
-                # Recorrer los centros de distribucion
-                for distributor_center in distributor_centers:
-                    # Filtrar el queryset
-                    queryset_filter = queryset.filter(
-                        created_at__month=month,
-                        created_at__year=year,
-                        distributor_center=distributor_center.id
-                    )
+            months = [x for x in range(1, 13)]
+            years = year
+            distributor_centers = DistributorCenter.objects.filter(id__in=distributor_center)
+            data = []
 
-                    # Obtener el valor promedio del tiempo invertido
-                    avg_time_invested = queryset_filter[0]['avg_time_invested'] if queryset_filter else 0
+            for month in months:
+                for year in years:
+                    for distributor_center in distributor_centers:
+                        queryset_filter = list(queryset.filter(
+                            created_at__month=month,
+                            created_at__year=year,
+                            distributor_center=distributor_center.id
+                        ))
 
-                    # Agregar el registro a la lista de datos
-                    data.append({
-                        'month': month,
-                        'year': year,
-                        'distributor_center': distributor_center.id,
-                        'distributor_center_name': distributor_center.name,
-                        'avg_time_invested': avg_time_invested if avg_time_invested else 0
-                        # Si no hay registros, establecer el tiempo en 0
-                    })
-        return Response(data)
+                        avg_time_invested = queryset_filter[0]['avg_time_invested'] if queryset_filter else 0
+
+                        data.append({
+                            'month': month,
+                            'year': year,
+                            'distributor_center': distributor_center.id,
+                            'distributor_center_name': distributor_center.name,
+                            'avg_time_invested': avg_time_invested if avg_time_invested else 0
+                        })
+            return Response(data)
