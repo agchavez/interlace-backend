@@ -140,6 +140,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Configuraciones de localizacion
+USE_TZ = True
 LANGUAGE_CODE = 'es-HN'
 
 TIME_ZONE = 'America/Tegucigalpa'
