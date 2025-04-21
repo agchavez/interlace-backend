@@ -330,7 +330,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'Número de Traslado', 'Contabilizado', 'Operador 1', 'Operador 2', 'Estado', 'Tipo',
             'Fecha de Creación', 'Centro de Distribución', 'Localidad Origen', 'Código Localidad Origen',
             'Localidad Destino', 'Código Localidad Destino', 'Código SAP', 'Producto', 'Cantidad', 'Fecha de Vencimiento',
-            'Cantidad Disponible', 'Observación', 'TAT'
+            'Cantidad Disponible', 'Observación', 'TAT', 'Fecha Completado'
         ]
         sheet.append(headers)
 
@@ -349,7 +349,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         tracker.operator_2.get_full_name() if tracker.operator_2 else 'N/A',
                         tracker.status,
                         tracker.type,
-                        tracker.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        tracker.created_at.strftime('%d/%m/%Y %H:%M:%S'),
                         tracker.distributor_center.name if tracker.distributor_center else 'N/A',
                         tracker.origin_location.name if tracker.origin_location else 'N/A',
                         tracker.origin_location.code if tracker.origin_location else 'N/A',
@@ -359,10 +359,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         detail.product.name if detail.product else 'N/A',
                         detail.quantity,
                         product_detail.expiration_date.strftime(
-                            '%Y-%m-%d') if product_detail.expiration_date else 'N/A',
+                            '%d/%m/%Y') if product_detail.expiration_date else 'N/A',
                         product_detail.available_quantity,
                         tracker.observation or 'N/A',
-                        (tracker.time_invested // 60) if tracker.time_invested else 'N/A'
+                        (tracker.time_invested // 60) if tracker.time_invested else 'N/A',
+                        tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A'
                     ])
 
         # Configurar la respuesta HTTP para descargar el archivo
