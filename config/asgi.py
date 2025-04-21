@@ -12,7 +12,6 @@ from apps.user.socket.routing import websocket_urlpatterns
 from middleware.jwt_middleware import JwtAuthMiddlewareStack
 from django.conf import settings
 
-print(settings.DEFAULT_FILE_STORAGE,  "settings.DEFAULT_FILE_STORAGE asgi.py")
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": JwtAuthMiddlewareStack(
