@@ -183,7 +183,7 @@ AZURE_ACCOUNT_KEY = "***REMOVED***"
 AZURE_CONTAINER = "tracker"
 AZURE_CUSTOM_DOMAIN = f"{AZURE_ACCOUNT_NAME}.blob.core.windows.net"
 
-DEFAULT_FILE_STORAGE = "apps.core.storage_backends.AzureMediaStorage"
+#DEFAULT_FILE_STORAGE = "apps.core.storage_backends.AzureMediaStorage"
 MEDIA_URL = f"https://{AZURE_CUSTOM_DOMAIN}/{AZURE_CONTAINER}/"
 
 # Configuracion de configuracion de seguridad de azure blob
