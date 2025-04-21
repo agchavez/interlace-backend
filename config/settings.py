@@ -192,7 +192,9 @@ AZURE_OBJECT_PARAMETERS = {
 
 }
 
-STORAGE = {
+
+
+STORAGES = {
     'default': {
         'BACKEND': 'storages.backends.azure_storage.AzureStorage',
         'options': {
