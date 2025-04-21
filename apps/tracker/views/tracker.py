@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import openpyxl
 from django.contrib.auth.models import AnonymousUser
 from django.db.models import Sum, Q, F
 from rest_framework import mixins, viewsets
@@ -44,7 +45,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ('plate_number', 'input_document_number', 'output_document_number')
     filterset_class = TrackerFilter
-    permission_classes = []
+    permission_classes = [CustomAccessPermission]
     # Mapeo de métodos HTTP a los permisos requeridos
     PERMISSION_MAPPING = {
         'GET': ['tracker.view_trackermodel'],
@@ -293,6 +294,84 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'total_pallets': total_pallets
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='report')
+    def getReport(self, request, *args, **kwargs):
+        # Obtener los parámetros de fecha
+        date_start = request.GET.get('date_start')
+        date_end = request.GET.get('date_end')
+
+        if not date_start or not date_end:
+            return Response({'error': 'Los parámetros date_start y date_end son obligatorios.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            date_start = datetime.strptime(date_start, '%Y-%m-%d').date()
+            date_end = datetime.strptime(date_end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'El formato de las fechas debe ser YYYY-MM-DD.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Filtrar trackers por rango de fechas
+        trackers = TrackerModel.objects.filter(
+            created_at__date__gte=date_start, created_at__date__lte=date_end
+        ).select_related(
+            'distributor_center', 'origin_location', 'destination_location', 'operator_1', 'operator_2'
+        ).prefetch_related(
+            'tracker_detail__tracker_product_detail', 'tracker_detail__product'
+        )
+        # Crear el archivo Excel
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = 'Reporte de Trackers'
+
+        # Encabezados
+        headers = [
+            'ID Tracker', 'Número de Placa', 'Número de Documento de Entrada', 'Número de Documento de Salida',
+            'Número de Traslado', 'Contabilizado', 'Operador 1', 'Operador 2', 'Estado', 'Tipo',
+            'Fecha de Creación', 'Centro de Distribución', 'Localidad Origen', 'Código Localidad Origen',
+            'Localidad Destino', 'Código Localidad Destino', 'Código SAP', 'Producto', 'Cantidad', 'Fecha de Vencimiento',
+            'Cantidad Disponible', 'Observación', 'TAT'
+        ]
+        sheet.append(headers)
+
+        # Agregar datos al Excel
+        for tracker in trackers:
+            for detail in tracker.tracker_detail.all():
+                for product_detail in detail.tracker_product_detail.all():
+                    sheet.append([
+                        tracker.id,
+                        tracker.plate_number or 'N/A',
+                        tracker.input_document_number or 'N/A',
+                        tracker.output_document_number or 'N/A',
+                        tracker.transfer_number or 'N/A',
+                        tracker.accounted or 'N/A',
+                        tracker.operator_1.get_full_name() if tracker.operator_1 else 'N/A',
+                        tracker.operator_2.get_full_name() if tracker.operator_2 else 'N/A',
+                        tracker.status,
+                        tracker.type,
+                        tracker.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        tracker.distributor_center.name if tracker.distributor_center else 'N/A',
+                        tracker.origin_location.name if tracker.origin_location else 'N/A',
+                        tracker.origin_location.code if tracker.origin_location else 'N/A',
+                        tracker.destination_location.name if tracker.destination_location else 'N/A',
+                        tracker.destination_location.code if tracker.destination_location else 'N/A',
+                        detail.product.sap_code if detail.product else 'N/A',
+                        detail.product.name if detail.product else 'N/A',
+                        detail.quantity,
+                        product_detail.expiration_date.strftime(
+                            '%Y-%m-%d') if product_detail.expiration_date else 'N/A',
+                        product_detail.available_quantity,
+                        tracker.observation or 'N/A',
+                        f"{tracker.time_invested // 3600}h {tracker.time_invested % 3600 // 60}m {tracker.time_invested % 60}s" if tracker.time_invested else 'N/A'
+                    ])
+
+        # Configurar la respuesta HTTP para descargar el archivo
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = 'attachment; filename="reporte_trackers.xlsx"'
+        workbook.save(response)
+        return response
 
 class TrackerDetailModelViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin,

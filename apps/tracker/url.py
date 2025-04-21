@@ -12,4 +12,3 @@ router.register(r'tracker-detail-output', TrackerDetailOutputView, basename='tra
 router.register(r'output-t2', OutputT2View, basename='output-t2')
 router.register(r'output-detail-t2', OutputDetailT2View, basename='output-detail-t2')
 router.register(r'tracker-output-t2', TrackerOutputT2View, basename='tracker-output-t2')
-
