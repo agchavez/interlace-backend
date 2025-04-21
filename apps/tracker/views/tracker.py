@@ -17,7 +17,7 @@ from ..filters import TrackerFilter, TrackerDetailProductModelFilter
 from ..models import TrackerModel, TrackerDetailModel, TrackerDetailProductModel, TrackerOutputT2Model
 # Serializers
 from ..serializers import TrackerSerializer, TrackerDetailModelSerializer, TrackerDetailProductModelSerializer
-from apps.maintenance.models import ProductModel
+from apps.maintenance.models import ProductModel, PeriodModel
 
 from apps.tracker.exceptions.tracker import TrackerCompleted, UserWithoutDistributorCenter, TrackerCompletedDetail, \
     TrackerCompletedDetailProduct, FileTooLarge, FileNotExists, ProductIdRequired
