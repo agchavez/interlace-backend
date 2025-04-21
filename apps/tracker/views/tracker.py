@@ -319,6 +319,21 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         ).prefetch_related(
             'tracker_detail__tracker_product_detail', 'tracker_detail__product'
         )
+
+        distributor_centers = trackers.values_list('distributor_center', flat=True).distinct()
+        products = TrackerDetailModel.objects.filter(tracker__in=trackers).values_list('product', flat=True).distinct()
+        periods = PeriodModel.objects.filter(
+            distributor_center__in=distributor_centers,
+            product__in=products
+        ).order_by('-initialDate')
+
+        # Crear un diccionario para acceder rápidamente a los periodos
+        period_dict = {}
+        for period in periods:
+            key = (period.distributor_center_id, period.product_id)
+            if key not in period_dict or period.initialDate > period_dict[key].initialDate:
+                period_dict[key] = period
+
         # Crear el archivo Excel
         workbook = openpyxl.Workbook()
         sheet = workbook.active
@@ -330,7 +345,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'Número de Traslado', 'Contabilizado', 'Operador 1', 'Operador 2', 'Estado', 'Tipo',
             'Fecha de Creación', 'Centro de Distribución', 'Localidad Origen', 'Código Localidad Origen',
             'Localidad Destino', 'Código Localidad Destino', 'Código SAP', 'Producto', 'Cantidad', 'Fecha de Vencimiento',
-            'Cantidad Disponible', 'Observación', 'TAT', 'Fecha Completado'
+            'Cantidad Disponible', 'Observación', 'TAT', 'Fecha Completado', 'Giro'
         ]
         sheet.append(headers)
 
@@ -338,6 +353,11 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         for tracker in trackers:
             for detail in tracker.tracker_detail.all():
                 for product_detail in detail.tracker_product_detail.all():
+
+                    key = (tracker.distributor_center_id, detail.product_id)
+                    period = period_dict.get(key)
+                    giro = period.label if period else 'N/A'
+
                     sheet.append([
                         tracker.id,
                         tracker.plate_number or 'N/A',
@@ -363,7 +383,8 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         product_detail.available_quantity,
                         tracker.observation or 'N/A',
                         (tracker.time_invested // 60) if tracker.time_invested else 'N/A',
-                        tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A'
+                        tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A',
+                        giro
                     ])
 
         # Configurar la respuesta HTTP para descargar el archivo
