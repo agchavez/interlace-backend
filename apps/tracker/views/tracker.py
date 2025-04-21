@@ -362,7 +362,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                             '%Y-%m-%d') if product_detail.expiration_date else 'N/A',
                         product_detail.available_quantity,
                         tracker.observation or 'N/A',
-                        f"{tracker.time_invested // 3600}h {tracker.time_invested % 3600 // 60}m {tracker.time_invested % 60}s" if tracker.time_invested else 'N/A'
+                        (tracker.time_invested // 60) if tracker.time_invested else 'N/A'
                     ])
 
         # Configurar la respuesta HTTP para descargar el archivo
