@@ -191,3 +191,15 @@ AZURE_OBJECT_PARAMETERS = {
     "CacheControl": "max-age=86400",
 
 }
+
+STORAGE = {
+    'default': {
+        'BACKEND': 'storages.backends.azure_storage.AzureStorage',
+        'options': {
+            'account_name': AZURE_ACCOUNT_NAME,
+            'account_key': AZURE_ACCOUNT_KEY,
+            'azure_container': AZURE_CONTAINER,
+            'custom_domain': AZURE_CUSTOM_DOMAIN,
+        },
+    }
+}
