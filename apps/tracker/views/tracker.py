@@ -311,11 +311,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             return Response({'error': 'El formato de las fechas debe ser YYYY-MM-DD.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # Desactivar temporalmente la conversión de zona horaria
-        from django.conf import settings
-        original_use_tz = settings.USE_TZ
-        settings.USE_TZ = False
-        # Filtrar trackers por rango de fechas
+
         trackers = TrackerModel.objects.filter(
             created_at__date__gte=date_start, created_at__date__lte=date_end
         ).select_related(
@@ -358,13 +354,28 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         try:
             # Agregar datos al Excel
             for tracker in trackers:
-                created_hour = tracker.created_at.hour + (tracker.created_at.minute / 60.0)
-                if 6 <= created_hour <= 14:
-                    shift = 'A'
-                elif 14 < created_hour <= 22:
-                    shift = 'B'
-                else:  # 22 < created_hour < 24 or 0 <= created_hour < 6
-                    shift = 'C'
+                created_local = timezone.localtime(tracker.created_at)
+                completed_local = (
+                    timezone.localtime(tracker.completed_date) if tracker.completed_date else None
+                )
+
+                # Si quieres objetos “naive” (sin tzinfo) para evitar problemas en Excel:
+                created_naive = created_local.replace(tzinfo=None)
+                completed_naive = completed_local.replace(tzinfo=None) if completed_local else None
+
+                # El turno se calcula sobre la hora local, no UTC
+                created_hour = created_local.hour + created_local.minute / 60.0
+                shift = (
+                    "A" if 6 <= created_hour <= 14
+                    else "B" if 14 < created_hour <= 22
+                    else "C"
+                )
+
+                # Formateo
+                created_at_str = created_naive.strftime("%d/%m/%Y %H:%M:%S")
+                completed_at_str = (
+                    completed_naive.strftime("%d/%m/%Y %H:%M:%S") if completed_naive else "N/A"
+                )
 
                 for detail in tracker.tracker_detail.all():
                     for product_detail in detail.tracker_product_detail.all():
@@ -373,9 +384,6 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         period = period_dict.get(key)
                         giro = period.label if period else 'N/A'
 
-                        # Con USE_TZ=False, las fechas se mostrarán sin conversión de zona horaria
-                        created_at_formatted = tracker.created_at.strftime('%d/%m/%Y %H:%M:%S') if tracker.created_at else 'N/A'
-                        completed_date_formatted = tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A'
                         expiration_date_formatted = product_detail.expiration_date.strftime('%d/%m/%Y') if product_detail.expiration_date else 'N/A'
 
                         sheet.append([
@@ -389,7 +397,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                             tracker.operator_2.get_full_name() if tracker.operator_2 else 'N/A',
                             tracker.status,
                             tracker.type,
-                            created_at_formatted,
+                            created_at_str,
                             tracker.distributor_center.name if tracker.distributor_center else 'N/A',
                             tracker.origin_location.name if tracker.origin_location else 'N/A',
                             tracker.origin_location.code if tracker.origin_location else 'N/A',
@@ -402,7 +410,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                             product_detail.available_quantity,
                             tracker.observation or 'N/A',
                             (tracker.time_invested // 60) if tracker.time_invested else 'N/A',
-                            completed_date_formatted,
+                            completed_at_str,
                             giro,
                             shift,
                             tracker.trailer.code if tracker.trailer else 'N/A',
