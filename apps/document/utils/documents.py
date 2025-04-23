@@ -14,6 +14,8 @@ from PIL import Image
 from django.core.files.base import ContentFile
 import io
 
+from apps.document.utils.images import rotate_image_if_needed
+
 
 def compress_image(image_file, quality=70):
     """
@@ -99,7 +101,8 @@ def create_documento(file_obj: File, name: Optional[str] = None, folder: str = "
 
     # Asignar el nombre al archivo antes de guardarlo
     if doc_type == "image":
-        compressed_file = compress_image(file_obj)  # quality=70 default
+        rotated_file = rotate_image_if_needed(file_obj)  # quality=70 default
+        compressed_file = compress_image(rotated_file)  # quality=70 default
         compressed_file.name = new_path  # Asigna la ruta final
         doc.file = compressed_file
 
