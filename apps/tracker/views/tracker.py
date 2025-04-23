@@ -416,8 +416,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                             tracker.trailer.code if tracker.trailer else 'N/A',
                         ])
         finally:
-            # Restaurar la configuración original
-            settings.USE_TZ = original_use_tz
+            pass
 
         # Configurar la respuesta HTTP para descargar el archivo
         response = HttpResponse(
