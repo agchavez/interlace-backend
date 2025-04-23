@@ -319,7 +319,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'distributor_center', 'origin_location', 'destination_location', 'operator_1', 'operator_2', 'trailer',
         ).prefetch_related(
             'tracker_detail__tracker_product_detail', 'tracker_detail__product'
-        )
+        ).order_by('-created_at')
 
         distributor_centers = trackers.values_list('distributor_center', flat=True).distinct()
         products = TrackerDetailModel.objects.filter(tracker__in=trackers).values_list('product', flat=True).distinct()
