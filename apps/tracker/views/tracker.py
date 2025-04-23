@@ -315,7 +315,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         trackers = TrackerModel.objects.filter(
             created_at__date__gte=date_start, created_at__date__lte=date_end
         ).select_related(
-            'distributor_center', 'origin_location', 'destination_location', 'operator_1', 'operator_2'
+            'distributor_center', 'origin_location', 'destination_location', 'operator_1', 'operator_2', 'trailer',
         ).prefetch_related(
             'tracker_detail__tracker_product_detail', 'tracker_detail__product'
         )
@@ -345,18 +345,32 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             'Número de Traslado', 'Contabilizado', 'Operador 1', 'Operador 2', 'Estado', 'Tipo',
             'Fecha de Creación', 'Centro de Distribución', 'Localidad Origen', 'Código Localidad Origen',
             'Localidad Destino', 'Código Localidad Destino', 'Código SAP', 'Producto', 'Cantidad', 'Fecha de Vencimiento',
-            'Cantidad Disponible', 'Observación', 'TAT', 'Fecha Completado', 'Giro'
+            'Cantidad Disponible', 'Observación', 'TAT', 'Fecha Completado', 'Giro', 'Turno', 'Unidad de descarga'
         ]
         sheet.append(headers)
 
         # Agregar datos al Excel
         for tracker in trackers:
+            created_hour = tracker.created_at.hour + (tracker.created_at.minute / 60.0)
+            if 6 <= created_hour <= 14:
+                shift = 'A'
+            elif 14 < created_hour <= 22:
+                shift = 'B'
+            else:  # 22 < created_hour < 24 or 0 <= created_hour < 6
+                shift = 'C'
             for detail in tracker.tracker_detail.all():
                 for product_detail in detail.tracker_product_detail.all():
 
                     key = (tracker.distributor_center_id, detail.product_id)
                     period = period_dict.get(key)
                     giro = period.label if period else 'N/A'
+
+                    # Formatear fechas directamente sin ajustes de zona horaria
+                    # Acceder a los valores raw de la base de datos para evitar conversiones automáticas
+                    created_at_formatted = tracker.created_at.strftime('%d/%m/%Y %H:%M:%S') if tracker.created_at else 'N/A'
+                    completed_date_formatted = tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A'
+                    expiration_date_formatted = product_detail.expiration_date.strftime(
+                        '%d/%m/%Y') if product_detail.expiration_date else 'N/A'
 
                     sheet.append([
                         tracker.id,
@@ -369,7 +383,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         tracker.operator_2.get_full_name() if tracker.operator_2 else 'N/A',
                         tracker.status,
                         tracker.type,
-                        tracker.created_at.strftime('%d/%m/%Y %H:%M:%S'),
+                        created_at_formatted,
                         tracker.distributor_center.name if tracker.distributor_center else 'N/A',
                         tracker.origin_location.name if tracker.origin_location else 'N/A',
                         tracker.origin_location.code if tracker.origin_location else 'N/A',
@@ -378,13 +392,14 @@ class TrackerModelViewSet(mixins.ListModelMixin,
                         detail.product.sap_code if detail.product else 'N/A',
                         detail.product.name if detail.product else 'N/A',
                         detail.quantity,
-                        product_detail.expiration_date.strftime(
-                            '%d/%m/%Y') if product_detail.expiration_date else 'N/A',
+                        expiration_date_formatted,
                         product_detail.available_quantity,
                         tracker.observation or 'N/A',
                         (tracker.time_invested // 60) if tracker.time_invested else 'N/A',
-                        tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A',
-                        giro
+                        completed_date_formatted,
+                        giro,
+                        shift,
+                        tracker.trailer.code,
                     ])
 
         # Configurar la respuesta HTTP para descargar el archivo
