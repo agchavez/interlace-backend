@@ -349,58 +349,66 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         ]
         sheet.append(headers)
 
-        # Agregar datos al Excel
-        for tracker in trackers:
-            created_hour = tracker.created_at.hour + (tracker.created_at.minute / 60.0)
-            if 6 <= created_hour <= 14:
-                shift = 'A'
-            elif 14 < created_hour <= 22:
-                shift = 'B'
-            else:  # 22 < created_hour < 24 or 0 <= created_hour < 6
-                shift = 'C'
-            for detail in tracker.tracker_detail.all():
-                for product_detail in detail.tracker_product_detail.all():
+        # Desactivar temporalmente la conversión de zona horaria
+        from django.conf import settings
+        original_use_tz = settings.USE_TZ
+        settings.USE_TZ = False
 
-                    key = (tracker.distributor_center_id, detail.product_id)
-                    period = period_dict.get(key)
-                    giro = period.label if period else 'N/A'
+        try:
+            # Agregar datos al Excel
+            for tracker in trackers:
+                created_hour = tracker.created_at.hour + (tracker.created_at.minute / 60.0)
+                if 6 <= created_hour <= 14:
+                    shift = 'A'
+                elif 14 < created_hour <= 22:
+                    shift = 'B'
+                else:  # 22 < created_hour < 24 or 0 <= created_hour < 6
+                    shift = 'C'
 
-                    # Formatear fechas directamente sin ajustes de zona horaria
-                    # Acceder a los valores raw de la base de datos para evitar conversiones automáticas
-                    created_at_formatted = tracker.created_at.strftime('%d/%m/%Y %H:%M:%S') if tracker.created_at else 'N/A'
-                    completed_date_formatted = tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A'
-                    expiration_date_formatted = product_detail.expiration_date.strftime(
-                        '%d/%m/%Y') if product_detail.expiration_date else 'N/A'
+                for detail in tracker.tracker_detail.all():
+                    for product_detail in detail.tracker_product_detail.all():
 
-                    sheet.append([
-                        tracker.id,
-                        tracker.plate_number or 'N/A',
-                        tracker.input_document_number or 'N/A',
-                        tracker.output_document_number or 'N/A',
-                        tracker.transfer_number or 'N/A',
-                        tracker.accounted or 'N/A',
-                        tracker.operator_1.get_full_name() if tracker.operator_1 else 'N/A',
-                        tracker.operator_2.get_full_name() if tracker.operator_2 else 'N/A',
-                        tracker.status,
-                        tracker.type,
-                        created_at_formatted,
-                        tracker.distributor_center.name if tracker.distributor_center else 'N/A',
-                        tracker.origin_location.name if tracker.origin_location else 'N/A',
-                        tracker.origin_location.code if tracker.origin_location else 'N/A',
-                        tracker.destination_location.name if tracker.destination_location else 'N/A',
-                        tracker.destination_location.code if tracker.destination_location else 'N/A',
-                        detail.product.sap_code if detail.product else 'N/A',
-                        detail.product.name if detail.product else 'N/A',
-                        detail.quantity,
-                        expiration_date_formatted,
-                        product_detail.available_quantity,
-                        tracker.observation or 'N/A',
-                        (tracker.time_invested // 60) if tracker.time_invested else 'N/A',
-                        completed_date_formatted,
-                        giro,
-                        shift,
-                        tracker.trailer.code,
-                    ])
+                        key = (tracker.distributor_center_id, detail.product_id)
+                        period = period_dict.get(key)
+                        giro = period.label if period else 'N/A'
+
+                        # Con USE_TZ=False, las fechas se mostrarán sin conversión de zona horaria
+                        created_at_formatted = tracker.created_at.strftime('%d/%m/%Y %H:%M:%S') if tracker.created_at else 'N/A'
+                        completed_date_formatted = tracker.completed_date.strftime('%d/%m/%Y %H:%M:%S') if tracker.completed_date else 'N/A'
+                        expiration_date_formatted = product_detail.expiration_date.strftime('%d/%m/%Y') if product_detail.expiration_date else 'N/A'
+
+                        sheet.append([
+                            tracker.id,
+                            tracker.plate_number or 'N/A',
+                            tracker.input_document_number or 'N/A',
+                            tracker.output_document_number or 'N/A',
+                            tracker.transfer_number or 'N/A',
+                            tracker.accounted or 'N/A',
+                            tracker.operator_1.get_full_name() if tracker.operator_1 else 'N/A',
+                            tracker.operator_2.get_full_name() if tracker.operator_2 else 'N/A',
+                            tracker.status,
+                            tracker.type,
+                            created_at_formatted,
+                            tracker.distributor_center.name if tracker.distributor_center else 'N/A',
+                            tracker.origin_location.name if tracker.origin_location else 'N/A',
+                            tracker.origin_location.code if tracker.origin_location else 'N/A',
+                            tracker.destination_location.name if tracker.destination_location else 'N/A',
+                            tracker.destination_location.code if tracker.destination_location else 'N/A',
+                            detail.product.sap_code if detail.product else 'N/A',
+                            detail.product.name if detail.product else 'N/A',
+                            detail.quantity,
+                            expiration_date_formatted,
+                            product_detail.available_quantity,
+                            tracker.observation or 'N/A',
+                            (tracker.time_invested // 60) if tracker.time_invested else 'N/A',
+                            completed_date_formatted,
+                            giro,
+                            shift,
+                            tracker.trailer.code if tracker.trailer else 'N/A',
+                        ])
+        finally:
+            # Restaurar la configuración original
+            settings.USE_TZ = original_use_tz
 
         # Configurar la respuesta HTTP para descargar el archivo
         response = HttpResponse(
