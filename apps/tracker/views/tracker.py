@@ -311,6 +311,10 @@ class TrackerModelViewSet(mixins.ListModelMixin,
             return Response({'error': 'El formato de las fechas debe ser YYYY-MM-DD.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        # Desactivar temporalmente la conversión de zona horaria
+        from django.conf import settings
+        original_use_tz = settings.USE_TZ
+        settings.USE_TZ = False
         # Filtrar trackers por rango de fechas
         trackers = TrackerModel.objects.filter(
             created_at__date__gte=date_start, created_at__date__lte=date_end
@@ -349,10 +353,7 @@ class TrackerModelViewSet(mixins.ListModelMixin,
         ]
         sheet.append(headers)
 
-        # Desactivar temporalmente la conversión de zona horaria
-        from django.conf import settings
-        original_use_tz = settings.USE_TZ
-        settings.USE_TZ = False
+
 
         try:
             # Agregar datos al Excel
