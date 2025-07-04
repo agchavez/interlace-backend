@@ -1,4 +1,6 @@
 from rest_framework import viewsets, mixins
+
+from apps.maintenance.utils.normalize_date import normalize_date
 from ..models import PeriodModel, DistributorCenter, ProductModel
 from ..serializer import PeriodModelSerializer, DistributorCenterSerializer
 from apps.user.models import UserModel
@@ -66,14 +68,14 @@ class PeriodViewSet(mixins.ListModelMixin,
             raise APIException("Columns not found")
         for index, row in df.iterrows():
             distributor_center = row['centro_distribucion']
-            product = row['producto']
-            initialDate = row['fecha_inicial']
-            label = row['label']
-            if ProductModel.objects.filter(id=product).count() <= 0:
+            product = ProductModel.objects.filter(sap_code=row['producto']).first()
+            if product is None:
                 continue
+            initialDate = normalize_date(row['fecha_inicial'])
+            label = row['label']
             PeriodModel.objects.create(
                 distributor_center_id=distributor_center,
-                product_id=product,
+                product_id=product.id,
                 initialDate=initialDate,
                 label=label
             )
