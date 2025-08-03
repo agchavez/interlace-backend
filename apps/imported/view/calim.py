@@ -191,7 +191,7 @@ class ClaimViewSet(
                         claim=reclamo,
                         product_id=p.get("product", "")
                 ).exists():
-                    ClaimProductModel.objects.create(
+                    cp = ClaimProductModel.objects.create(
                         claim=reclamo,
                         product_id=p.get("product", ""),
                         quantity=p.get("quantity", 0),
@@ -859,3 +859,4 @@ class ClaimTypeViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["id"]
     search_fields = ["name", "id"]
+
