@@ -55,52 +55,59 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
         return TrackerModel.objects.all()
 
     def list(self, request, *args, **kwargs):
-            if request.user.distributions_centers.exists():
-                distributor_center = request.query_params.get('distributor_center')
-                if distributor_center:
-                    distributor_center = [int(x) for x in distributor_center.split(',')]
-                else:
-                    distributor_center = []
+        if request.user.distributions_centers.exists():
+            distributor_center = request.query_params.get('distributor_center')
+            if distributor_center:
+                distributor_center = [int(x) for x in distributor_center.split(',')]
             else:
-                distributor_center = [request.user.centro_distribucion.id]
-            year = request.query_params.get('year')
-            if year:
-                year = [int(x) for x in year.split(',')]
-            else:
-                year = [date.today().year]
+                distributor_center = []
+        else:
+            distributor_center = [request.user.centro_distribucion.id]
+        year = request.query_params.get('year')
+        if year:
+            year = [int(x) for x in year.split(',')]
+        else:
+            year = [date.today().year]
 
-            queryset = (TrackerModel.objects
-                        .filter(created_at__year__in=year, distributor_center__in=distributor_center, status='COMPLETE', exclude_tat=False)
-                        .values('created_at__month', 'created_at__year', 'distributor_center')
-                        .annotate(avg_time_invested=Avg('time_invested') / 60)
-                        .order_by('created_at__month', 'created_at__year', 'distributor_center')
-                        )
+        # Filtra antes de llamar a .values() y usa distributor_center_id
+        filtered_qs = TrackerModel.objects.filter(
+            created_at__year__in=year,
+            distributor_center_id__in=distributor_center,
+            status='COMPLETE',
+            exclude_tat=False
+        )
 
-            months = [x for x in range(1, 13)]
-            years = year
-            distributor_centers = DistributorCenter.objects.filter(id__in=distributor_center)
-            data = []
+        queryset = (filtered_qs
+                    .values('created_at__month', 'created_at__year', 'distributor_center_id')
+                    .annotate(avg_time_invested=Avg('time_invested') / 60)
+                    .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
+                    )
 
-            for month in months:
-                for year in years:
-                    for distributor_center in distributor_centers:
-                        queryset_filter = list(queryset.filter(
-                            created_at__month=month,
-                            created_at__year=year,
-                            distributor_center=distributor_center.id
-                        ))
+        months = [x for x in range(1, 13)]
+        years = year
+        distributor_centers = DistributorCenter.objects.filter(id__in=distributor_center)
+        data = []
 
-                        avg_time_invested = 0
-                        if queryset_filter:
-                            # Solo accedemos al índice si queryset_filter tiene elementos
-                            avg_time_invested = queryset_filter[0].get('avg_time_invested',
-                                                                       0)  # Usamos .get para manejar la falta de clave
+        # Convierte queryset a lista para búsquedas rápidas
+        queryset_list = list(queryset)
 
-                        data.append({
-                            'month': month,
-                            'year': year,
-                            'distributor_center': distributor_center.id,
-                            'distributor_center_name': distributor_center.name,
-                            'avg_time_invested': avg_time_invested
-                        })
-            return Response(data)
+        for month in months:
+            for year_item in years:
+                for dc in distributor_centers:
+                    # Busca el registro correspondiente en queryset_list
+                    avg_time_invested = 0
+                    for q in queryset_list:
+                        if (q['created_at__month'] == month and
+                            q['created_at__year'] == year_item and
+                            q['distributor_center_id'] == dc.id):
+                            avg_time_invested = q.get('avg_time_invested', 0)
+                            break
+
+                    data.append({
+                        'month': month,
+                        'year': year_item,
+                        'distributor_center': dc.id,
+                        'distributor_center_name': dc.name,
+                        'avg_time_invested': avg_time_invested
+                    })
+        return Response(data)
