@@ -82,7 +82,7 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
 
             queryset = (filtered_qs
                         .values('created_at__month', 'created_at__year', 'distributor_center_id')
-                        .annotate(avg_time_invested=Avg('time_invested') / 60)
+                        .annotate(avg_time_invested=Avg('time_invested'))
                         .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
                         )
             queryset_list = list(queryset)
@@ -104,7 +104,8 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
                         if (q['created_at__month'] == month and
                             q['created_at__year'] == year_item and
                             q['distributor_center_id'] == dc.id):
-                            avg_time_invested = q.get('avg_time_invested', 0)
+                            avg = q.get('avg_time_invested', 0)
+                            avg_time_invested = (avg / 60) if avg else 0
                             break
 
                     data.append({
