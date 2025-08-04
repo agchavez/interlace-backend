@@ -69,6 +69,10 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
         else:
             year = [date.today().year]
 
+        # --- Cambios aquí: si distributor_center está vacío, retorna lista vacía ---
+        if not distributor_center:
+            return Response([])
+
         # Filtra antes de llamar a .values() y usa distributor_center_id
         filtered_qs = TrackerModel.objects.filter(
             created_at__year__in=year,
