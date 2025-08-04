@@ -1,0 +1,1 @@
+from .product_inventory import ProductInventoryModel
