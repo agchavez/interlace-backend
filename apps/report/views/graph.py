@@ -75,15 +75,15 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
         try:
             filtered_qs = TrackerModel.objects.filter(
                 created_at__year__in=year,
-                centro_distribucion_id__in=distributor_center,  # <-- CAMBIO AQUÍ
+                distributor_center_id__in=distributor_center,
                 status='COMPLETE',
                 exclude_tat=False
             )
 
             queryset = (filtered_qs
-                        .values('created_at__month', 'created_at__year', 'centro_distribucion_id')  # <-- CAMBIO AQUÍ
+                        .values('created_at__month', 'created_at__year', 'distributor_center_id')
                         .annotate(avg_time_invested=Avg('time_invested') / 60)
-                        .order_by('created_at__month', 'created_at__year', 'centro_distribucion_id')  # <-- CAMBIO AQUÍ
+                        .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
                         )
             queryset_list = list(queryset)
         except Exception as e:
@@ -103,7 +103,7 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
                     for q in queryset_list:
                         if (q['created_at__month'] == month and
                             q['created_at__year'] == year_item and
-                            q['centro_distribucion_id'] == dc.id):  # <-- CAMBIO AQUÍ
+                            q['distributor_center_id'] == dc.id):
                             avg_time_invested = q.get('avg_time_invested', 0)
                             break
 
