@@ -73,32 +73,34 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
         if not distributor_center:
             return Response([])
 
-        # Filtra antes de llamar a .values() y usa distributor_center_id
-        filtered_qs = TrackerModel.objects.filter(
-            created_at__year__in=year,
-            distributor_center_id__in=distributor_center,
-            status='COMPLETE',
-            exclude_tat=False
-        )
+        try:
+            filtered_qs = TrackerModel.objects.filter(
+                created_at__year__in=year,
+                distributor_center_id__in=distributor_center,
+                status='COMPLETE',
+                exclude_tat=False
+            )
 
-        queryset = (filtered_qs
-                    .values('created_at__month', 'created_at__year', 'distributor_center_id')
-                    .annotate(avg_time_invested=Avg('time_invested') / 60)
-                    .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
-                    )
+            queryset = (filtered_qs
+                        .values('created_at__month', 'created_at__year', 'distributor_center_id')
+                        .annotate(avg_time_invested=Avg('time_invested') / 60)
+                        .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
+                        )
+            queryset_list = list(queryset)
+        except Exception as e:
+            # Log temporal para depuración
+            import logging
+            logging.error(f"Error en queryset TATAPI: {e}")
+            return Response({'error': str(e)}, status=500)
 
         months = [x for x in range(1, 13)]
         years = year
         distributor_centers = DistributorCenter.objects.filter(id__in=distributor_center)
         data = []
 
-        # Convierte queryset a lista para búsquedas rápidas
-        queryset_list = list(queryset)
-
         for month in months:
             for year_item in years:
                 for dc in distributor_centers:
-                    # Busca el registro correspondiente en queryset_list
                     avg_time_invested = 0
                     for q in queryset_list:
                         if (q['created_at__month'] == month and
