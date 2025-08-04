@@ -69,26 +69,24 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
         else:
             year = [date.today().year]
 
-        # --- Cambios aquí: si distributor_center está vacío, retorna lista vacía ---
         if not distributor_center:
             return Response([])
 
         try:
             filtered_qs = TrackerModel.objects.filter(
                 created_at__year__in=year,
-                distributor_center_id__in=distributor_center,
+                centro_distribucion_id__in=distributor_center,  # <-- CAMBIO AQUÍ
                 status='COMPLETE',
                 exclude_tat=False
             )
 
             queryset = (filtered_qs
-                        .values('created_at__month', 'created_at__year', 'distributor_center_id')
+                        .values('created_at__month', 'created_at__year', 'centro_distribucion_id')  # <-- CAMBIO AQUÍ
                         .annotate(avg_time_invested=Avg('time_invested') / 60)
-                        .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
+                        .order_by('created_at__month', 'created_at__year', 'centro_distribucion_id')  # <-- CAMBIO AQUÍ
                         )
             queryset_list = list(queryset)
         except Exception as e:
-            # Log temporal para depuración
             import logging
             logging.error(f"Error en queryset TATAPI: {e}")
             return Response({'error': str(e)}, status=500)
@@ -105,7 +103,7 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
                     for q in queryset_list:
                         if (q['created_at__month'] == month and
                             q['created_at__year'] == year_item and
-                            q['distributor_center_id'] == dc.id):
+                            q['centro_distribucion_id'] == dc.id):  # <-- CAMBIO AQUÍ
                             avg_time_invested = q.get('avg_time_invested', 0)
                             break
 
