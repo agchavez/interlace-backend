@@ -80,10 +80,11 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
                 exclude_tat=False
             )
 
+            # Quitamos .values('created_at__month', ...) y agrupamos solo por centro
             queryset = (filtered_qs
-                        .values('created_at__month', 'created_at__year', 'distributor_center_id')
+                        .values('created_at', 'distributor_center_id')
                         .annotate(avg_time_invested=Avg('time_invested'))
-                        .order_by('created_at__month', 'created_at__year', 'distributor_center_id')
+                        .order_by('created_at', 'distributor_center_id')
                         )
             queryset_list = list(queryset)
         except Exception as e:
@@ -100,9 +101,11 @@ class TATAPI(viewsets.ReadOnlyModelViewSet):
             for year_item in years:
                 for dc in distributor_centers:
                     avg_time_invested = 0
+                    # Busca los registros que coincidan con mes, año y centro
                     for q in queryset_list:
-                        if (q['created_at__month'] == month and
-                            q['created_at__year'] == year_item and
+                        created_at = q['created_at']
+                        if (created_at.month == month and
+                            created_at.year == year_item and
                             q['distributor_center_id'] == dc.id):
                             avg = q.get('avg_time_invested', 0)
                             avg_time_invested = (avg / 60) if avg else 0
