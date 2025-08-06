@@ -94,12 +94,24 @@ class OrderDetailViewSet(CreateModelMixin, ListModelMixin, RetrieveModelMixin, U
         return self.PERMISSION_MAPPING.get(http_method, [])
 
     def create(self, request, *args, **kwargs):
-        # buscar si ya existe un registro con el mismo tracker detail product y la misma orden
+        # FUNCIONALIDAD HÍBRIDA: Validar duplicados según el tipo de producto
         order = request.data.get('order')
         tracker_detail_product = request.data.get('tracker_detail_product')
-        order_detail = OrderDetailModel.objects.filter(order=order, tracker_detail_product=tracker_detail_product)
-        if order_detail:
-            raise OrderDetailExist()
+        product = request.data.get('product')
+        
+        if tracker_detail_product:
+            # Validar duplicados para productos con tracker
+            order_detail = OrderDetailModel.objects.filter(
+                order=order, 
+                tracker_detail_product=tracker_detail_product
+            )
+            if order_detail.exists():
+                raise OrderDetailExist()
+        elif product:
+            # Para productos directos, la validación de duplicados se maneja en el serializer
+            # basándose en product + expiration_date + distributor_center
+            pass
+        
         return super(OrderDetailViewSet, self).create(request, *args, **kwargs)
 
     # Cargar desde un excel los detalles de una orden
