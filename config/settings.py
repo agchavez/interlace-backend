@@ -203,5 +203,8 @@ STORAGES = {
             'azure_container': AZURE_CONTAINER,
             'custom_domain': AZURE_CUSTOM_DOMAIN,
         },
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     }
 }
