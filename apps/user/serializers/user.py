@@ -32,6 +32,7 @@ class UserSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     centro_distribucion_name = serializers.SerializerMethodField("get_centro_distribucion")
+    photo_url = serializers.SerializerMethodField()
 
     def get_centro_distribucion(self, obj):
         if obj.centro_distribucion is None:
@@ -41,6 +42,16 @@ class UserSerializer(serializers.ModelSerializer):
             return obj.centro_distribucion.location_distributor_center.code + " - " + obj.centro_distribucion.name
         else:
             return obj.centro_distribucion.name
+
+    def get_photo_url(self, obj):
+        """Obtiene la URL de la foto del perfil de personal si existe"""
+        if hasattr(obj, 'personnel_profile') and obj.personnel_profile:
+            if obj.personnel_profile.photo:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.personnel_profile.photo.url)
+                return obj.personnel_profile.photo.url
+        return None
 
     # validacion al registrar que si hay un grupo seleccionado, verificar si requiere acceso o no
     def validate(self, data):

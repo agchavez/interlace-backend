@@ -32,6 +32,7 @@ LOCAL_APPS = [
     'apps.inventory',
     'apps.imported',
     'apps.document',
+    'apps.personnel',
 ]
 
 INSTALLED_APPS = [
@@ -48,8 +49,8 @@ INSTALLED_APPS = [
                      'import_export',
                      'django_celery_beat',
                      'django_celery_results',
-                          'channels',
-                            'storages',
+                      'channels',
+                      'storages',
                  ] + LOCAL_APPS
 
 MIDDLEWARE = [
@@ -96,6 +97,10 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT'),
+        'TEST': {
+            'NAME': 'test_tracker_db',
+            'TEMPLATE': 'template0',  # Use template0 to avoid collation issues
+        }
     }
 }
 
@@ -114,7 +119,14 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'utils.custom_exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ) if not DEBUG else (
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ),
+
 }
 
 SIMPLE_JWT = {
@@ -192,8 +204,6 @@ AZURE_OBJECT_PARAMETERS = {
 
 }
 
-
-
 STORAGES = {
     'default': {
         'BACKEND': 'storages.backends.azure_storage.AzureStorage',
@@ -203,5 +213,14 @@ STORAGES = {
             'azure_container': AZURE_CONTAINER,
             'custom_domain': AZURE_CUSTOM_DOMAIN,
         },
+    },
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     }
 }
+
+# Configuracion de logging
+from config.logging_config import LOGGING
+
+# URL del frontend para links en correos electrónicos
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

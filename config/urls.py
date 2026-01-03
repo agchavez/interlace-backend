@@ -13,6 +13,7 @@ from apps.order.url import router as order_router
 from apps.inventory.url import router as inventory_router
 from apps.document.url import router as document_router
 from apps.imported.url import router as imported_router
+from apps.personnel.url import router as personnel_router
 from config import settings
 
 router = DefaultRouter()
@@ -25,6 +26,7 @@ router.registry.extend(order_router.registry)
 router.registry.extend(inventory_router.registry)
 router.registry.extend(document_router.registry)
 router.registry.extend(imported_router.registry)
+router.registry.extend(personnel_router.registry)
 
 
 urlpatterns = [

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(pip install:*)",
+      "Bash(python manage.py migrate:*)",
+      "Bash(python manage.py test:*)",
+      "Bash(psql:*)",
+      "Bash(python manage.py check_users_without_profile:*)",
+      "Bash(python manage.py init_areas:*)",
+      "Bash(python manage.py:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(ls -la \"E:\\\\acsolutions\\\\tracker\\\\tracker-backend\\\\apps\\\\personnel\\\\views\"\" 2>/dev/null || echo \"Directorio no encontrado \")",
+      "Bash(ls -la \"E:\\\\acsolutions\\\\tracker\\\\tracker-backend\\\\apps\\\\personnel\\\\serializers\"\" 2>/dev/null || echo \"Directorio no encontrado \")"
+    ]
+  }
+}

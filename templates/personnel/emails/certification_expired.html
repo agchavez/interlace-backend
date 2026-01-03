@@ -1,0 +1,106 @@
+{% extends "personnel/emails/base_email.html" %}
+
+{% block title %}Certificación Vencida - ABInBev Tracker{% endblock %}
+
+{% block content %}
+    <!-- Alert Banner -->
+    <div class="alert-banner alert-danger">
+        <span class="alert-icon">🚨</span>
+        <strong>Alerta:</strong> Su certificación ha vencido
+    </div>
+
+    <!-- Greeting -->
+    <h1>Estimado/a {{ personnel.full_name }},</h1>
+
+    <p>
+        Le informamos que su certificación <strong>{{ certification.certification_type.name }}</strong>
+        ha <span style="color: #ef4444; font-weight: 600;">VENCIDO</span> el día {{ certification.expiration_date|date:"d/m/Y" }}.
+    </p>
+
+    <!-- Certification Details Card -->
+    <div class="info-card" style="border-left: 4px solid #ef4444;">
+        <h2>📋 Detalles de la Certificación Vencida</h2>
+        <div class="info-row">
+            <span class="info-label">Tipo de Certificación:</span>
+            <span class="info-value">{{ certification.certification_type.name }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Número de Certificación:</span>
+            <span class="info-value">{{ certification.certification_number }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Fecha de Expiración:</span>
+            <span class="info-value" style="color: #ef4444; font-weight: 600;">{{ certification.expiration_date|date:"d/m/Y" }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Estado:</span>
+            <span class="info-value">
+                <span class="badge badge-danger">VENCIDA</span>
+            </span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Código de Empleado:</span>
+            <span class="info-value">{{ personnel.employee_code }}</span>
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Urgent Action -->
+    <h2 style="color: #ef4444;">🚨 Acción Inmediata Requerida</h2>
+
+    {% if certification.certification_type.requires_renewal and certification.certification_type.is_mandatory %}
+    <p style="background-color: #fee2e2; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444; color: #991b1b;">
+        <strong>⛔ CERTIFICACIÓN OBLIGATORIA VENCIDA</strong><br>
+        Esta certificación es <strong>REQUERIDA</strong> para desempeñar sus funciones actuales.
+        Debe gestionar su renovación de manera <strong>INMEDIATA</strong>.
+    </p>
+
+    <p>
+        <strong>Consecuencias del vencimiento:</strong>
+    </p>
+    <ul style="color: #991b1b; margin-left: 20px; margin-bottom: 15px;">
+        <li>No podrá realizar actividades que requieran esta certificación</li>
+        <li>Podría resultar en reasignación temporal de funciones</li>
+        <li>Afecta el cumplimiento normativo de la empresa</li>
+    </ul>
+    {% else %}
+    <p style="background-color: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #fbbf24; color: #92400e;">
+        <strong>⚠️ ATENCIÓN:</strong> Es necesario renovar esta certificación para mantener
+        sus credenciales actualizadas y continuar con todas sus responsabilidades laborales.
+    </p>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    <!-- Next Steps -->
+    <h2>📌 Próximos Pasos</h2>
+    <ol style="color: #4a5568; margin-left: 20px; line-height: 1.8;">
+        <li><strong>Contacte inmediatamente</strong> al departamento de People/RRHH</li>
+        <li><strong>Inicie el proceso de renovación</strong> lo antes posible</li>
+        <li><strong>Informe a su supervisor</strong> sobre el estado de la certificación</li>
+        <li><strong>Actualice su disponibilidad</strong> en el sistema según corresponda</li>
+    </ol>
+
+    <!-- Call to Action Button -->
+    <center>
+        <a href="{{ portal_url }}" class="btn" style="display: inline-block; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+            🔄 Renovar Ahora
+        </a>
+    </center>
+
+    <div class="divider"></div>
+
+    <!-- Contact Info -->
+    <div class="info-card">
+        <h2>📞 Contacto para Soporte</h2>
+        <p style="margin: 0; color: #4a5568;">
+            Si necesita asistencia con el proceso de renovación o tiene preguntas,
+            comuníquese con:
+        </p>
+        <ul style="color: #4a5568; margin-top: 10px; margin-left: 20px;">
+            <li>Departamento de People/RRHH</li>
+            <li>Su supervisor inmediato: {{ personnel.immediate_supervisor.full_name|default:"No asignado" }}</li>
+        </ul>
+    </div>
+{% endblock %}
