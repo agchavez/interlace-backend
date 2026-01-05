@@ -11,6 +11,9 @@ from .models import (
     Certification,
     CertificationType,
     PerformanceMetric,
+    PerformanceMetricType,
+    PerformanceEvaluation,
+    EvaluationMetricValue,
 )
 
 
@@ -379,3 +382,182 @@ class PerformanceMetricAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = ['productivity_rate', 'created_at', 'updated_at']
+
+
+# ======================================
+# NUEVOS MODELOS - SISTEMA ESCALABLE
+# ======================================
+
+@admin.register(PerformanceMetricType)
+class PerformanceMetricTypeAdmin(admin.ModelAdmin):
+    list_display = [
+        'name',
+        'code',
+        'metric_type',
+        'weight',
+        'is_required',
+        'is_active',
+        'display_order'
+    ]
+    list_filter = ['metric_type', 'is_required', 'is_active']
+    search_fields = ['name', 'code', 'description']
+    ordering = ['display_order', 'name']
+
+    fieldsets = (
+        ('Información Básica', {
+            'fields': (
+                'name',
+                'code',
+                'description',
+                'metric_type',
+                'unit'
+            )
+        }),
+        ('Validación', {
+            'fields': (
+                'min_value',
+                'max_value'
+            )
+        }),
+        ('Configuración', {
+            'fields': (
+                'weight',
+                'is_required',
+                'is_active',
+                'display_order'
+            )
+        }),
+        ('Aplicabilidad', {
+            'fields': (
+                'applicable_position_types',
+            ),
+            'description': 'Seleccione los tipos de posición donde aplica esta métrica'
+        }),
+        ('Ayuda', {
+            'fields': ('help_text',),
+            'classes': ('collapse',)
+        }),
+        ('Metadatos', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    readonly_fields = ['created_at', 'updated_at']
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+class EvaluationMetricValueInline(admin.TabularInline):
+    model = EvaluationMetricValue
+    extra = 0
+    fields = ['metric_type', 'numeric_value', 'text_value', 'boolean_value', 'comments']
+    readonly_fields = []
+
+
+@admin.register(PerformanceEvaluation)
+class PerformanceEvaluationAdmin(admin.ModelAdmin):
+    list_display = [
+        'personnel',
+        'evaluation_date',
+        'period',
+        'overall_score',
+        'evaluated_by',
+        'is_draft',
+        'submitted_at'
+    ]
+    list_filter = [
+        'period',
+        'is_draft',
+        'evaluation_date',
+        'evaluated_by'
+    ]
+    search_fields = [
+        'personnel__employee_code',
+        'personnel__first_name',
+        'personnel__last_name'
+    ]
+    ordering = ['-evaluation_date']
+    date_hierarchy = 'evaluation_date'
+    inlines = [EvaluationMetricValueInline]
+
+    fieldsets = (
+        ('Personal y Período', {
+            'fields': (
+                'personnel',
+                'evaluation_date',
+                'period',
+                'evaluated_by'
+            )
+        }),
+        ('Puntuación', {
+            'fields': (
+                'overall_score',
+            ),
+            'description': 'Calculado automáticamente basado en las métricas'
+        }),
+        ('Comentarios', {
+            'fields': ('comments',)
+        }),
+        ('Estado', {
+            'fields': (
+                'is_draft',
+                'submitted_at'
+            )
+        }),
+        ('Metadatos', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    readonly_fields = ['overall_score', 'created_at', 'updated_at', 'submitted_at']
+
+
+@admin.register(EvaluationMetricValue)
+class EvaluationMetricValueAdmin(admin.ModelAdmin):
+    list_display = [
+        'evaluation',
+        'metric_type',
+        'get_display_value',
+        'created_at'
+    ]
+    list_filter = ['metric_type', 'created_at']
+    search_fields = [
+        'evaluation__personnel__employee_code',
+        'metric_type__name'
+    ]
+    ordering = ['-created_at']
+
+    fieldsets = (
+        ('Evaluación y Métrica', {
+            'fields': (
+                'evaluation',
+                'metric_type'
+            )
+        }),
+        ('Valores', {
+            'fields': (
+                'numeric_value',
+                'text_value',
+                'boolean_value'
+            ),
+            'description': 'Complete el valor según el tipo de métrica'
+        }),
+        ('Comentarios', {
+            'fields': ('comments',)
+        }),
+        ('Metadatos', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    readonly_fields = ['created_at', 'updated_at']
+
+    def get_display_value(self, obj):
+        return obj.get_display_value()
+    get_display_value.short_description = 'Valor'

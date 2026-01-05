@@ -6,6 +6,7 @@ from django.core.validators import FileExtensionValidator
 from django.conf import settings
 from datetime import date, timedelta
 from .personnel import PersonnelProfile
+from apps.core.azure_utils import generate_blob_sas_url
 
 
 def certification_document_path(instance, filename):
@@ -213,8 +214,25 @@ class Certification(models.Model):
             return 'Por vencer'
         return 'Vigente'
 
+    @property
+    def certificate_document_url(self):
+        """Retorna la URL del documento con SAS token"""
+        if not self.certificate_document:
+            return None
+        try:
+            # Generar URL con SAS token válido por 2 horas
+            return generate_blob_sas_url(self.certificate_document.name, expiry_hours=2)
+        except Exception as e:
+            print(f"Error generando URL con SAS token para certificado {self.id}: {str(e)}")
+            return None
+
     def save(self, *args, **kwargs):
-        # Actualizar is_valid basado en fecha de vencimiento
-        if self.expiration_date < date.today():
+        # Actualizar is_valid basado en fecha de vencimiento y estado de revocación
+        if self.revoked:
             self.is_valid = False
+        elif self.expiration_date < date.today():
+            self.is_valid = False
+        else:
+            # Si no está revocada y no ha expirado, es válida
+            self.is_valid = True
         super().save(*args, **kwargs)

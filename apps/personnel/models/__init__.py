@@ -3,6 +3,7 @@ from .personnel import PersonnelProfile, EmergencyContact
 from .medical import MedicalRecord
 from .certification import Certification, CertificationType
 from .performance import PerformanceMetric
+from .performance_new import PerformanceMetricType, PerformanceEvaluation, EvaluationMetricValue
 
 __all__ = [
     'Area',
@@ -13,4 +14,7 @@ __all__ = [
     'Certification',
     'CertificationType',
     'PerformanceMetric',
+    'PerformanceMetricType',
+    'PerformanceEvaluation',
+    'EvaluationMetricValue',
 ]

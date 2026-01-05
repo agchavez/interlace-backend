@@ -18,11 +18,18 @@ class IsPersonnelOwner(permissions.BasePermission):
 
 class IsSupervisorOrAbove(permissions.BasePermission):
     """
-    Permiso: El usuario es supervisor o superior
+    Permiso: El usuario es supervisor o superior, o staff/superuser
     """
     def has_permission(self, request, view):
+        # Superusuarios y staff siempre tienen permiso
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+
         try:
             personnel = request.user.personnel_profile
+            # Permitir a RRHH/People
+            if personnel.area.code == 'PEOPLE':
+                return True
             return personnel.can_approve_tokens_level_1()
         except PersonnelProfile.DoesNotExist:
             return False

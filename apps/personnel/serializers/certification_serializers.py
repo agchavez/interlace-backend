@@ -39,6 +39,7 @@ class CertificationSerializer(serializers.ModelSerializer):
     is_expiring_soon = serializers.BooleanField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     status_display = serializers.CharField(read_only=True)
+    certificate_document_url = serializers.CharField(read_only=True)
 
     class Meta:
         model = Certification
@@ -88,6 +89,7 @@ class CertificationListSerializer(serializers.ModelSerializer):
     )
     status_display = serializers.CharField(read_only=True)
     days_until_expiration = serializers.IntegerField(read_only=True)
+    certificate_document_url = serializers.CharField(read_only=True)
 
     class Meta:
         model = Certification
@@ -96,6 +98,6 @@ class CertificationListSerializer(serializers.ModelSerializer):
             'certification_type', 'certification_type_name',
             'certification_number', 'issuing_authority',
             'issue_date', 'expiration_date', 'is_valid', 'status_display',
-            'days_until_expiration', 'certificate_document'
+            'days_until_expiration', 'certificate_document', 'certificate_document_url'
         ]
         read_only_fields = fields

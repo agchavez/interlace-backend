@@ -32,7 +32,7 @@ class PersonnelProfile(models.Model):
     # Tipos de posición operativa
     PICKER = 'PICKER'
     COUNTER = 'COUNTER'
-    OPM = 'OPM'  # Operador de Montacargas
+    OPM = 'OPM'
     YARD_DRIVER = 'YARD_DRIVER'
     LOADER = 'LOADER'
     WAREHOUSE_ASSISTANT = 'WAREHOUSE_ASSISTANT'

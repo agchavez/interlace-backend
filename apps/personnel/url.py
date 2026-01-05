@@ -16,6 +16,11 @@ from .views.certification_views import (
     CertificationTypeViewSet
 )
 from .views.performance_views import PerformanceMetricViewSet
+from .views.performance_new_views import (
+    PerformanceMetricTypeViewSet,
+    PerformanceEvaluationViewSet,
+    EvaluationMetricValueViewSet
+)
 
 router = DefaultRouter()
 
@@ -50,11 +55,28 @@ router.register(
     basename='certification'
 )
 
-# Desempeño
+# Desempeño (Sistema antiguo - mantener por compatibilidad)
 router.register(
     r'performance',
     PerformanceMetricViewSet,
     basename='performance-metric'
+)
+
+# Desempeño (Sistema nuevo - Métricas escalables)
+router.register(
+    r'metric-types',
+    PerformanceMetricTypeViewSet,
+    basename='metric-type'
+)
+router.register(
+    r'evaluations',
+    PerformanceEvaluationViewSet,
+    basename='evaluation'
+)
+router.register(
+    r'evaluation-metrics',
+    EvaluationMetricValueViewSet,
+    basename='evaluation-metric'
 )
 
 urlpatterns = [
