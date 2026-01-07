@@ -89,6 +89,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 AUTH_USER_MODEL = 'user.UserModel'
 
+# Custom authentication backend for email-based authentication
+AUTHENTICATION_BACKENDS = [
+    'apps.authentication.backends.EmailBackend',  # Custom email backend
+    'django.contrib.auth.backends.ModelBackend',  # Default backend as fallback
+]
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',

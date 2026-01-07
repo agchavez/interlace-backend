@@ -173,6 +173,8 @@ class PersonnelProfile(models.Model):
     personal_id = models.CharField(
         max_length=20,
         unique=True,
+        blank=True,
+        null=True,
         verbose_name='Número de identidad',
         validators=[MinLengthValidator(13)]
     )
@@ -217,10 +219,12 @@ class PersonnelProfile(models.Model):
         verbose_name='Email personal'
     )
     address = models.TextField(
+        blank=True,
         verbose_name='Dirección residencial'
     )
     city = models.CharField(
         max_length=100,
+        blank=True,
         verbose_name='Ciudad'
     )
 

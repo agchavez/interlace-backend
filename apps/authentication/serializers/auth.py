@@ -1,25 +1,55 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
+from ..exceptions import InvalidCredentials, UserInactive, MissingCredentials
+import re
+
+User = get_user_model()
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField()
+    login = serializers.CharField(
+        required=True,
+        help_text='Puede ser correo electrónico o nombre de usuario'
+    )
+    password = serializers.CharField(required=True, write_only=True)
 
     def validate(self, data):
-        email = data.get('email')
+        login = data.get('login')
         password = data.get('password')
 
-        if email and password:
-            user = authenticate(email=email, password=password)
+        if not login or not password:
+            raise MissingCredentials()
 
-            if user:
-                if not user.is_active:
-                    raise serializers.ValidationError("El usuario está desactivado.")
+        # Determinar si es email o username
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        is_email = re.match(email_pattern, login)
 
-                return user
-            else:
-                raise serializers.ValidationError("Credenciales inválidas. Por favor, inténtelo de nuevo.")
+        user = None
 
+        if is_email:
+            # Intentar autenticar con email
+            user = authenticate(email=login, password=password)
         else:
-            raise serializers.ValidationError("Debe ingresar email y contraseña.")
+            # Intentar autenticar con username
+            # Primero buscamos el usuario por username y obtenemos su email
+            try:
+                user_obj = User.objects.get(username=login)
+                user = authenticate(email=user_obj.email, password=password)
+            except User.DoesNotExist:
+                pass
+
+        if user:
+            if not user.is_active:
+                raise UserInactive()
+            return user
+        else:
+            raise InvalidCredentials()
+
+    # Mantener retrocompatibilidad con el campo 'email'
+    email = serializers.EmailField(required=False, write_only=True)
+
+    def to_internal_value(self, data):
+        # Si viene 'email', lo mapeamos a 'login'
+        if 'email' in data and 'login' not in data:
+            data['login'] = data['email']
+        return super().to_internal_value(data)

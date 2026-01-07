@@ -6,6 +6,12 @@ from django.contrib.auth import get_user_model
 from ..models.personnel import PersonnelProfile, EmergencyContact
 from ..models.organization import Area, Department
 from apps.core.azure_utils import get_photo_url_with_sas
+from ..exceptions import (
+    InvalidSupervisorHierarchy,
+    DepartmentNotInArea,
+    UserAlreadyAssigned,
+    EmailRequiredForUser
+)
 
 User = get_user_model()
 
@@ -33,11 +39,70 @@ class AreaSerializer(serializers.ModelSerializer):
 class DepartmentSerializer(serializers.ModelSerializer):
     """Serializer de Departamentos"""
     area_name = serializers.CharField(source='area.get_code_display', read_only=True)
+    code = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=50,
+        help_text='Se genera automáticamente si no se proporciona'
+    )
 
     class Meta:
         model = Department
         fields = ['id', 'area', 'area_name', 'name', 'code', 'description', 'is_active']
         read_only_fields = ['id']
+
+    def _generate_department_code(self, area, name):
+        """
+        Genera un código único para el departamento basado en el área y nombre
+        Formato: DEPT-{AREA_PREFIX}-{SEQUENTIAL}
+        Ejemplo: DEPT-OPE-001, DEPT-ADM-002
+        """
+        # Obtener prefijo del área (primeras 3 letras)
+        area_prefix = area.code[:3].upper()
+
+        # Obtener el número secuencial más alto para este área
+        existing_depts = Department.objects.filter(
+            code__startswith=f'DEPT-{area_prefix}-'
+        ).order_by('-code')
+
+        if existing_depts.exists():
+            # Extraer el número del último código
+            last_code = existing_depts.first().code
+            try:
+                last_number = int(last_code.split('-')[-1])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+
+        # Generar el código
+        code = f'DEPT-{area_prefix}-{next_number:03d}'
+
+        # Verificar que sea único (por si acaso)
+        while Department.objects.filter(code=code).exists():
+            next_number += 1
+            code = f'DEPT-{area_prefix}-{next_number:03d}'
+
+        return code
+
+    def create(self, validated_data):
+        """Sobrescribe create para auto-generar el código si no se proporciona"""
+        # Si code no está presente, es None, o es cadena vacía, generarlo
+        code = validated_data.get('code')
+        if not code:
+            from apps.personnel.models import Area
+
+            area = validated_data.get('area')
+            # Si area es un ID, obtener la instancia
+            if isinstance(area, int):
+                area = Area.objects.get(id=area)
+
+            name = validated_data.get('name')
+            validated_data['code'] = self._generate_department_code(area, name)
+
+        return super().create(validated_data)
 
 
 class EmergencyContactSerializer(serializers.ModelSerializer):
@@ -99,6 +164,7 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
     certifications_count = serializers.SerializerMethodField()
     certifications_expiring_count = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
+    authentication_methods = serializers.SerializerMethodField()
 
     class Meta:
         model = PersonnelProfile
@@ -110,7 +176,7 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
             'center_name', 'distributor_centers_names', 'area_name', 'department_name',
             'supervisor_name', 'hire_date', 'is_active',
             'has_valid_certifications', 'certifications_count',
-            'certifications_expiring_count', 'phone', 'photo_url'
+            'certifications_expiring_count', 'phone', 'photo_url', 'authentication_methods'
         ]
         read_only_fields = fields
 
@@ -129,6 +195,30 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
             # Generar URL con SAS token para acceso seguro
             return get_photo_url_with_sas(obj.photo)
         return None
+
+    def get_authentication_methods(self, obj):
+        """Devuelve los métodos de autenticación disponibles para este usuario"""
+        methods = []
+
+        if obj.user:
+            # Si tiene usuario, puede autenticarse
+            if obj.user.email:
+                methods.append({
+                    'type': 'email',
+                    'value': obj.user.email,
+                    'label': 'Correo electrónico',
+                    'enabled': True
+                })
+
+            if obj.user.username:
+                methods.append({
+                    'type': 'username',
+                    'value': obj.user.username,
+                    'label': 'Nombre de usuario',
+                    'enabled': True
+                })
+
+        return methods
 
 
 class PersonnelProfileDetailSerializer(serializers.ModelSerializer):
@@ -181,6 +271,9 @@ class PersonnelProfileDetailSerializer(serializers.ModelSerializer):
     can_approve_level_1 = serializers.SerializerMethodField()
     can_approve_level_2 = serializers.SerializerMethodField()
     can_approve_level_3 = serializers.SerializerMethodField()
+
+    # Métodos de autenticación disponibles
+    authentication_methods = serializers.SerializerMethodField()
 
     class Meta:
         model = PersonnelProfile
@@ -247,6 +340,30 @@ class PersonnelProfileDetailSerializer(serializers.ModelSerializer):
     def get_can_approve_level_3(self, obj):
         return obj.can_approve_tokens_level_3()
 
+    def get_authentication_methods(self, obj):
+        """Devuelve los métodos de autenticación disponibles para este usuario"""
+        methods = []
+
+        if obj.user:
+            # Si tiene usuario, puede autenticarse
+            if obj.user.email:
+                methods.append({
+                    'type': 'email',
+                    'value': obj.user.email,
+                    'label': 'Correo electrónico',
+                    'enabled': True
+                })
+
+            if obj.user.username:
+                methods.append({
+                    'type': 'username',
+                    'value': obj.user.username,
+                    'label': 'Nombre de usuario',
+                    'enabled': True
+                })
+
+        return methods
+
     def validate(self, data):
         """Validaciones personalizadas"""
         # Validar que el supervisor tenga nivel superior
@@ -263,16 +380,12 @@ class PersonnelProfileDetailSerializer(serializers.ModelSerializer):
                 0
             )
             if supervisor_level <= employee_level:
-                raise serializers.ValidationError({
-                    'immediate_supervisor': 'El supervisor debe tener un nivel jerárquico superior'
-                })
+                raise InvalidSupervisorHierarchy()
 
         # Validar que department pertenezca al area
         if 'department' in data and data['department']:
             if 'area' in data and data['department'].area != data['area']:
-                raise serializers.ValidationError({
-                    'department': 'El departamento no pertenece al área seleccionada'
-                })
+                raise DepartmentNotInArea()
 
         return data
 
@@ -301,6 +414,10 @@ class PersonnelProfileCreateUpdateSerializer(serializers.ModelSerializer):
         if 'distributor_centers' in fields:
             fields['distributor_centers'].queryset = DistributorCenter.objects.all()
 
+        # Configurar el queryset para immediate_supervisor dinámicamente
+        if 'immediate_supervisor' in fields:
+            fields['immediate_supervisor'].queryset = PersonnelProfile.objects.all()
+
         return fields
 
     def validate(self, data):
@@ -310,17 +427,40 @@ class PersonnelProfileCreateUpdateSerializer(serializers.ModelSerializer):
         email = data.get('email', '')
 
         if user and not email:
-            raise serializers.ValidationError({
-                'email': 'El email es requerido para personal con usuario del sistema'
-            })
+            raise EmailRequiredForUser()
 
         # Validar que el usuario no esté ya asociado a otro perfil (excepto en actualización)
         if user:
             existing_profile = PersonnelProfile.objects.filter(user=user).first()
             if existing_profile and (not self.instance or existing_profile.id != self.instance.id):
-                raise serializers.ValidationError({
-                    'user': f'Este usuario ya tiene un perfil asignado (Empleado: {existing_profile.employee_code})'
+                raise UserAlreadyAssigned({
+                    'mensage': f'Este usuario ya tiene un perfil asignado (Empleado: {existing_profile.employee_code})',
+                    'error_code': 'user_already_assigned'
                 })
+
+        # Validar que el supervisor tenga nivel superior
+        if 'immediate_supervisor' in data and data['immediate_supervisor']:
+            hierarchy_order = {
+                'OPERATIVE': 0,
+                'SUPERVISOR': 1,
+                'AREA_MANAGER': 2,
+                'CD_MANAGER': 3
+            }
+            employee_level = hierarchy_order.get(data.get('hierarchy_level', 'OPERATIVE'), 0)
+            supervisor_level = hierarchy_order.get(
+                data['immediate_supervisor'].hierarchy_level,
+                0
+            )
+            if supervisor_level <= employee_level:
+                raise InvalidSupervisorHierarchy({
+                    'mensage': f'El supervisor debe tener un nivel jerárquico superior. El empleado es {data.get("hierarchy_level", "OPERATIVE")} y el supervisor es {data["immediate_supervisor"].hierarchy_level}',
+                    'error_code': 'invalid_supervisor_hierarchy'
+                })
+
+        # Validar que department pertenezca al area
+        if 'department' in data and data['department']:
+            if 'area' in data and data['department'].area != data['area']:
+                raise DepartmentNotInArea()
 
         return data
 

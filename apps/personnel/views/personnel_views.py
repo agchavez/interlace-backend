@@ -389,9 +389,54 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         total_personnel = queryset.filter(is_active=True).count()
         total_inactive = queryset.filter(is_active=False).count()
 
+        # Acceso al sistema
+        with_system_access = queryset.filter(is_active=True, has_system_access=True).count()
+        without_system_access = total_personnel - with_system_access
+
+        # Promedio de años de servicio
+        from django.db.models import F, ExpressionWrapper, DurationField
+        from django.db.models.functions import ExtractYear
+
+        avg_service_years = queryset.filter(is_active=True).aggregate(
+            avg_years=Avg(
+                ExpressionWrapper(
+                    date.today() - F('hire_date'),
+                    output_field=DurationField()
+                )
+            )
+        )
+
+        avg_years = 0
+        if avg_service_years['avg_years']:
+            avg_years = round(avg_service_years['avg_years'].days / 365.25, 1)
+
+        # Tendencia de crecimiento (comparar con mes anterior)
+        thirty_days_ago = date.today() - timedelta(days=30)
+        sixty_days_ago = date.today() - timedelta(days=60)
+
+        current_month_hires = queryset.filter(
+            hire_date__gte=thirty_days_ago
+        ).count()
+
+        previous_month_hires = queryset.filter(
+            hire_date__gte=sixty_days_ago,
+            hire_date__lt=thirty_days_ago
+        ).count()
+
+        growth_trend = 0
+        if previous_month_hires > 0:
+            growth_trend = round(((current_month_hires - previous_month_hires) / previous_month_hires) * 100, 1)
+
         # Por jerarquía
         by_hierarchy = queryset.filter(is_active=True).values(
             'hierarchy_level'
+        ).annotate(
+            count=Count('id')
+        )
+
+        # Por tipo de posición
+        by_position_type = queryset.filter(is_active=True).values(
+            'position_type'
         ).annotate(
             count=Count('id')
         )
@@ -402,7 +447,7 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
             'area__name'
         ).annotate(
             count=Count('id')
-        )
+        ).order_by('-count')
 
         # Certificaciones
         expiring_soon = queryset.filter(
@@ -418,22 +463,50 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
             certifications__is_valid=True
         ).distinct().count()
 
-        # Nuevos ingresos (últimos 30 días)
-        new_hires = queryset.filter(
+        # Nuevos ingresos (últimos 7 días y últimos 30 días)
+        new_hires_7_days = queryset.filter(
+            hire_date__gte=date.today() - timedelta(days=7)
+        ).count()
+
+        new_hires_30_days = queryset.filter(
             hire_date__gte=date.today() - timedelta(days=30)
+        ).count()
+
+        # Evaluaciones de desempeño pendientes (sin evaluar en los últimos 6 meses)
+        from ..models.performance import PerformanceEvaluation
+        six_months_ago = date.today() - timedelta(days=180)
+
+        # Personal activo que no tiene evaluación reciente
+        personnel_with_recent_eval = PerformanceEvaluation.objects.filter(
+            evaluation_date__gte=six_months_ago
+        ).values_list('personnel_id', flat=True).distinct()
+
+        pending_evaluations = queryset.filter(
+            is_active=True
+        ).exclude(
+            id__in=personnel_with_recent_eval
         ).count()
 
         data = {
             'summary': {
                 'total_active': total_personnel,
                 'total_inactive': total_inactive,
-                'new_hires_30_days': new_hires,
+                'with_system_access': with_system_access,
+                'without_system_access': without_system_access,
+                'avg_years_of_service': avg_years,
+                'growth_trend_percentage': growth_trend,
+                'new_hires_7_days': new_hires_7_days,
+                'new_hires_30_days': new_hires_30_days,
             },
             'by_hierarchy': list(by_hierarchy),
+            'by_position_type': list(by_position_type),
             'by_area': list(by_area),
             'certifications': {
                 'expiring_soon': expiring_soon,
                 'expired': expired,
+            },
+            'evaluations': {
+                'pending': pending_evaluations,
             }
         }
 
@@ -615,37 +688,59 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
             }
         }
         """
+        import json
+
         user_data = request.data.get('user_data', {})
         profile_data = request.data.get('profile_data', {})
 
+        from ..exceptions import InvalidJSONData, MissingRequiredFields
+        from apps.authentication.exceptions import EmailAlreadyExists, UsernameAlreadyExists
+
+        # Si user_data o profile_data vienen como string, parsearlos
+        if isinstance(user_data, str):
+            try:
+                user_data = json.loads(user_data)
+            except json.JSONDecodeError:
+                raise InvalidJSONData({
+                    'mensage': 'user_data debe ser un objeto JSON válido',
+                    'error_code': 'invalid_user_data_json'
+                })
+
+        if isinstance(profile_data, str):
+            try:
+                profile_data = json.loads(profile_data)
+            except json.JSONDecodeError:
+                raise InvalidJSONData({
+                    'mensage': 'profile_data debe ser un objeto JSON válido',
+                    'error_code': 'invalid_profile_data_json'
+                })
+
+        # Agregar la foto si viene en request.FILES
+        if 'photo' in request.FILES:
+            profile_data['photo'] = request.FILES['photo']
+
         if not user_data or not profile_data:
-            return Response(
-                {'detail': 'Se requiere user_data y profile_data'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise MissingRequiredFields({
+                'mensage': 'Se requiere user_data y profile_data',
+                'error_code': 'missing_user_and_profile_data'
+            })
 
         # Validar campos requeridos del usuario
         required_user_fields = ['username', 'email', 'password']
         missing_fields = [field for field in required_user_fields if field not in user_data]
         if missing_fields:
-            return Response(
-                {'detail': f'Campos requeridos en user_data: {", ".join(missing_fields)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise MissingRequiredFields({
+                'mensage': f'Campos requeridos en user_data: {", ".join(missing_fields)}',
+                'error_code': 'missing_required_user_fields'
+            })
 
         # Verificar que el username no exista
         if User.objects.filter(username=user_data['username']).exists():
-            return Response(
-                {'detail': 'El nombre de usuario ya existe'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise UsernameAlreadyExists()
 
         # Verificar que el email no exista
         if User.objects.filter(email=user_data['email']).exists():
-            return Response(
-                {'detail': 'El email ya está registrado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise EmailAlreadyExists()
 
         try:
             # Crear el usuario
@@ -658,6 +753,21 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
                 is_active=user_data.get('is_active', True)
             )
 
+            # Asignar centro de distribución principal
+            if 'centro_distribucion' in user_data and user_data['centro_distribucion']:
+                user.centro_distribucion_id = user_data['centro_distribucion']
+
+            # Guardar el usuario antes de asignar ManyToMany
+            user.save()
+
+            # Asignar grupo (DESPUÉS de save porque es ManyToMany)
+            if 'group' in user_data and user_data['group']:
+                user.groups.set([user_data['group']])
+
+            # Asignar centros de distribución adicionales (DESPUÉS de save porque es ManyToMany)
+            if 'distributions_centers' in user_data and user_data['distributions_centers']:
+                user.distributions_centers.set(user_data['distributions_centers'])
+
             # Usar los nombres del usuario si no se proporcionan en profile_data
             if not profile_data.get('first_name'):
                 profile_data['first_name'] = user.first_name
@@ -669,15 +779,24 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
             # Crear el perfil vinculado al usuario
             serializer = PersonnelProfileCreateUpdateSerializer(data=profile_data)
             if serializer.is_valid():
-                serializer.save(user=user, created_by=request.user)
+                profile = serializer.save(user=user, created_by=request.user)
+
+                # Asignar employee_number al usuario con el employee_code del perfil
+                try:
+                    user.employee_number = int(profile.employee_code)
+                    user.save()
+                except (ValueError, TypeError):
+                    # Si employee_code no es numérico, no asignar employee_number
+                    pass
+
+                # Serializar el usuario completo para incluir groups y distributions_centers
+                from apps.user.serializers import UserSerializer
+                user_serializer = UserSerializer(user)
+
                 return Response(
                     {
                         'message': 'Usuario y perfil creados exitosamente',
-                        'user': {
-                            'id': user.id,
-                            'username': user.username,
-                            'email': user.email,
-                        },
+                        'user': user_serializer.data,
                         'profile': serializer.data
                     },
                     status=status.HTTP_201_CREATED
@@ -686,6 +805,261 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
                 # Si falla la creación del perfil, eliminar el usuario creado
                 user.delete()
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, CanManagePersonnel], url_path='assign-user')
+    def assign_user(self, request, pk=None):
+        """
+        Asignar un usuario del sistema a un perfil de personal existente
+        POST /api/profiles/{id}/assign-user/
+
+        Body:
+        {
+            "username": "jperez",
+            "email": "jperez@example.com",
+            "password": "password123",
+            "group": 1,
+            "centro_distribucion": 1,
+            "distributions_centers": [1, 2]
+        }
+        """
+        personnel = self.get_object()
+
+        # Verificar que el personal no tenga usuario ya asignado
+        if personnel.user:
+            return Response(
+                {'error': 'Este personal ya tiene un usuario asignado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user_data = request.data
+
+        # Validar campos requeridos
+        required_fields = ['username', 'email', 'password', 'group']
+        missing_fields = [field for field in required_fields if field not in user_data]
+        if missing_fields:
+            return Response(
+                {'error': f'Campos requeridos: {", ".join(missing_fields)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar que el username no exista
+        if User.objects.filter(username=user_data['username']).exists():
+            return Response(
+                {'error': 'El nombre de usuario ya existe'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar que el email no exista
+        if User.objects.filter(email=user_data['email']).exists():
+            return Response(
+                {'error': 'El email ya está registrado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Crear el usuario
+            user = User.objects.create_user(
+                username=user_data['username'],
+                email=user_data['email'],
+                password=user_data['password'],
+                first_name=personnel.first_name,
+                last_name=personnel.last_name,
+                is_active=True
+            )
+
+            # Asignar grupo
+            if 'group' in user_data:
+                user.groups.set([user_data['group']])
+
+            # Asignar centro de distribución
+            if 'centro_distribucion' in user_data and user_data['centro_distribucion']:
+                user.centro_distribucion_id = user_data['centro_distribucion']
+
+            # Asignar centros de distribución adicionales
+            if 'distributions_centers' in user_data and user_data['distributions_centers']:
+                user.distributor_centers.set(user_data['distributions_centers'])
+
+            user.save()
+
+            # Vincular usuario al personal
+            personnel.user = user
+            personnel.save()
+
+            return Response({
+                'message': 'Usuario asignado exitosamente',
+                'user_id': user.id,
+                'personnel_id': personnel.id,
+                'username': user.username
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            # Si algo falla, eliminar el usuario si fue creado
+            if 'user' in locals():
+                user.delete()
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated, CanManagePersonnel], url_path='update-with-user')
+    def update_with_user(self, request, pk=None):
+        """
+        Actualizar perfil de personal y datos del usuario asociado en una sola operación
+        PATCH /api/profiles/{id}/update-with-user/
+
+        Body:
+        {
+            "user_data": {
+                "username": "jperez",
+                "email": "jperez@example.com",
+                "password": "newpassword123",  // Opcional - solo si se desea cambiar
+                "group": 1,
+                "centro_distribucion": 1,
+                "distributions_centers": [1, 2]
+            },
+            "profile_data": {
+                "employee_code": "EMP001",
+                ... resto de campos del perfil
+            }
+        }
+        """
+        import json
+        from ..exceptions import InvalidJSONData, MissingRequiredFields
+        from apps.authentication.exceptions import EmailAlreadyExists, UsernameAlreadyExists
+
+        personnel = self.get_object()
+
+        user_data = request.data.get('user_data', {})
+        profile_data = request.data.get('profile_data', {})
+
+        # Si user_data o profile_data vienen como string, parsearlos
+        if isinstance(user_data, str):
+            try:
+                user_data = json.loads(user_data)
+            except json.JSONDecodeError:
+                raise InvalidJSONData({
+                    'mensage': 'user_data debe ser un objeto JSON válido',
+                    'error_code': 'invalid_user_data_json'
+                })
+
+        if isinstance(profile_data, str):
+            try:
+                profile_data = json.loads(profile_data)
+            except json.JSONDecodeError:
+                raise InvalidJSONData({
+                    'mensage': 'profile_data debe ser un objeto JSON válido',
+                    'error_code': 'invalid_profile_data_json'
+                })
+
+        # Agregar la foto si viene en request.FILES
+        if 'photo' in request.FILES:
+            profile_data['photo'] = request.FILES['photo']
+
+        try:
+            # Actualizar datos del usuario si existe y se proporcionan
+            if personnel.user and user_data:
+                user = personnel.user
+
+                # Verificar que el username no esté en uso por otro usuario
+                if 'username' in user_data and user_data['username'] != user.username:
+                    if User.objects.filter(username=user_data['username']).exclude(id=user.id).exists():
+                        raise UsernameAlreadyExists()
+                    user.username = user_data['username']
+
+                # Verificar que el email no esté en uso por otro usuario
+                if 'email' in user_data and user_data['email'] != user.email:
+                    if User.objects.filter(email=user_data['email']).exclude(id=user.id).exists():
+                        raise EmailAlreadyExists()
+                    user.email = user_data['email']
+
+                # Actualizar contraseña solo si se proporciona
+                if 'password' in user_data and user_data['password']:
+                    user.set_password(user_data['password'])
+
+                # Actualizar nombre y apellido
+                if 'first_name' in user_data:
+                    user.first_name = user_data['first_name']
+                if 'last_name' in user_data:
+                    user.last_name = user_data['last_name']
+
+                # Actualizar centro de distribución principal
+                if 'centro_distribucion' in user_data:
+                    user.centro_distribucion_id = user_data['centro_distribucion']
+
+                # Guardar el usuario antes de actualizar ManyToMany
+                user.save()
+
+                # Actualizar grupo
+                if 'group' in user_data and user_data['group']:
+                    user.groups.set([user_data['group']])
+
+                # Actualizar centros de distribución adicionales
+                if 'distributions_centers' in user_data:
+                    user.distributions_centers.set(user_data['distributions_centers'])
+
+            # Actualizar datos del perfil si se proporcionan
+            if profile_data:
+                # Sincronizar nombres entre user y profile si es necesario
+                if personnel.user:
+                    if 'first_name' not in profile_data and user_data.get('first_name'):
+                        profile_data['first_name'] = user_data['first_name']
+                    if 'last_name' not in profile_data and user_data.get('last_name'):
+                        profile_data['last_name'] = user_data['last_name']
+                    if 'email' not in profile_data and user_data.get('email'):
+                        profile_data['email'] = user_data['email']
+
+                serializer = PersonnelProfileCreateUpdateSerializer(
+                    personnel,
+                    data=profile_data,
+                    partial=True
+                )
+                if serializer.is_valid():
+                    profile = serializer.save()
+
+                    # Actualizar employee_number del usuario si cambió el employee_code
+                    if personnel.user and 'employee_code' in profile_data:
+                        try:
+                            personnel.user.employee_number = int(profile.employee_code)
+                            personnel.user.save()
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Serializar el usuario completo para incluir groups y distributions_centers
+                    user_serializer = None
+                    if personnel.user:
+                        from apps.user.serializers import UserSerializer
+                        user_serializer = UserSerializer(personnel.user)
+
+                    return Response(
+                        {
+                            'message': 'Perfil y usuario actualizados exitosamente',
+                            'user': user_serializer.data if user_serializer else None,
+                            'profile': serializer.data
+                        },
+                        status=status.HTTP_200_OK
+                    )
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Si solo se actualiza el usuario sin cambios en el perfil
+                from apps.user.serializers import UserSerializer
+                profile_serializer = PersonnelProfileDetailSerializer(personnel)
+                user_serializer = UserSerializer(personnel.user) if personnel.user else None
+
+                return Response(
+                    {
+                        'message': 'Usuario actualizado exitosamente',
+                        'user': user_serializer.data if user_serializer else None,
+                        'profile': profile_serializer.data
+                    },
+                    status=status.HTTP_200_OK
+                )
 
         except Exception as e:
             return Response(

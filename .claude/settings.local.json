@@ -17,7 +17,8 @@
       "Bash(python manage.py shell:*)",
       "Bash(python manage.py showmigrations:*)",
       "Bash(python manage.py dbshell:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -33,6 +33,13 @@ class UserSerializer(serializers.ModelSerializer):
     )
     centro_distribucion_name = serializers.SerializerMethodField("get_centro_distribucion")
     photo_url = serializers.SerializerMethodField()
+    personnel_profile_id = serializers.SerializerMethodField()
+
+    def get_personnel_profile_id(self, obj):
+        """Obtiene el ID del perfil de personal si existe"""
+        if hasattr(obj, 'personnel_profile') and obj.personnel_profile:
+            return obj.personnel_profile.id
+        return None
 
     def get_centro_distribucion(self, obj):
         if obj.centro_distribucion is None:

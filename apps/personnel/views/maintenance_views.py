@@ -93,6 +93,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'code', 'created_at']
     ordering = ['area__name', 'name']
     filterset_fields = ['area', 'is_active']
+    pagination_class = None  # Desactivar paginación para devolver todos los departamentos
 
     def get_queryset(self):
         """Permitir filtrar por is_active y area"""
