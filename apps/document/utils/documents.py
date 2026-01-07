@@ -21,8 +21,20 @@ def compress_image(image_file, quality=70):
     """
     image_file: InMemoryUploadedFile (u otro tipo de File) a comprimir
     Retorna un ContentFile comprimido (JPEG) con la misma extensión en el nombre.
+
+    NOTA: Si la imagen ya es pequeña (< 1MB), se asume que ya fue comprimida
+    en el frontend y no se comprime nuevamente para evitar doble compresión.
     """
     try:
+        # Verificar el tamaño del archivo
+        file_size_mb = image_file.size / (1024 * 1024)
+
+        # Si la imagen es menor a 1MB, asumimos que ya fue comprimida en el frontend
+        if file_size_mb < 1.0:
+            print(f"Imagen ya comprimida ({file_size_mb:.2f}MB), se omite compresión en backend")
+            image_file.seek(0)
+            return image_file
+
         # Abre la imagen
         img = Image.open(image_file)
 
@@ -34,6 +46,9 @@ def compress_image(image_file, quality=70):
         # Guardamos en JPEG por simplicidad, pero podrías condicionar a PNG/JPEG/WebP
         img.save(buffer, format='JPEG', optimize=True, quality=quality)
         buffer.seek(0)
+
+        compressed_size_mb = len(buffer.getvalue()) / (1024 * 1024)
+        print(f"Imagen comprimida en backend: {file_size_mb:.2f}MB → {compressed_size_mb:.2f}MB")
 
         # Retornamos un ContentFile que Django entienda
         compressed_file = ContentFile(buffer.read())

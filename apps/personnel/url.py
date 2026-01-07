@@ -8,8 +8,8 @@ from .views.personnel_views import (
     PersonnelProfileViewSet,
     EmergencyContactViewSet,
     AreaViewSet,
-    DepartmentViewSet
 )
+from .views.maintenance_views import DepartmentViewSet
 from .views.medical_views import MedicalRecordViewSet
 from .views.certification_views import (
     CertificationViewSet,

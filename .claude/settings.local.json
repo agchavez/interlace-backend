@@ -13,7 +13,11 @@
       "Bash(cat:*)",
       "Bash(npm install:*)",
       "Bash(ls -la \"E:\\\\acsolutions\\\\tracker\\\\tracker-backend\\\\apps\\\\personnel\\\\views\"\" 2>/dev/null || echo \"Directorio no encontrado \")",
-      "Bash(ls -la \"E:\\\\acsolutions\\\\tracker\\\\tracker-backend\\\\apps\\\\personnel\\\\serializers\"\" 2>/dev/null || echo \"Directorio no encontrado \")"
+      "Bash(ls -la \"E:\\\\acsolutions\\\\tracker\\\\tracker-backend\\\\apps\\\\personnel\\\\serializers\"\" 2>/dev/null || echo \"Directorio no encontrado \")",
+      "Bash(python manage.py shell:*)",
+      "Bash(python manage.py showmigrations:*)",
+      "Bash(python manage.py dbshell:*)",
+      "Bash(python:*)"
     ]
   }
 }
