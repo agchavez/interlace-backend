@@ -13,18 +13,21 @@ services:
       - "traefik.http.routers.trainer-api.tls=true"
       - "traefik.http.routers.trainer-api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.trainer-api.service=trainer-backend"
+      - "traefik.http.routers.trainer-api.priority=100"
       # Router para WebSocket (WSS)
       - "traefik.http.routers.trainer-ws.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/ws`)"
       - "traefik.http.routers.trainer-ws.entrypoints=websecure"
       - "traefik.http.routers.trainer-ws.tls=true"
       - "traefik.http.routers.trainer-ws.tls.certresolver=letsencrypt"
       - "traefik.http.routers.trainer-ws.service=trainer-backend"
-      # Router para Admin (HTTPS)
+      - "traefik.http.routers.trainer-ws.priority=100"
+      # Router para Admin (HTTPS) - Alta prioridad para evitar que el frontend lo intercepte
       - "traefik.http.routers.trainer-admin.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/admin`)"
       - "traefik.http.routers.trainer-admin.entrypoints=websecure"
       - "traefik.http.routers.trainer-admin.tls=true"
       - "traefik.http.routers.trainer-admin.tls.certresolver=letsencrypt"
       - "traefik.http.routers.trainer-admin.service=trainer-backend"
+      - "traefik.http.routers.trainer-admin.priority=100"
       # Servicio backend
       - "traefik.http.services.trainer-backend.loadbalancer.server.port=8000"
     environment:
