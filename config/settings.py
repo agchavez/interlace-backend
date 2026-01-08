@@ -232,13 +232,11 @@ from config.logging_config import LOGGING
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 # Web Push Notifications - VAPID Configuration
-# Intentar cargar la clave privada desde archivo primero
-VAPID_PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'vapid_private.pem')
-if os.path.exists(VAPID_PRIVATE_KEY_FILE):
-    with open(VAPID_PRIVATE_KEY_FILE, 'r') as f:
-        VAPID_PRIVATE_KEY = f.read().strip()
-else:
-    VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '').replace('\\n', '\n')
-
-VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '')
-VAPID_ADMIN_EMAIL = os.getenv('VAPID_ADMIN_EMAIL', 'admin@example.com')
+# Llaves VAPID hardcodeadas para simplificar deployment
+VAPID_PUBLIC_KEY = 'BHBnNHH1RSyj2e5_zIpdvt4pPgXUCQl4IfMWkrzHYoDoFQMR0qFuYNK7Sh6qbTyZ1xzGGz1G6iQ-35lX8TnhiGw'
+VAPID_PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgVBAyOFj26joNLLFx
+qN4jPz7zvTkHmDCydcpgvarhbs6hRANCAARwZzRx9UUso9nuf8yKXb7eKT4F1AkJ
+eCHzFpK8x2KA6BUDEdKhbmDSu0oeqm08mdccxhs9RuokPt+ZV/E54Yhs
+-----END PRIVATE KEY-----"""
+VAPID_ADMIN_EMAIL = 'tracker.logistics@outlook.com'
