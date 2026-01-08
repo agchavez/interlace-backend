@@ -230,3 +230,15 @@ from config.logging_config import LOGGING
 
 # URL del frontend para links en correos electrónicos
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
+# Web Push Notifications - VAPID Configuration
+# Intentar cargar la clave privada desde archivo primero
+VAPID_PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'vapid_private.pem')
+if os.path.exists(VAPID_PRIVATE_KEY_FILE):
+    with open(VAPID_PRIVATE_KEY_FILE, 'r') as f:
+        VAPID_PRIVATE_KEY = f.read().strip()
+else:
+    VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '').replace('\\n', '\n')
+
+VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '')
+VAPID_ADMIN_EMAIL = os.getenv('VAPID_ADMIN_EMAIL', 'admin@example.com')

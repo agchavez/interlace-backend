@@ -79,4 +79,6 @@ xlwt==1.3.0
 zope.interface==7.2
 Pillow==10.4.0
 pyodbc==5.0.1
+pywebpush==1.14.1
+py-vapid==1.9.1
 

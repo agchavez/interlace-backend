@@ -4,7 +4,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
-from apps.user.url import router as user_router
+from apps.user.url import router as user_router, urlpatterns as user_urlpatterns
 from apps.authentication.url import router as auth_router
 from apps.maintenance.url import router as maintenance_router
 from apps.tracker.url import router as tracker_router
@@ -32,6 +32,7 @@ router.registry.extend(personnel_router.registry)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
+    path('api/', include(user_urlpatterns)),
 ]
 
 if settings.DEBUG:

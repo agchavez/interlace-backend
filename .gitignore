@@ -125,6 +125,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# VAPID Keys (Push Notifications)
+vapid_private.pem
+vapid_public.pem
+
 # Spyder project settings
 .spyderproject
 .spyproject

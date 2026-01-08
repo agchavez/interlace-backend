@@ -44,6 +44,8 @@ services:
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
       - EMAIL_PORT=${EMAIL_PORT}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_ADMIN_EMAIL=${VAPID_ADMIN_EMAIL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -77,6 +79,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_REDIS_URL=redis://redis:6379/0
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_ADMIN_EMAIL=${VAPID_ADMIN_EMAIL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -103,6 +107,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_REDIS_URL=redis://redis:6379/0
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_ADMIN_EMAIL=${VAPID_ADMIN_EMAIL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
