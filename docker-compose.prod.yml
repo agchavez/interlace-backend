@@ -10,12 +10,6 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.tracker-qa.rule=Host(`tracker-qa.tracker.lat`)"
-      - "traefik.http.routers.tracker-qa.entrypoints=websecure"
-      - "traefik.http.routers.tracker-qa.tls.certresolver=letsencrypt"
-      - "traefik.http.services.tracker-qa.loadbalancer.server.port=8000"
     networks:
       - dokploy-network
 
