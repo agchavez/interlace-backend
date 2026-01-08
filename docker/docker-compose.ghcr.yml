@@ -1,0 +1,120 @@
+
+services:
+  web:
+    image: ghcr.io/agchavez/tracker-backend:qa-latest
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    labels:
+      - "traefik.enable=true"
+      # Router para API REST (HTTPS)
+      - "traefik.http.routers.trainer-api.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.trainer-api.entrypoints=websecure"
+      - "traefik.http.routers.trainer-api.tls=true"
+      - "traefik.http.routers.trainer-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.trainer-api.service=trainer-backend"
+      # Router para WebSocket (WSS)
+      - "traefik.http.routers.trainer-ws.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.trainer-ws.entrypoints=websecure"
+      - "traefik.http.routers.trainer-ws.tls=true"
+      - "traefik.http.routers.trainer-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.trainer-ws.service=trainer-backend"
+      # Router para Admin (HTTPS)
+      - "traefik.http.routers.trainer-admin.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.trainer-admin.entrypoints=websecure"
+      - "traefik.http.routers.trainer-admin.tls=true"
+      - "traefik.http.routers.trainer-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.trainer-admin.service=trainer-backend"
+      # Servicio backend
+      - "traefik.http.services.trainer-backend.loadbalancer.server.port=8000"
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DEBUG=${DEBUG}
+      - SECRET_KEY=${SECRET_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_REDIS_URL=redis://redis:6379/0
+      - FRONTEND_URL=${FRONTEND_URL}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_ADMIN_EMAIL=${VAPID_ADMIN_EMAIL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+    networks:
+      - dokploy-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:latest
+    volumes:
+      - redis_data:/data
+    networks:
+      - dokploy-network
+    restart: unless-stopped
+
+  celery-worker:
+    image: ghcr.io/agchavez/tracker-backend:qa-latest
+    entrypoint: ["/entrypoint-celery.sh"]
+    command: celery -A config worker -l info
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DEBUG=${DEBUG}
+      - SECRET_KEY=${SECRET_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_REDIS_URL=redis://redis:6379/0
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_ADMIN_EMAIL=${VAPID_ADMIN_EMAIL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+      - web
+    networks:
+      - dokploy-network
+    restart: unless-stopped
+
+  celery-beat:
+    image: ghcr.io/agchavez/tracker-backend:qa-latest
+    entrypoint: ["/entrypoint-celery.sh"]
+    command: celery -A config beat -l info
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DEBUG=${DEBUG}
+      - SECRET_KEY=${SECRET_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_REDIS_URL=redis://redis:6379/0
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_ADMIN_EMAIL=${VAPID_ADMIN_EMAIL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+      - web
+    networks:
+      - dokploy-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+
+networks:
+  dokploy-network:
+    external: true
