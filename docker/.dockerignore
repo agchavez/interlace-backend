@@ -19,9 +19,10 @@ ENV/
 *.swp
 *.swo
 
-# Environment variables
+# Environment variables (keep .env.example if you have one)
 .env
 .env.*
+!.env.example
 
 # Logs
 *.log
@@ -31,16 +32,11 @@ logs/
 *.sqlite3
 db.sqlite3
 
-# Media files (optional, depends on your needs)
-# media/
-
-# Static files (optional)
-# static/
-
-# Docker
+# Docker (exclude compose files but keep entrypoint scripts)
 .dockerignore
-Dockerfile
+Dockerfile.dev
 docker-compose*.yml
+!docker-compose.prod.yml
 
 # Git
 .git/
@@ -55,4 +51,8 @@ htmlcov/
 # Documentation
 docs/
 *.md
+!README.md
+
+# Batch files (Windows scripts)
+*.bat
 

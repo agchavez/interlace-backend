@@ -22,7 +22,9 @@
       "Bash(conda activate:*)",
       "Bash(pip show:*)",
       "Bash(iconv:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(npm run build)",
+      "Bash(npm pkg set:*)"
     ]
   }
 }

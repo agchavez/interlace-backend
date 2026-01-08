@@ -27,6 +27,11 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
 # Copy the current directory contents into the container at /app
 COPY . /app
 
+# Copy entrypoint scripts and make them executable
+COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/entrypoint-celery.sh /entrypoint-celery.sh
+RUN chmod +x /entrypoint.sh /entrypoint-celery.sh
+
 # Upgrade pip
 RUN pip install --upgrade pip
 
@@ -42,5 +47,9 @@ ENV DB_PASSWORD=${DB_PASSWORD}
 # Expose port 8000 for the Django app
 EXPOSE 8000
 
-# Start the Django app
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (can be overridden in docker-compose)
+# Usando Daphne para soportar WebSockets y realtime
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "config.asgi:application"]
