@@ -75,20 +75,14 @@ def send_push_notification(
 
     # VAPID claims
     vapid_claims = {
-        "sub": f"mailto:{getattr(settings, 'VAPID_ADMIN_EMAIL', 'admin@example.com')}"
+        "sub": f"mailto:{settings.VAPID_ADMIN_EMAIL}"
     }
 
-    # Cargar VAPID desde archivo
-    import os
-    vapid_key_path = os.path.join(settings.BASE_DIR, 'vapid_private.pem')
-
     try:
-        vapid = Vapid.from_file(vapid_key_path)
-
         response = webpush(
             subscription_info=subscription.subscription_info,
             data=json.dumps(payload),
-            vapid_private_key=vapid,
+            vapid_private_key=settings.VAPID_PRIVATE_KEY,
             vapid_claims=vapid_claims
         )
 

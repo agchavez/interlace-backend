@@ -13,7 +13,9 @@ from django.utils import timezone
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from apps.user.models.notificacion import NotificationModel
+from apps.user.models.push_subscription import PushSubscription
 from apps.user.serializers.notificacion import NotificationSerializer
+from apps.user.utils.push_notifications import send_push_to_user
 import random
 
 User = get_user_model()
@@ -119,12 +121,14 @@ class Command(BaseCommand):
                 # Send via WebSocket
                 self._send_websocket_notification(user, notification)
 
+                # Send via Push Notification if user has active subscriptions
+                push_sent = self._send_push_notification(user, notification)
+
                 created_count += 1
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f'✓ Created notification #{notification.id} for user {user.username} ({user.id})'
-                    )
-                )
+                status_msg = f'✓ Created notification #{notification.id} for user {user.username} ({user.id})'
+                if push_sent > 0:
+                    status_msg += f' [Push: {push_sent} device(s)]'
+                self.stdout.write(self.style.SUCCESS(status_msg))
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -149,6 +153,49 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(f'  ⚠ WebSocket send failed: {str(e)}')
             )
+
+    def _send_push_notification(self, user, notification):
+        """Send notification via Push Notification if user has active subscriptions"""
+        try:
+            # Check if user has active push subscriptions
+            subscriptions_count = PushSubscription.objects.filter(
+                user=user,
+                is_active=True
+            ).count()
+
+            if subscriptions_count == 0:
+                self.stdout.write(f'  → No active push subscriptions for user')
+                return 0
+
+            # Send push notification
+            sent_count = send_push_to_user(
+                user=user,
+                title=notification.title,
+                body=notification.description or notification.subtitle,
+                data={
+                    'notification_id': notification.id,
+                    'type': notification.type,
+                    'module': notification.module,
+                    'url': notification.url or '/',
+                }
+            )
+
+            if sent_count > 0:
+                self.stdout.write(
+                    self.style.SUCCESS(f'  → Push notification sent to {sent_count} device(s)')
+                )
+            else:
+                self.stdout.write(
+                    self.style.WARNING(f'  ⚠ Push notification failed to send')
+                )
+
+            return sent_count
+
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f'  ⚠ Push notification send failed: {str(e)}')
+            )
+            return 0
 
     def _get_notification_templates(self):
         """Get various notification templates for testing"""
