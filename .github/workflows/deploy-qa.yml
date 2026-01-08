@@ -53,6 +53,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    environment: trainer
     steps:
       - name: Trigger Dokploy deployment
         env:
