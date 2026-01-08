@@ -79,24 +79,8 @@ def send_push_notification(
     }
 
     try:
-        # Cargar VAPID desde PEM string
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.backends import default_backend
-
-        # Convertir string PEM a bytes
-        private_key_bytes = settings.VAPID_PRIVATE_KEY.encode('utf-8')
-
-        # Cargar la clave privada
-        private_key = serialization.load_pem_private_key(
-            private_key_bytes,
-            password=None,
-            backend=default_backend()
-        )
-
-        # Crear objeto Vapid con la clave cargada
-        vapid = Vapid()
-        vapid.private_key = private_key
-        vapid.public_key = private_key.public_key()
+        # Crear objeto Vapid desde PEM string usando método from_pem
+        vapid = Vapid.from_pem(settings.VAPID_PRIVATE_KEY.encode('utf-8'))
 
         response = webpush(
             subscription_info=subscription.subscription_info,
