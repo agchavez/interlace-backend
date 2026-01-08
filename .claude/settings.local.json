@@ -18,7 +18,11 @@
       "Bash(python manage.py showmigrations:*)",
       "Bash(python manage.py dbshell:*)",
       "Bash(python:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(conda activate:*)",
+      "Bash(pip show:*)",
+      "Bash(iconv:*)",
+      "Bash(docker build:*)"
     ]
   }
 }

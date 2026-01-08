@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tracker-qa.rule=Host(`tracker-qa.tracker.lat`)"
+      - "traefik.http.routers.tracker-qa.entrypoints=websecure"
+      - "traefik.http.routers.tracker-qa.tls.certresolver=letsencrypt"
+      - "traefik.http.services.tracker-qa.loadbalancer.server.port=8000"
+    networks:
+      - dokploy-network
+
+  redis:
+    image: redis:latest
+    volumes:
+      - redis_data:/data
+    networks:
+      - dokploy-network
+
+  celery-worker:
+    build: .
+    command: celery -A config worker -l info
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+    networks:
+      - dokploy-network
+
+  celery-beat:
+    build: .
+    command: celery -A config beat -l info
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+    networks:
+      - dokploy-network
+
+volumes:
+  redis_data:
+
+networks:
+  dokploy-network:
+    external: true

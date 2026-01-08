@@ -389,8 +389,8 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         total_personnel = queryset.filter(is_active=True).count()
         total_inactive = queryset.filter(is_active=False).count()
 
-        # Acceso al sistema
-        with_system_access = queryset.filter(is_active=True, has_system_access=True).count()
+        # Acceso al sistema (usuarios que tienen user asignado)
+        with_system_access = queryset.filter(is_active=True, user__isnull=False).count()
         without_system_access = total_personnel - with_system_access
 
         # Promedio de años de servicio
