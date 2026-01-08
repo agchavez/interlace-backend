@@ -11,7 +11,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from ..models.organization import Area, Department
 from ..serializers.personnel_serializers import AreaSerializer, DepartmentSerializer
-from ..permissions import IsSupervisorOrAbove
+from ..permissions import IsSupervisorOrAbove, CanManagePersonnel
 
 
 class AreaViewSet(viewsets.ModelViewSet):
@@ -31,7 +31,7 @@ class AreaViewSet(viewsets.ModelViewSet):
     """
     queryset = Area.objects.all()
     serializer_class = AreaSerializer
-    permission_classes = [IsAuthenticated, IsSupervisorOrAbove]
+    permission_classes = [IsAuthenticated, CanManagePersonnel]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['name', 'code', 'created_at']
@@ -87,7 +87,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     """
     queryset = Department.objects.select_related('area').all()
     serializer_class = DepartmentSerializer
-    permission_classes = [IsAuthenticated, IsSupervisorOrAbove]
+    permission_classes = [IsAuthenticated, CanManagePersonnel]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['name', 'code', 'created_at']
