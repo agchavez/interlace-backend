@@ -382,8 +382,23 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         """
         Dashboard con estadísticas generales
         GET /api/personnel/profiles/dashboard/
+
+        Query params:
+        - distributor_center: ID del centro de distribución (opcional)
         """
         queryset = self.get_queryset()
+
+        # Filtrar por centro de distribución si se proporciona
+        distributor_center_id = request.query_params.get('distributor_center')
+        distributor_center_name = None
+        if distributor_center_id:
+            try:
+                from apps.maintenance.models import DistributorCenter
+                dc = DistributorCenter.objects.get(id=distributor_center_id)
+                distributor_center_name = dc.name
+                queryset = queryset.filter(primary_distributor_center_id=distributor_center_id)
+            except DistributorCenter.DoesNotExist:
+                pass
 
         # Estadísticas básicas
         total_personnel = queryset.filter(is_active=True).count()
@@ -473,12 +488,12 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         ).count()
 
         # Evaluaciones de desempeño pendientes (sin evaluar en los últimos 6 meses)
-        from ..models.performance import PerformanceEvaluation
+        from ..models.performance import PerformanceMetric
         six_months_ago = date.today() - timedelta(days=180)
 
-        # Personal activo que no tiene evaluación reciente
-        personnel_with_recent_eval = PerformanceEvaluation.objects.filter(
-            evaluation_date__gte=six_months_ago
+        # Personal activo que no tiene métrica de desempeño reciente
+        personnel_with_recent_eval = PerformanceMetric.objects.filter(
+            metric_date__gte=six_months_ago
         ).values_list('personnel_id', flat=True).distinct()
 
         pending_evaluations = queryset.filter(
@@ -488,6 +503,10 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         ).count()
 
         data = {
+            'filter': {
+                'distributor_center_id': int(distributor_center_id) if distributor_center_id else None,
+                'distributor_center_name': distributor_center_name,
+            },
             'summary': {
                 'total_active': total_personnel,
                 'total_inactive': total_inactive,

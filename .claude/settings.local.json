@@ -24,7 +24,26 @@
       "Bash(iconv:*)",
       "Bash(docker build:*)",
       "Bash(npm run build)",
-      "Bash(npm pkg set:*)"
+      "Bash(npm pkg set:*)",
+      "Bash(node generate-icons.js:*)",
+      "Bash(ls -la \"E:\\\\acsolutions\\\\tracker\\\\tracker-backend\\\\apps\\\\tracker\\\\migrations\"\" 2>/dev/null || dir \"E:acsolutionstrackertracker-backendappstrackermigrations \")",
+      "Bash(npm run build:prod:*)",
+      "Bash(python -c:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(npm pkg:*)",
+      "Bash(node generate-pwa-icons.js:*)",
+      "Bash(node generate-pwa-icons.cjs:*)",
+      "Bash(E:ProgramsAnacondaenvstrackerpython.exe -m pip install:*)",
+      "Bash(conda run:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ssh tracker@20.106.239.19 \"cat /etc/dokploy/compose/tracker-backend-ej7pma/code/.env | grep VAPID_PUBLIC_KEY\")",
+      "Bash(ssh:*)",
+      "Bash(gh run list:*)",
+      "WebSearch"
     ]
   }
 }

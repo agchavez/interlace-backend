@@ -82,3 +82,4 @@ pyodbc==5.0.1
 pywebpush==1.14.1
 py-vapid==1.9.1
 
+whitenoise==6.11.0
