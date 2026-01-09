@@ -415,6 +415,32 @@ class PersonnelProfile(models.Model):
         """Puede aprobar tokens de nivel 3"""
         return self.hierarchy_level == self.CD_MANAGER
 
+    @property
+    def has_system_access(self):
+        """
+        Verifica si el personal tiene usuario activo en el sistema.
+        No todo el personal tiene usuario - muchos operativos solo tienen perfil.
+        """
+        return self.user is not None and self.user.is_active
+
+    def can_request_tokens(self):
+        """
+        Verifica si puede crear solicitudes de tokens.
+        Solo personal con usuario y nivel supervisor+ pueden solicitar.
+        """
+        return self.has_system_access and self.can_approve_tokens_level_1()
+
+    def can_validate_tokens(self):
+        """
+        Verifica si puede validar tokens (Personal de Seguridad).
+        Solo el personal del área de Seguridad puede validar tokens en portería.
+        """
+        return (
+            self.has_system_access and
+            self.area is not None and
+            self.area.code == 'SECURITY'
+        )
+
     def get_supervised_personnel(self):
         """Retorna el personal que supervisa directamente"""
         return PersonnelProfile.objects.filter(

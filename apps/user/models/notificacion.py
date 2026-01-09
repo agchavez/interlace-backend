@@ -38,6 +38,7 @@ class NotificationModel(BaseModel):
         TRACKER = 'TRACKER'
         USER = 'USUARIO'
         PRODUCT = 'PRODUCTO'
+        TOKENS = 'TOKENS'
         OTHERS = 'OTROS'
 
     # The user to whom the notification is sent

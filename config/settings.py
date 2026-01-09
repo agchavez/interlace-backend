@@ -33,6 +33,7 @@ LOCAL_APPS = [
     'apps.imported',
     'apps.document',
     'apps.personnel',
+    'apps.tokens',
 ]
 
 INSTALLED_APPS = [

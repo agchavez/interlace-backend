@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Recibo {{ token.display_number }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.2;
+            color: #000;
+            background: #fff;
+            width: 80mm;
+            padding: 2mm;
+        }
+
+        .receipt {
+            width: 100%;
+        }
+
+        /* Header con marca ORIGINAL/COPIA */
+        .copy-mark {
+            text-align: center;
+            padding: 3px 0;
+            margin-bottom: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            {% if is_copy %}
+            background: #f0f0f0;
+            border: 1px dashed #999;
+            {% else %}
+            background: #000;
+            color: #fff;
+            {% endif %}
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+
+        .company-name {
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .receipt-title {
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        /* Token Info */
+        .token-header {
+            text-align: center;
+            padding: 5px 0;
+            border-bottom: 1px dashed #000;
+            margin-bottom: 5px;
+        }
+
+        .token-number {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .token-type {
+            font-size: 10px;
+            margin-top: 2px;
+        }
+
+        /* Status */
+        .status-box {
+            text-align: center;
+            padding: 4px;
+            margin-bottom: 5px;
+            border: 1px solid #000;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* Info compacta */
+        .info-block {
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #000;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+
+        .info-label {
+            color: #333;
+            flex-shrink: 0;
+        }
+
+        .info-value {
+            font-weight: bold;
+            text-align: right;
+            max-width: 55%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Vigencia compacta en una línea */
+        .validity-compact {
+            text-align: center;
+            padding: 4px;
+            margin-bottom: 5px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            font-size: 10px;
+        }
+
+        .validity-label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .validity-range {
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        /* Detalles específicos */
+        .details-block {
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #000;
+        }
+
+        .details-title {
+            font-size: 9px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        .detail-row {
+            font-size: 10px;
+            margin-bottom: 1px;
+        }
+
+        /* Items list */
+        .item-row {
+            font-size: 9px;
+            margin-bottom: 1px;
+            padding-left: 5px;
+        }
+
+        /* QR Section */
+        .qr-section {
+            text-align: center;
+            padding: 5px 0;
+            margin-bottom: 5px;
+        }
+
+        .qr-code {
+            width: 40mm;
+            height: 40mm;
+        }
+
+        .qr-instruction {
+            font-size: 9px;
+            margin-top: 3px;
+            font-weight: bold;
+        }
+
+        /* Aprobaciones compactas */
+        .approvals-block {
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #000;
+        }
+
+        .approval-row {
+            font-size: 9px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 8px;
+            padding-top: 3px;
+        }
+
+        .footer-date {
+            margin-bottom: 2px;
+        }
+
+        .footer-message {
+            font-style: italic;
+            margin-top: 2px;
+            margin-bottom: 3px;
+        }
+
+        .token-code {
+            font-size: 7px;
+            color: #666;
+            margin-top: 3px;
+            word-break: break-all;
+        }
+
+        .divider {
+            border-top: 1px dashed #000;
+            margin: 3px 0;
+        }
+
+        /* Sin saltos de página */
+        .receipt, .receipt * {
+            page-break-inside: avoid;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <!-- Marca ORIGINAL/COPIA -->
+        <div class="copy-mark">
+            {% if is_copy %}*** COPIA ***{% else %}ORIGINAL{% endif %}
+        </div>
+
+        <!-- Header -->
+        <div class="header">
+            <div class="company-name">ABINBEV</div>
+            <div class="receipt-title">COMPROBANTE DE TOKEN</div>
+        </div>
+
+        <!-- Token Number y Tipo -->
+        <div class="token-header">
+            <div class="token-number">{{ token.display_number }}</div>
+            <div class="token-type">{{ token_type_label }}</div>
+        </div>
+
+        <!-- Status -->
+        <div class="status-box">{{ status_config.label }}</div>
+
+        <!-- Beneficiario Info -->
+        <div class="info-block">
+            <div class="info-row">
+                <span class="info-label">BENEFICIARIO:</span>
+                <span class="info-value">{{ token.personnel.full_name|truncatechars:22 }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">CODIGO:</span>
+                <span class="info-value">{{ token.personnel.employee_code }}</span>
+            </div>
+            {% if token.personnel.area %}
+            <div class="info-row">
+                <span class="info-label">AREA:</span>
+                <span class="info-value">{{ token.personnel.area.name|truncatechars:18 }}</span>
+            </div>
+            {% endif %}
+            <div class="info-row">
+                <span class="info-label">CD:</span>
+                <span class="info-value">{{ token.distributor_center.name|truncatechars:18 }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">SOLICITADO:</span>
+                <span class="info-value">{{ requested_by_name|truncatechars:18 }}</span>
+            </div>
+        </div>
+
+        <!-- Vigencia compacta -->
+        <div class="validity-compact">
+            <span class="validity-label">VIGENCIA</span>
+            <span class="validity-range">
+                {{ token.valid_from|date:"d/m/y H:i" }} - {{ token.valid_until|date:"d/m/y H:i" }}
+            </span>
+        </div>
+
+        <!-- Detalles específicos según tipo -->
+        {% if token.token_type == 'PERMIT_HOUR' and permit_hour_detail %}
+        <div class="details-block">
+            <div class="details-title">DETALLES DEL PERMISO</div>
+            <div class="detail-row">Horas: {{ permit_hour_detail.hours_requested }}h</div>
+            <div class="detail-row">Motivo: {{ permit_hour_detail.get_reason_display|truncatechars:25 }}</div>
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'PERMIT_DAY' and permit_day_detail %}
+        <div class="details-block">
+            <div class="details-title">DETALLES DEL PERMISO</div>
+            <div class="detail-row">Dias: {{ permit_day_detail.total_days }}</div>
+            <div class="detail-row">Motivo: {{ permit_day_detail.get_reason_display|truncatechars:25 }}</div>
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'OVERTIME' and overtime_detail %}
+        <div class="details-block">
+            <div class="details-title">HORAS EXTRA</div>
+            <div class="detail-row">Horas: {{ overtime_detail.hours_requested }}h</div>
+            <div class="detail-row">Tipo: {{ overtime_detail.get_overtime_type_display|truncatechars:20 }}</div>
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'SHIFT_CHANGE' and shift_change_detail %}
+        <div class="details-block">
+            <div class="details-title">CAMBIO DE TURNO</div>
+            <div class="detail-row">Original: {{ shift_change_detail.original_shift.name|truncatechars:18 }}</div>
+            <div class="detail-row">Nuevo: {{ shift_change_detail.new_shift.name|truncatechars:18 }}</div>
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'SUBSTITUTION' and substitution_detail %}
+        <div class="details-block">
+            <div class="details-title">SUSTITUCION</div>
+            <div class="detail-row">Sustituye a: {{ substitution_detail.substituted_personnel.full_name|truncatechars:20 }}</div>
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'UNIFORM_DELIVERY' and uniform_delivery_detail %}
+        <div class="details-block">
+            <div class="details-title">ARTICULOS</div>
+            {% for item in uniform_delivery_detail.items.all %}
+            <div class="item-row">- {{ item.get_item_type_display }} ({{ item.get_size_display }}) x{{ item.quantity }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'EXIT_PASS' and exit_pass_detail %}
+        <div class="details-block">
+            <div class="details-title">PASE DE SALIDA</div>
+            <div class="detail-row">Destino: {{ exit_pass_detail.destination|truncatechars:22 }}</div>
+            {% for item in exit_pass_detail.items.all %}
+            <div class="item-row">- {{ item.description|truncatechars:25 }} x{{ item.quantity }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- QR Code -->
+        <div class="qr-section">
+            <img src="{{ qr_data_url }}" class="qr-code" alt="QR">
+            <div class="qr-instruction">PRESENTAR EN CASETA DE SEGURIDAD</div>
+        </div>
+
+        <!-- Aprobaciones -->
+        {% if token.approved_level_1_by or token.approved_level_2_by or token.approved_level_3_by %}
+        <div class="approvals-block">
+            {% if token.approved_level_1_by %}
+            <div class="approval-row">
+                <span>APR.N1:</span>
+                <span>{{ token.approved_level_1_by.full_name|truncatechars:20 }}</span>
+            </div>
+            {% endif %}
+            {% if token.approved_level_2_by %}
+            <div class="approval-row">
+                <span>APR.N2:</span>
+                <span>{{ token.approved_level_2_by.full_name|truncatechars:20 }}</span>
+            </div>
+            {% endif %}
+            {% if token.approved_level_3_by %}
+            <div class="approval-row">
+                <span>APR.N3:</span>
+                <span>{{ token.approved_level_3_by.full_name|truncatechars:20 }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-date">
+                Impreso: {{ generated_at|date:"d/m/Y H:i" }}
+            </div>
+            <div class="divider"></div>
+            <div class="footer-message">
+                Valido solo durante el periodo indicado.
+                {% if is_copy %}Este documento es una COPIA.{% endif %}
+            </div>
+            <div class="token-code">{{ token.token_code }}</div>
+        </div>
+    </div>
+</body>
+</html>

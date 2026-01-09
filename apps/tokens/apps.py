@@ -1,0 +1,10 @@
+from django.apps import AppConfig
+
+
+class TokensConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.tokens'
+    verbose_name = 'Sistema de Tokens'
+
+    def ready(self):
+        import apps.tokens.signals

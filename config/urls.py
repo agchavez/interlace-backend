@@ -33,6 +33,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api/', include(user_urlpatterns)),
+    path('api/tokens/', include('apps.tokens.urls')),
 ]
 
 if settings.DEBUG:
