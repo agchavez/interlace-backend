@@ -4,7 +4,7 @@ FROM python:3.10-slim
 # Set the working directory to /app
 WORKDIR /app
 
-# Install system dependencies required for pyodbc, wkhtmltopdf and other packages
+# Install system dependencies required for pyodbc and other packages
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -15,15 +15,24 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg2 \
     apt-transport-https \
-    # Dependencies for wkhtmltopdf (PDF generation)
-    wkhtmltopdf \
+    wget \
+    # Dependencies for wkhtmltopdf
     fontconfig \
     libfreetype6 \
     libx11-6 \
     libxext6 \
     libxrender1 \
+    libjpeg62-turbo \
+    libpng16-16 \
     xfonts-75dpi \
     xfonts-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install wkhtmltopdf from GitHub releases (not available in Debian Trixie repos)
+RUN wget -q https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.bookworm_amd64.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ./wkhtmltox_0.12.6.1-3.bookworm_amd64.deb \
+    && rm wkhtmltox_0.12.6.1-3.bookworm_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Microsoft ODBC Driver for SQL Server
