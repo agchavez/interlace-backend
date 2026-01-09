@@ -4,7 +4,7 @@ FROM python:3.10-slim
 # Set the working directory to /app
 WORKDIR /app
 
-# Install system dependencies required for pyodbc and other packages
+# Install system dependencies required for pyodbc, wkhtmltopdf and other packages
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -15,6 +15,15 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg2 \
     apt-transport-https \
+    # Dependencies for wkhtmltopdf (PDF generation)
+    wkhtmltopdf \
+    fontconfig \
+    libfreetype6 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    xfonts-75dpi \
+    xfonts-base \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Microsoft ODBC Driver for SQL Server
