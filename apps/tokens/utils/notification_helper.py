@@ -272,17 +272,21 @@ class TokenNotificationHelper:
             )
 
     @classmethod
-    def notify_token_used(cls, token):
+    def notify_token_used(cls, token, used_by_user=None):
         """
         Notifica que un token fue utilizado (validado por Seguridad).
 
         Solo notifica al beneficiario. El solicitante solo es notificado
         si es diferente al beneficiario.
+
+        Args:
+            token: El token que fue utilizado
+            used_by_user: Usuario que completó la acción (no será notificado)
         """
         token_type_label = get_token_type_label(token.token_type)
 
-        # Notificar al beneficiario si tiene usuario
-        if token.personnel.user:
+        # Notificar al beneficiario si tiene usuario Y no es quien completó la acción
+        if token.personnel.user and token.personnel.user != used_by_user:
             cls._create_notification(
                 user=token.personnel.user,
                 title=f"Su {token_type_label} ha sido utilizado",
@@ -291,8 +295,10 @@ class TokenNotificationHelper:
                 notification_type=NotificationModel.Type.CONFIRMATION,
             )
 
-        # Notificar al solicitante SOLO si es diferente al beneficiario
-        if token.requested_by and token.requested_by != token.personnel.user:
+        # Notificar al solicitante SOLO si es diferente al beneficiario Y no es quien completó
+        if (token.requested_by and
+            token.requested_by != token.personnel.user and
+            token.requested_by != used_by_user):
             cls._create_notification(
                 user=token.requested_by,
                 title="Solicitud utilizada",

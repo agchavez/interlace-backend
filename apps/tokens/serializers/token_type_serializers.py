@@ -217,7 +217,7 @@ class UniformItemSerializer(serializers.ModelSerializer):
 class UniformDeliveryDetailSerializer(serializers.ModelSerializer):
     items = UniformItemSerializer(many=True, read_only=True)
     delivered_by_name = serializers.CharField(
-        source='delivered_by.get_full_name', read_only=True
+        source='delivered_by.full_name', read_only=True, allow_null=True
     )
     # Use SerializerMethodField to generate fresh SAS tokens for Azure Blob Storage
     delivery_photo_1 = serializers.SerializerMethodField()

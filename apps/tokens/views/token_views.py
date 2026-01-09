@@ -291,8 +291,8 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
                 notes=serializer.validated_data.get('notes', '')
             )
 
-            # Notificar que fue utilizado
-            TokenNotificationHelper.notify_token_used(token)
+            # Notificar que fue utilizado (excluyendo al usuario que validó)
+            TokenNotificationHelper.notify_token_used(token, used_by_user=request.user)
 
             return Response(TokenRequestDetailSerializer(token).data)
         except ValueError as e:
@@ -534,8 +534,8 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
             # Marcar el token como usado
             token.mark_as_used(personnel)
 
-            # Notificar
-            TokenNotificationHelper.notify_token_used(token)
+            # Notificar (excluyendo al usuario que completó la entrega)
+            TokenNotificationHelper.notify_token_used(token, used_by_user=request.user)
 
             return Response(TokenRequestDetailSerializer(token).data)
         except Exception as e:
