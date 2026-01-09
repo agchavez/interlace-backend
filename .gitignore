@@ -9,7 +9,7 @@ __pycache__/
 daphne.sock.lock
 
 static/
-staticfiles/
+# staticfiles/ - NO ignorar, contiene archivos estáticos fuente (logos, etc.)
 
 # C extensions
 *.so

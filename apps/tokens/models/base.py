@@ -275,6 +275,26 @@ class TokenRequest(BaseModel):
             models.Index(fields=['distributor_center', 'status']),
             models.Index(fields=['token_type', 'status']),
         ]
+        permissions = [
+            # Aprobaciones
+            ("can_approve_level_1", "Puede aprobar tokens nivel 1"),
+            ("can_approve_level_2", "Puede aprobar tokens nivel 2"),
+            ("can_approve_level_3", "Puede aprobar tokens nivel 3"),
+            ("can_approve_token", "Puede aprobar tokens (cualquier nivel)"),
+            ("can_reject_token", "Puede rechazar tokens"),
+            ("can_cancel_token", "Puede cancelar tokens"),
+            # Validacion
+            ("can_validate_token", "Puede validar tokens en porteria"),
+            # Documentos
+            ("can_download_pdf", "Puede descargar PDF de tokens"),
+            ("can_download_receipt", "Puede descargar recibos de tokens"),
+            ("can_print_token", "Puede imprimir tokens"),
+            # Entrega de uniformes
+            ("can_complete_delivery", "Puede completar entrega de uniformes"),
+            # Reportes
+            ("can_view_reports", "Puede ver reportes de tokens"),
+            ("can_export_data", "Puede exportar datos de tokens"),
+        ]
 
     def __str__(self):
         return f"{self.display_number} - {self.get_token_type_display()} ({self.get_status_display()})"

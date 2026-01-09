@@ -168,6 +168,11 @@ TIME_ZONE = 'America/Tegucigalpa'
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+# Directorios de archivos estáticos fuente (se copian a STATIC_ROOT con collectstatic)
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'staticfiles'),
+]
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
