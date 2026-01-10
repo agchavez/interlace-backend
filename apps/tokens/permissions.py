@@ -53,9 +53,9 @@ class CanRequestTokens(HasTokenPermission):
     """
     permission_codename = 'add_tokenrequest'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.SUPERVISOR,
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.SUPERVISOR,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para crear tokens."
 
@@ -68,9 +68,9 @@ class CanApproveTokenL1(HasTokenPermission):
     """
     permission_codename = 'can_approve_level_1'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.SUPERVISOR,
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.SUPERVISOR,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para aprobar tokens de nivel 1."
 
@@ -83,8 +83,8 @@ class CanApproveTokenL2(HasTokenPermission):
     """
     permission_codename = 'can_approve_level_2'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para aprobar tokens de nivel 2."
 
@@ -97,7 +97,7 @@ class CanApproveTokenL3(HasTokenPermission):
     """
     permission_codename = 'can_approve_level_3'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para aprobar tokens de nivel 3."
 
@@ -127,7 +127,7 @@ class CanValidateToken(permissions.BasePermission):
                 return True
 
             # Gerente de CD (para emergencias)
-            if personnel.hierarchy_level == PersonnelProfile.HierarchyLevel.CD_MANAGER:
+            if personnel.hierarchy_level == PersonnelProfile.CD_MANAGER:
                 return True
         except (PersonnelProfile.DoesNotExist, AttributeError):
             pass
@@ -143,9 +143,9 @@ class CanDownloadPdf(HasTokenPermission):
     """
     permission_codename = 'can_download_pdf'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.SUPERVISOR,
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.SUPERVISOR,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para descargar PDF de tokens."
 
@@ -172,9 +172,9 @@ class CanDownloadReceipt(HasTokenPermission):
 
             # Jerarquía supervisor+
             if personnel.hierarchy_level in [
-                PersonnelProfile.HierarchyLevel.SUPERVISOR,
-                PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-                PersonnelProfile.HierarchyLevel.CD_MANAGER,
+                PersonnelProfile.SUPERVISOR,
+                PersonnelProfile.AREA_MANAGER,
+                PersonnelProfile.CD_MANAGER,
             ]:
                 return True
 
@@ -195,9 +195,9 @@ class CanCompleteDelivery(HasTokenPermission):
     """
     permission_codename = 'can_complete_delivery'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.SUPERVISOR,
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.SUPERVISOR,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para completar entregas de uniformes."
 
@@ -210,9 +210,9 @@ class CanRejectToken(HasTokenPermission):
     """
     permission_codename = 'can_reject_token'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.SUPERVISOR,
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.SUPERVISOR,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para rechazar tokens."
 
@@ -225,9 +225,9 @@ class CanCancelToken(HasTokenPermission):
     """
     permission_codename = 'can_cancel_token'
     fallback_hierarchy_levels = [
-        PersonnelProfile.HierarchyLevel.SUPERVISOR,
-        PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-        PersonnelProfile.HierarchyLevel.CD_MANAGER,
+        PersonnelProfile.SUPERVISOR,
+        PersonnelProfile.AREA_MANAGER,
+        PersonnelProfile.CD_MANAGER,
     ]
     message = "No tiene permiso para cancelar tokens."
 
@@ -268,9 +268,9 @@ class IsTokenOwnerOrApprover(permissions.BasePermission):
 
         # Fallback: tiene jerarquía supervisor+
         if personnel and personnel.hierarchy_level in [
-            PersonnelProfile.HierarchyLevel.SUPERVISOR,
-            PersonnelProfile.HierarchyLevel.AREA_MANAGER,
-            PersonnelProfile.HierarchyLevel.CD_MANAGER,
+            PersonnelProfile.SUPERVISOR,
+            PersonnelProfile.AREA_MANAGER,
+            PersonnelProfile.CD_MANAGER,
         ]:
             return True
 
