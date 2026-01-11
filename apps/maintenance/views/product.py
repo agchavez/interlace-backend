@@ -21,14 +21,24 @@ class ProductFilter(django_filters.FilterSet):
         }
 
 
-class ProductModelViewSet(mixins.ListModelMixin,
-                          mixins.RetrieveModelMixin
-    , viewsets.GenericViewSet):
+class ProductModelViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet completo para gestión de Productos.
+
+    Endpoints:
+    - GET /api/maintenance/products/ - Listar productos
+    - POST /api/maintenance/products/ - Crear producto
+    - GET /api/maintenance/products/{id}/ - Detalle de producto
+    - PUT/PATCH /api/maintenance/products/{id}/ - Actualizar producto
+    - DELETE /api/maintenance/products/{id}/ - Eliminar producto
+    """
     queryset = ProductModel.objects.all()
     serializer_class = ProductModelSerializer
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
-    search_fields = ('name', 'sap_code', 'brand')
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ('name', 'sap_code', 'brand', 'bar_code')
     filterset_class = ProductFilter
+    ordering_fields = ['name', 'sap_code', 'brand', 'created_at']
+    ordering = ['name']
     permission_classes = [CustomAccessPermission]
 
     PERMISSION_MAPPING = {

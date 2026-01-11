@@ -31,6 +31,8 @@ from ..permissions import (
 )
 from ..filters import TokenRequestFilter
 from ..utils import generate_token_qr, TokenNotificationHelper, generate_token_pdf, generate_token_receipt
+from ..services.approval_service import ApprovalLevelService
+from apps.personnel.models import PersonnelProfile
 
 
 class TokenRequestViewSet(viewsets.ModelViewSet):
@@ -119,10 +121,49 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Crear token, generar QR y devolver detalle completo"""
+        from django.utils import timezone
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         token = serializer.save(requested_by=request.user)
+
+        # Verificar auto-aprobación
+        try:
+            requester_profile = request.user.personnel_profile
+            beneficiary_profile = token.personnel
+
+            if beneficiary_profile and ApprovalLevelService.can_auto_approve(
+                requester_profile, beneficiary_profile
+            ):
+                # Auto-aprobar todos los niveles requeridos
+                if token.requires_level_1 and not token.approved_level_1_at:
+                    token.approved_level_1_by = requester_profile
+                    token.approved_level_1_at = timezone.now()
+                    token.approved_level_1_notes = "Auto-aprobado por jerarquía superior"
+
+                if token.requires_level_2 and not token.approved_level_2_at:
+                    token.approved_level_2_by = requester_profile
+                    token.approved_level_2_at = timezone.now()
+                    token.approved_level_2_notes = "Auto-aprobado por jerarquía superior"
+
+                if token.requires_level_3 and not token.approved_level_3_at:
+                    token.approved_level_3_by = requester_profile
+                    token.approved_level_3_at = timezone.now()
+                    token.approved_level_3_notes = "Auto-aprobado por jerarquía superior"
+
+                token.status = TokenRequest.Status.APPROVED
+                token.save()
+
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    f"Token {token.display_number} auto-aprobado por {requester_profile.full_name} "
+                    f"(jerarquía: {requester_profile.hierarchy_level})"
+                )
+
+        except PersonnelProfile.DoesNotExist:
+            pass
 
         # Generar código QR
         try:
@@ -135,8 +176,9 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
             logger = logging.getLogger(__name__)
             logger.error(f"Error generando QR para token {token.id}: {e}")
 
-        # Enviar notificación al siguiente aprobador
-        TokenNotificationHelper.notify_pending_approval(token)
+        # Enviar notificación al siguiente aprobador (solo si no fue auto-aprobado)
+        if token.status != TokenRequest.Status.APPROVED:
+            TokenNotificationHelper.notify_pending_approval(token)
 
         # Return detail serializer with id and all fields
         detail_serializer = TokenRequestDetailSerializer(token)
@@ -260,7 +302,10 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def validate(self, request):
         """
-        Validar token por código QR (uso de Seguridad en portería).
+        Validar token para marcarlo como USED.
+        - EXIT_PASS, PERMIT_HOUR: validados por Seguridad
+        - RATE_CHANGE, SUBSTITUTION: validados por Planilla
+        Los demás tipos (PERMIT_DAY, OVERTIME, SHIFT_CHANGE) se quedan en APPROVED.
         Acepta multipart/form-data con firma y foto opcionales.
         Espera: { "token_code": "uuid-del-token", "notes"?: "", "signature"?: File, "photo"?: File }
         """
@@ -269,6 +314,32 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
 
         token_code = serializer.validated_data.get('token_code')
         token = get_object_or_404(TokenRequest, token_code=token_code)
+
+        # Verificar si el tipo de token requiere validación
+        if not token.requires_validation:
+            return Response(
+                {'error': f'Este tipo de token ({token.get_token_type_display()}) no requiere validación. Se queda en estado Aprobado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar permisos según tipo de validación
+        validation_type = token.validation_type
+        user = request.user
+
+        if validation_type == 'security':
+            # Validar que el usuario tenga permiso de seguridad (portería)
+            if not user.has_perm('tokens.can_validate_token'):
+                return Response(
+                    {'error': 'No tiene permisos para validar tokens de seguridad.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif validation_type == 'payroll':
+            # Validar que el usuario tenga permiso de planilla
+            if not user.has_perm('tokens.can_validate_payroll'):
+                return Response(
+                    {'error': 'No tiene permisos para marcar tokens como utilizados (Planilla).'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         if not token.can_be_used:
             if token.status != TokenRequest.Status.APPROVED:

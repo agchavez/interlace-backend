@@ -58,12 +58,15 @@ class TokenRequest(BaseModel):
         verbose_name='Estado'
     )
 
-    # Personal involucrado
+    # Personal involucrado (nullable para tokens de personas externas)
     personnel = models.ForeignKey(
         'personnel.PersonnelProfile',
         on_delete=models.PROTECT,
         related_name='tokens_received',
-        verbose_name='Beneficiario'
+        verbose_name='Beneficiario',
+        null=True,
+        blank=True,
+        help_text='Puede ser nulo para pases de salida de personas externas'
     )
     requested_by = models.ForeignKey(
         'user.UserModel',
@@ -285,6 +288,7 @@ class TokenRequest(BaseModel):
             ("can_cancel_token", "Puede cancelar tokens"),
             # Validacion
             ("can_validate_token", "Puede validar tokens en porteria"),
+            ("can_validate_payroll", "Puede marcar tokens como utilizados (Planilla)"),
             # Documentos
             ("can_download_pdf", "Puede descargar PDF de tokens"),
             ("can_download_receipt", "Puede descargar recibos de tokens"),
@@ -337,6 +341,43 @@ class TokenRequest(BaseModel):
         return self.is_approved and self.is_valid
 
     @property
+    def requires_validation(self):
+        """
+        Indica si el token requiere validación para pasar a USED.
+        - EXIT_PASS: validado por Seguridad
+        - PERMIT_HOUR, OVERTIME, SHIFT_CHANGE, SUBSTITUTION, RATE_CHANGE: validados por Planilla
+        Los demás (PERMIT_DAY, UNIFORM_DELIVERY) se quedan en APPROVED.
+        """
+        return self.token_type in [
+            self.TokenType.EXIT_PASS,
+            self.TokenType.PERMIT_HOUR,
+            self.TokenType.OVERTIME,
+            self.TokenType.SHIFT_CHANGE,
+            self.TokenType.SUBSTITUTION,
+            self.TokenType.RATE_CHANGE,
+        ]
+
+    @property
+    def validation_type(self):
+        """
+        Indica quién debe validar el token.
+        - 'security': Seguridad (solo EXIT_PASS)
+        - 'payroll': Planilla (PERMIT_HOUR, OVERTIME, SHIFT_CHANGE, SUBSTITUTION, RATE_CHANGE)
+        - None: No requiere validación (PERMIT_DAY, UNIFORM_DELIVERY)
+        """
+        if self.token_type == self.TokenType.EXIT_PASS:
+            return 'security'
+        if self.token_type in [
+            self.TokenType.PERMIT_HOUR,
+            self.TokenType.OVERTIME,
+            self.TokenType.SHIFT_CHANGE,
+            self.TokenType.SUBSTITUTION,
+            self.TokenType.RATE_CHANGE,
+        ]:
+            return 'payroll'
+        return None
+
+    @property
     def approval_progress(self):
         """Retorna el progreso de aprobación como porcentaje"""
         total_levels = sum([
@@ -376,8 +417,8 @@ class TokenRequest(BaseModel):
         if self.status == self.Status.REJECTED:
             return False
 
-        # No puede aprobar su propio token
-        if self.personnel == personnel:
+        # No puede aprobar su propio token (solo si tiene beneficiario)
+        if self.personnel and self.personnel == personnel:
             return False
 
         # Verificar si es el nivel actual pendiente

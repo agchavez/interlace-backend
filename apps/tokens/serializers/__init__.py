@@ -10,6 +10,12 @@ from .base_serializers import (
     TokenValidateSerializer,
     PublicTokenSerializer,
 )
+from .external_person_serializers import (
+    ExternalPersonSerializer,
+    ExternalPersonListSerializer,
+    ExternalPersonCreateSerializer,
+    ExternalPersonBasicSerializer,
+)
 from .token_type_serializers import (
     # Catalog
     UnitOfMeasureSerializer,
@@ -56,6 +62,11 @@ __all__ = [
     'TokenRejectSerializer',
     'TokenValidateSerializer',
     'PublicTokenSerializer',
+    # External Person
+    'ExternalPersonSerializer',
+    'ExternalPersonListSerializer',
+    'ExternalPersonCreateSerializer',
+    'ExternalPersonBasicSerializer',
     # Catalog
     'UnitOfMeasureSerializer',
     'MaterialSerializer',

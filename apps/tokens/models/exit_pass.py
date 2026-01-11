@@ -11,6 +11,22 @@ class ExitPassDetail(BaseModel):
         related_name='exit_pass_detail',
         verbose_name='Token'
     )
+
+    # Soporte para personas externas (proveedores)
+    is_external = models.BooleanField(
+        default=False,
+        verbose_name='Es persona externa',
+        help_text='Indica si el pase es para un proveedor/persona externa'
+    )
+    external_person = models.ForeignKey(
+        'tokens.ExternalPerson',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='exit_passes',
+        verbose_name='Persona externa'
+    )
+
     destination = models.CharField(
         max_length=255,
         verbose_name='Destino'
@@ -99,6 +115,14 @@ class ExitPassItem(BaseModel):
         max_digits=10,
         decimal_places=2,
         verbose_name='Cantidad'
+    )
+    weight_kg = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Peso (kg)',
+        help_text='Peso en kilogramos del material'
     )
     unit_value = models.DecimalField(
         max_digits=10,

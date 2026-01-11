@@ -5,6 +5,9 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     TokenRequestViewSet,
+    ExternalPersonViewSet,
+    MaterialViewSet,
+    UnitOfMeasureViewSet,
     public_token_detail,
     public_token_by_code,
     public_token_verify,
@@ -12,6 +15,11 @@ from .views import (
 )
 
 router = DefaultRouter()
+# Catalogos (rutas especificas primero)
+router.register(r'materials', MaterialViewSet, basename='material')
+router.register(r'units', UnitOfMeasureViewSet, basename='unit-of-measure')
+router.register(r'external-persons', ExternalPersonViewSet, basename='external-person')
+# Tokens (ruta general al final)
 router.register(r'', TokenRequestViewSet, basename='token')
 
 urlpatterns = [

@@ -1030,7 +1030,8 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
                         profile_data['first_name'] = user_data['first_name']
                     if 'last_name' not in profile_data and user_data.get('last_name'):
                         profile_data['last_name'] = user_data['last_name']
-                    if 'email' not in profile_data and user_data.get('email'):
+                    # Sincronizar email: usar user_data.email si profile_data.email está vacío o no existe
+                    if user_data.get('email') and (not profile_data.get('email')):
                         profile_data['email'] = user_data['email']
 
                 serializer = PersonnelProfileCreateUpdateSerializer(
@@ -1085,6 +1086,103 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
                 {'detail': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eligible_for_token(self, request):
+        """
+        Personal elegible para ser beneficiario de tokens.
+        GET /api/profiles/eligible_for_token/
+
+        Query params:
+        - token_type: tipo de token (filtra operativos para SUBSTITUTION, RATE_CHANGE, SHIFT_CHANGE)
+        - search: búsqueda por nombre o código
+        - limit: límite de resultados (default: 100)
+
+        Reglas de filtrado según quien solicita:
+        - SUPERVISOR: operativos de SU área + SUS centros + a sí mismo
+        - AREA_MANAGER: operativos + supervisores de SU área + SUS centros + a sí mismo
+        - CD_MANAGER: todo el personal de SUS centros (sin filtrar por área)
+        """
+        try:
+            user_personnel = request.user.personnel_profile
+        except PersonnelProfile.DoesNotExist:
+            return Response([], status=status.HTTP_200_OK)
+
+        token_type = request.query_params.get('token_type')
+        search = request.query_params.get('search', '')
+        limit = int(request.query_params.get('limit', 100))
+
+        # Obtener centros del usuario
+        user_centers = list(user_personnel.distributor_centers.values_list('id', flat=True))
+        if user_personnel.primary_distributor_center:
+            user_centers.append(user_personnel.primary_distributor_center_id)
+        user_centers = list(set(user_centers))
+
+        queryset = PersonnelProfile.objects.filter(is_active=True).select_related(
+            'area', 'primary_distributor_center'
+        )
+
+        # Filtrar según jerarquía del solicitante
+        if user_personnel.hierarchy_level == PersonnelProfile.CD_MANAGER:
+            # Gerente: todo el personal de sus centros
+            queryset = queryset.filter(
+                Q(primary_distributor_center_id__in=user_centers) |
+                Q(distributor_centers__id__in=user_centers)
+            ).distinct()
+
+        elif user_personnel.hierarchy_level == PersonnelProfile.AREA_MANAGER:
+            # Jefe de Área: operativos + supervisores de su área + sus centros + a sí mismo
+            queryset = queryset.filter(
+                Q(id=user_personnel.id) |
+                (
+                    Q(area=user_personnel.area) &
+                    (
+                        Q(primary_distributor_center_id__in=user_centers) |
+                        Q(distributor_centers__id__in=user_centers)
+                    ) &
+                    Q(hierarchy_level__in=[
+                        PersonnelProfile.OPERATIVE,
+                        PersonnelProfile.SUPERVISOR
+                    ])
+                )
+            ).distinct()
+
+        elif user_personnel.hierarchy_level == PersonnelProfile.SUPERVISOR:
+            # Supervisor: operativos de su área + sus centros + a sí mismo
+            queryset = queryset.filter(
+                Q(id=user_personnel.id) |
+                (
+                    Q(area=user_personnel.area) &
+                    (
+                        Q(primary_distributor_center_id__in=user_centers) |
+                        Q(distributor_centers__id__in=user_centers)
+                    ) &
+                    Q(hierarchy_level=PersonnelProfile.OPERATIVE)
+                )
+            ).distinct()
+
+        else:
+            # Operativo: solo a sí mismo
+            queryset = queryset.filter(id=user_personnel.id)
+
+        # Filtrar por tipo de token si es necesario
+        # SUBSTITUTION, RATE_CHANGE, SHIFT_CHANGE solo para operativos
+        if token_type in ['SUBSTITUTION', 'RATE_CHANGE', 'SHIFT_CHANGE']:
+            queryset = queryset.filter(hierarchy_level=PersonnelProfile.OPERATIVE)
+
+        # Búsqueda por nombre o código
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(employee_code__icontains=search)
+            )
+
+        # Limitar resultados
+        queryset = queryset[:limit]
+
+        serializer = PersonnelProfileListSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class EmergencyContactViewSet(viewsets.ModelViewSet):

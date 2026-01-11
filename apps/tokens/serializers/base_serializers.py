@@ -9,6 +9,7 @@ from ..models import (
     UniformDeliveryDetail, UniformItem,
     SubstitutionDetail, RateChangeDetail, OvertimeDetail, ShiftChangeDetail
 )
+from ..services.approval_service import ApprovalLevelService
 from apps.personnel.models import PersonnelProfile
 from apps.maintenance.models import DistributorCenter
 
@@ -123,10 +124,13 @@ class TokenRequestDetailSerializer(serializers.ModelSerializer):
     current_approval_level = serializers.IntegerField(source='get_current_approval_level', read_only=True)
     is_valid = serializers.BooleanField(read_only=True)
     can_be_used = serializers.BooleanField(read_only=True)
+    requires_validation = serializers.BooleanField(read_only=True)
+    validation_type = serializers.CharField(read_only=True)
 
-    # User-specific approval permissions
+    # User-specific permissions
     can_user_approve = serializers.SerializerMethodField()
     can_user_complete_delivery = serializers.SerializerMethodField()
+    can_user_validate = serializers.SerializerMethodField()
 
     def get_can_user_approve(self, obj):
         """Check if current user can approve this token at the current level"""
@@ -159,6 +163,33 @@ class TokenRequestDetailSerializer(serializers.ModelSerializer):
             return personnel.hierarchy_level in ['SUPERVISOR', 'AREA_MANAGER', 'CD_MANAGER']
         except:
             return False
+
+    def get_can_user_validate(self, obj):
+        """
+        Check if current user can validate/mark this token as used.
+        - Security: can_validate_token permission (EXIT_PASS only)
+        - Payroll: can_validate_payroll permission (PERMIT_HOUR, OVERTIME, etc.)
+        """
+        # Solo tokens aprobados y válidos pueden ser validados
+        if not obj.can_be_used:
+            return False
+        # Solo tokens que requieren validación
+        if not obj.requires_validation:
+            return False
+
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+        validation_type = obj.validation_type
+
+        if validation_type == 'security':
+            return user.has_perm('tokens.can_validate_token')
+        elif validation_type == 'payroll':
+            return user.has_perm('tokens.can_validate_payroll')
+
+        return False
 
     # Approval signature/photo getters with SAS tokens
     def get_approved_level_1_signature(self, obj):
@@ -225,8 +256,8 @@ class TokenRequestDetailSerializer(serializers.ModelSerializer):
             'valid_from', 'valid_until',
             'requester_notes', 'internal_notes',
             'approval_progress', 'current_approval_level',
-            'is_valid', 'can_be_used',
-            'can_user_approve', 'can_user_complete_delivery',
+            'is_valid', 'can_be_used', 'requires_validation', 'validation_type',
+            'can_user_approve', 'can_user_complete_delivery', 'can_user_validate',
             'created_at',
             # Detalles específicos
             'permit_hour_detail',
@@ -353,6 +384,7 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """Validaciones generales"""
         token_type = data.get('token_type')
+        personnel = data.get('personnel')
 
         # Mapeo de tipo a campo de detalle requerido
         type_detail_map = {
@@ -371,6 +403,13 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 detail_field: f'Este campo es requerido para {token_type}.'
             })
+
+        # Validar que tokens de dos niveles solo sean para operativos
+        if token_type in ApprovalLevelService.TWO_LEVEL_TYPES:
+            if personnel and personnel.hierarchy_level != PersonnelProfile.OPERATIVE:
+                raise serializers.ValidationError({
+                    'personnel': f'El tipo de token {token_type} solo está permitido para personal operativo.'
+                })
 
         # Validar fechas
         valid_from = data.get('valid_from')
@@ -394,8 +433,28 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
         overtime_data = validated_data.pop('overtime_detail', None)
         shift_change_data = validated_data.pop('shift_change_detail', None)
 
-        # Establecer estado inicial
-        validated_data['status'] = TokenRequest.Status.PENDING_L1
+        # Obtener tipo de token y beneficiario
+        token_type = validated_data.get('token_type')
+        personnel = validated_data.get('personnel')
+
+        # Determinar si es pase de salida para externos
+        is_external = False
+        if token_type == TokenRequest.TokenType.EXIT_PASS and exit_pass_data:
+            is_external = exit_pass_data.get('is_external', False)
+
+        # Determinar niveles de aprobación según tipo y jerarquía del beneficiario
+        beneficiary_hierarchy = personnel.hierarchy_level if personnel else None
+
+        requires_l1, requires_l2, requires_l3, initial_status = ApprovalLevelService.determine_approval_levels(
+            token_type,
+            beneficiary_hierarchy,
+            is_external
+        )
+
+        validated_data['requires_level_1'] = requires_l1
+        validated_data['requires_level_2'] = requires_l2
+        validated_data['requires_level_3'] = requires_l3
+        validated_data['status'] = initial_status
 
         # Crear el token base
         token = TokenRequest.objects.create(**validated_data)
@@ -422,25 +481,17 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
                     from apps.maintenance.models import ProductModel
                     item_data['product'] = ProductModel.objects.get(pk=product_id)
                 ExitPassItem.objects.create(exit_pass=detail, **item_data)
-            # Actualizar niveles de aprobación según valor total
-            l1, l2, l3 = detail.determine_approval_levels()
-            token.requires_level_1 = l1
-            token.requires_level_2 = l2
-            token.requires_level_3 = l3
-            token.save()
+            # Si el valor total es muy alto, agregar aprobación de nivel 3
+            if detail.requires_level_3_approval:
+                token.requires_level_3 = True
+                token.save()
 
         elif token.token_type == TokenRequest.TokenType.UNIFORM_DELIVERY and uniform_delivery_data:
             items_data = uniform_delivery_data.pop('items', [])
             detail = UniformDeliveryDetail.objects.create(token=token, **uniform_delivery_data)
             for item_data in items_data:
                 UniformItem.objects.create(uniform_delivery=detail, **item_data)
-            # UNIFORM_DELIVERY: No approval needed, goes directly to APPROVED
-            # The delivery is completed with photo+signature via complete_uniform_delivery endpoint
-            token.requires_level_1 = False
-            token.requires_level_2 = False
-            token.requires_level_3 = False
-            token.status = TokenRequest.Status.APPROVED
-            token.save()
+            # UNIFORM_DELIVERY: Ya está configurado como APPROVED por ApprovalLevelService
 
         elif token.token_type == TokenRequest.TokenType.SUBSTITUTION and substitution_data:
             substituted_id = substitution_data.pop('substituted_personnel')
