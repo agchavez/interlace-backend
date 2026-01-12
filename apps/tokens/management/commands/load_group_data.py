@@ -5,6 +5,9 @@ Grupos creados:
 - Security (Seguridad): Solo validar tokens EXIT_PASS en porteria
 - People (RRHH/Planilla): Acceso completo a Personal, Tokens, Usuarios
 - Area Head (Jefes de Area): Acceso a Personal y Tokens
+- SUPERVISOR: Ver personal y gestionar tokens de su equipo
+- MANAGING: Gerentes CD - Acceso completo a su centro de distribucion
+- SUPERADMIN: Acceso completo a todo el sistema
 
 Uso: python manage.py load_group_data
 """
@@ -154,13 +157,13 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('  [OK] Grupo "Area Head" configurado'))
 
         # ============================================
-        # GRUPO: Supervisor
+        # GRUPO: SUPERVISOR
         # Acceso basico a Personal y Tokens
         # ============================================
-        self.stdout.write('\n[4] Configurando grupo: Supervisor')
+        self.stdout.write('\n[4] Configurando grupo: SUPERVISOR')
 
         supervisor_group = self._get_or_create_group(
-            name='Supervisor',
+            name='SUPERVISOR',
             description='Supervisores - Ver personal y gestionar tokens de su equipo',
             requiered_access=True
         )
@@ -184,21 +187,21 @@ class Command(BaseCommand):
         }
 
         self._assign_permissions(supervisor_group, supervisor_permissions)
-        self.stdout.write(self.style.SUCCESS('  [OK] Grupo "Supervisor" configurado'))
+        self.stdout.write(self.style.SUCCESS('  [OK] Grupo "SUPERVISOR" configurado'))
 
         # ============================================
-        # GRUPO: CD Manager (Gerentes CD)
+        # GRUPO: MANAGING (Gerentes CD)
         # Acceso completo a su centro de distribucion
         # ============================================
-        self.stdout.write('\n[5] Configurando grupo: CD Manager (Gerentes CD)')
+        self.stdout.write('\n[5] Configurando grupo: MANAGING (Gerentes CD)')
 
-        cd_manager_group = self._get_or_create_group(
-            name='CD Manager',
+        managing_group = self._get_or_create_group(
+            name='MANAGING',
             description='Gerentes CD - Acceso completo a su centro de distribucion',
             requiered_access=True
         )
 
-        cd_manager_permissions = {
+        managing_permissions = {
             'personnel': [
                 'view_personnelprofile',
                 'add_personnelprofile',
@@ -227,8 +230,8 @@ class Command(BaseCommand):
             ],
         }
 
-        self._assign_permissions(cd_manager_group, cd_manager_permissions)
-        self.stdout.write(self.style.SUCCESS('  [OK] Grupo "CD Manager" configurado'))
+        self._assign_permissions(managing_group, managing_permissions)
+        self.stdout.write(self.style.SUCCESS('  [OK] Grupo "MANAGING" configurado'))
 
         # ============================================
         # GRUPO: SUPERADMIN (Acceso completo a todo)
@@ -331,7 +334,7 @@ class Command(BaseCommand):
         self.stdout.write('\n' + '=' * 70)
         self.stdout.write('[RESUMEN] Grupos configurados:\n')
 
-        groups = ['Security', 'People', 'Area Head', 'Supervisor', 'CD Manager', 'SUPERADMIN']
+        groups = ['Security', 'People', 'Area Head', 'SUPERVISOR', 'MANAGING', 'SUPERADMIN']
         for group_name in groups:
             try:
                 group = Group.objects.get(name=group_name)
