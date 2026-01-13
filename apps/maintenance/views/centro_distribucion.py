@@ -1,6 +1,7 @@
 
 from rest_framework import mixins, viewsets
 from rest_framework import filters
+from rest_framework.permissions import IsAuthenticated
 # django filters
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
@@ -94,7 +95,7 @@ class LocationModelViewSet(mixins.ListModelMixin,
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['name', 'code']
     filterset_class = LocationFilter
-    permission_classes = []
+    permission_classes = [IsAuthenticated]
 
     PERMISSION_MAPPING = {
         'GET': ['maintenance.view_locationmodel'],
