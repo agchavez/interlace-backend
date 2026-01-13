@@ -294,7 +294,7 @@ docker run -d --env-file .env tracker-backend
 
 ## 📄 Licencia
 
-Este proyecto es privado y pertenece a ACSolutions.
+Este proyecto es privado.
 
 ## 📞 Soporte
 
