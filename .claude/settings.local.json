@@ -44,6 +44,15 @@
       "Bash(ssh:*)",
       "Bash(gh run list:*)",
       "WebSearch"
+      "Bash(python:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker ps:*)",
+      "Bash(sshpass:*)",
+      "Bash(brew install:*)",
+      "Bash(ping:*)",
+      "Bash(echo:*)",
+      "Bash(sudo tee:*)"
     ]
   }
 }
