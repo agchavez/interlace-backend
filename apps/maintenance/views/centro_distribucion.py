@@ -22,18 +22,23 @@ class CentroDistribucionFilter(django_filters.FilterSet):
             'id': ['exact'],
         }
 
+INTERLACE_DISTRIBUTION_CENTER_ID = 1
+
 class CentroDistribucionViewSet(mixins.ListModelMixin,
                                 mixins.RetrieveModelMixin
                                 ,mixins.CreateModelMixin,
                                 mixins.UpdateModelMixin
                                 , viewsets.GenericViewSet):
-    queryset = DistributorCenter.objects.all()
+    queryset = DistributorCenter.objects.filter(id=INTERLACE_DISTRIBUTION_CENTER_ID)
     serializer_class = DistributorCenterSerializer
     filter_backends = (DjangoFilterBackend, filters.SearchFilter)
     search_fields = ['name', 'location_distributor_center__code']
     filterset_class = CentroDistribucionFilter
     # Quitar la paginacion
     permission_classes = []
+
+    def get_queryset(self):
+        return DistributorCenter.objects.filter(id=INTERLACE_DISTRIBUTION_CENTER_ID)
 
     PERMISSION_MAPPING = {
         'GET': ['maintenance.view_distributorcenter'],
