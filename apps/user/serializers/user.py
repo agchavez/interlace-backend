@@ -19,6 +19,8 @@ class UserDJSerializer(serializers.ModelSerializer):
 
 
 # Serializers (UserModel)
+INTERLACE_DISTRIBUTION_CENTER_ID = 1
+
 class UserSerializer(serializers.ModelSerializer):
     list_groups = serializers.SerializerMethodField()
     list_permissions = serializers.SerializerMethodField()
@@ -34,6 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
     centro_distribucion_name = serializers.SerializerMethodField("get_centro_distribucion")
     photo_url = serializers.SerializerMethodField()
     personnel_profile_id = serializers.SerializerMethodField()
+    distributions_centers = serializers.SerializerMethodField()
 
     def get_personnel_profile_id(self, obj):
         """Obtiene el ID del perfil de personal si existe"""
@@ -59,6 +62,13 @@ class UserSerializer(serializers.ModelSerializer):
                     return request.build_absolute_uri(obj.personnel_profile.photo.url)
                 return obj.personnel_profile.photo.url
         return None
+
+    def get_distributions_centers(self, obj):
+        return list(
+            obj.distributions_centers
+            .filter(id=INTERLACE_DISTRIBUTION_CENTER_ID)
+            .values_list('id', flat=True)
+        )
 
     # validacion al registrar que si hay un grupo seleccionado, verificar si requiere acceso o no
     def validate(self, data):
