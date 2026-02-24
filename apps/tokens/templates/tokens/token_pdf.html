@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Token {{ token.display_number }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #ffffff;
+            color: #1e293b;
+            font-size: 10px;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .container {
+            background: #ffffff;
+        }
+
+        /* Top Logo Section */
+        .top-logos {
+            padding: 12px 18px;
+            border-bottom: 2px solid #d3a238;
+        }
+
+        .top-logos-table {
+            width: 100%;
+        }
+
+        .logo-abinbev {
+            height: 40px;
+        }
+
+        .flag-top-img {
+            width: 80px;
+            height: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+
+        /* Header Bar */
+        .header-bar {
+            background-color: #1c2536 !important;
+            -webkit-print-color-adjust: exact !important;
+            margin: 0 18px;
+            border-radius: 8px;
+            margin-top: 14px;
+            margin-bottom: 14px;
+        }
+
+        .header-bar-table {
+            width: 100%;
+        }
+
+        .token-number-cell {
+            text-align: center;
+            vertical-align: middle;
+            padding: 16px 20px;
+        }
+
+        .token-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffffff !important;
+        }
+
+        .token-type-text {
+            font-size: 11px;
+            color: #d3a238 !important;
+            margin-top: 3px;
+        }
+
+        /* Content */
+        .content {
+            padding: 14px 18px;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background-color: {{ status_config.bg }} !important;
+            border-left: 4px solid {{ status_config.color }};
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            border-radius: 6px;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .status-text {
+            font-size: 11px;
+            font-weight: bold;
+            color: {{ status_config.color }};
+        }
+
+        /* Cards */
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background-color: #f8fafc !important;
+            padding: 8px 14px;
+            border-bottom: 1px solid #e2e8f0;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .card-header h3 {
+            font-size: 10px;
+            font-weight: bold;
+            color: #475569;
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 12px 14px;
+            background: #ffffff;
+        }
+
+        /* Info Table */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .info-table td {
+            padding: 4px 6px;
+            vertical-align: top;
+        }
+
+        .info-label {
+            font-size: 9px;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-size: 11px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        /* Two column layout */
+        .two-col-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .two-col-table > tbody > tr > td {
+            width: 50%;
+            vertical-align: top;
+            padding: 0 5px;
+        }
+
+        .two-col-table > tbody > tr > td:first-child {
+            padding-left: 0;
+        }
+
+        .two-col-table > tbody > tr > td:last-child {
+            padding-right: 0;
+        }
+
+        /* Validity */
+        .validity-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .validity-table td {
+            padding: 10px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .validity-from {
+            background-color: #ecfdf5 !important;
+            border: 1px solid #a7f3d0;
+            border-radius: 8px;
+            width: 47%;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .validity-until {
+            background-color: #fef2f2 !important;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            width: 47%;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .validity-label {
+            font-size: 9px;
+            color: #64748b;
+            margin-bottom: 3px;
+        }
+
+        .validity-date {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .validity-time {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        /* Timeline */
+        .timeline-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .timeline-row td {
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .timeline-row:last-child td {
+            border-bottom: none;
+        }
+
+        .timeline-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-completed {
+            background-color: #22c55e !important;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .dot-pending {
+            background-color: #fbbf24 !important;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .dot-inactive {
+            background-color: #e2e8f0 !important;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .timeline-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .timeline-info {
+            font-size: 9px;
+            color: #64748b;
+        }
+
+        /* Items Table */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+
+        .items-table th {
+            background-color: #f1f5f9 !important;
+            color: #1e293b;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 9px;
+            font-weight: bold;
+            border-bottom: 1px solid #e2e8f0;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .items-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 10px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 9px;
+            font-weight: bold;
+            border-radius: 6px;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .badge-success {
+            background-color: #dcfce7 !important;
+            color: #166534;
+        }
+
+        .badge-warning {
+            background-color: #fef3c7 !important;
+            color: #92400e;
+        }
+
+        .badge-info {
+            background-color: #dbeafe !important;
+            color: #1e40af;
+        }
+
+        /* Notes */
+        .notes-box {
+            background-color: #fef9e7 !important;
+            border: 1px solid #d3a238;
+            border-left: 4px solid #d3a238;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-top: 14px;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .notes-label {
+            font-size: 9px;
+            color: #b8860b;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .notes-text {
+            font-size: 10px;
+            color: #8b6914;
+        }
+
+        /* Bottom Section with QR */
+        .bottom-section-table {
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .bottom-section-table > tbody > tr > td {
+            vertical-align: top;
+        }
+
+        .qr-bottom-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            background: #ffffff;
+        }
+
+        .qr-bottom-img {
+            width: 100px;
+            height: 100px;
+        }
+
+        .qr-label {
+            font-size: 9px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-table {
+            width: 100%;
+        }
+
+        .footer-table td {
+            padding: 0;
+            vertical-align: middle;
+        }
+
+        .footer-text {
+            font-size: 8px;
+            color: #94a3b8;
+        }
+
+        .text-left { text-align: left; }
+        .text-center { text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Logo + Flag -->
+        <div class="top-logos">
+            <table class="top-logos-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="text-align: left;">
+                        {% if logo_base64 %}
+                        <img src="{{ logo_base64 }}" class="logo-abinbev" alt="ABInBev">
+                        {% else %}
+                        <span style="font-size: 22px; font-weight: bold; color: #1e293b;">ABInBev</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <img src="https://flagcdn.com/w160/{{ country_code }}.png" class="flag-top-img" alt="{{ country_code|upper }}">
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Header Bar with Token Number -->
+        <div class="header-bar">
+            <table class="header-bar-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td class="token-number-cell">
+                        <div class="token-number">{{ token.display_number }}</div>
+                        <div class="token-type-text">{{ token.get_token_type_display }}</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Status -->
+            <div class="status-bar">
+                <span class="status-text">Estado: {{ status_config.label }}</span>
+            </div>
+
+            <!-- Main Info - Two columns -->
+            <table class="two-col-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td>
+                        <div class="card">
+                            <div class="card-header"><h3>Beneficiario</h3></div>
+                            <div class="card-body">
+                                <table class="info-table">
+                                    <tr>
+                                        <td style="width: 60%;">
+                                            <div class="info-label">Nombre</div>
+                                            <div class="info-value">{{ token.personnel.full_name }}</div>
+                                        </td>
+                                        <td style="width: 40%;">
+                                            <div class="info-label">Codigo</div>
+                                            <div class="info-value">{{ token.personnel.employee_code }}</div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="info-label">Area</div>
+                                            <div class="info-value">{{ token.personnel.area.name|default:"-" }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="info-label">Cargo</div>
+                                            <div class="info-value">{{ token.personnel.position|default:"-" }}</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="card">
+                            <div class="card-header"><h3>Solicitud</h3></div>
+                            <div class="card-body">
+                                <table class="info-table">
+                                    <tr>
+                                        <td style="width: 50%;">
+                                            <div class="info-label">Centro Distribucion</div>
+                                            <div class="info-value">{{ token.distributor_center.name }}</div>
+                                        </td>
+                                        <td style="width: 50%;">
+                                            <div class="info-label">Solicitado Por</div>
+                                            <div class="info-value">{{ requested_by_name }}</div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2">
+                                            <div class="info-label">Fecha Creacion</div>
+                                            <div class="info-value">{{ token.created_at|date:"d/m/Y H:i" }}</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Validity -->
+            <div class="card">
+                <div class="card-header"><h3>Periodo de Validez</h3></div>
+                <div class="card-body" style="padding: 8px;">
+                    <table class="validity-table" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td class="validity-from">
+                                <div class="validity-label">Desde</div>
+                                <div class="validity-date">{{ token.valid_from|date:"d/m/Y" }}</div>
+                                <div class="validity-time">{{ token.valid_from|time:"H:i" }}</div>
+                            </td>
+                            <td style="width: 6%;"></td>
+                            <td class="validity-until">
+                                <div class="validity-label">Hasta</div>
+                                <div class="validity-date">{{ token.valid_until|date:"d/m/Y" }}</div>
+                                <div class="validity-time">{{ token.valid_until|time:"H:i" }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Type-specific Details -->
+            {% if token.token_type == 'PERMIT_HOUR' and permit_hour_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Permiso por Hora</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 30%;">
+                                <div class="info-label">Motivo</div>
+                                <div class="info-value">{{ permit_hour_detail.get_reason_type_display }}</div>
+                            </td>
+                            <td style="width: 20%;">
+                                <div class="info-label">Horas</div>
+                                <div class="info-value">{{ permit_hour_detail.hours_requested }}h</div>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="info-label">Salida</div>
+                                <div class="info-value">{{ permit_hour_detail.exit_time|time:"H:i" }}</div>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="info-label">Retorno</div>
+                                <div class="info-value">{{ permit_hour_detail.expected_return_time|time:"H:i" }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                    {% if permit_hour_detail.destination %}
+                    <table class="info-table" style="margin-top: 6px;">
+                        <tr>
+                            <td>
+                                <div class="info-label">Destino</div>
+                                <div class="info-value">{{ permit_hour_detail.destination }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                    {% endif %}
+                    <div style="margin-top: 8px;">
+                        <span class="badge {% if permit_hour_detail.with_pay %}badge-success{% else %}badge-warning{% endif %}">
+                            {% if permit_hour_detail.with_pay %}Con Goce de Sueldo{% else %}Sin Goce de Sueldo{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'PERMIT_DAY' and permit_day_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Permiso por Dia</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 40%;">
+                                <div class="info-label">Motivo</div>
+                                <div class="info-value">{{ permit_day_detail.get_reason_display }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Tipo</div>
+                                <div class="info-value">{{ permit_day_detail.get_date_selection_type_display }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Total Dias</div>
+                                <div class="info-value">{{ permit_day_detail.total_days }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                    <div style="margin-top: 8px;">
+                        <span class="badge {% if permit_day_detail.with_pay %}badge-success{% else %}badge-warning{% endif %}">
+                            {% if permit_day_detail.with_pay %}Con Goce de Sueldo{% else %}Sin Goce de Sueldo{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'EXIT_PASS' and exit_pass_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Pase de Salida</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 60%;">
+                                <div class="info-label">Destino</div>
+                                <div class="info-value">{{ exit_pass_detail.destination }}</div>
+                            </td>
+                            <td style="width: 40%;">
+                                <div class="info-label">Valor Total</div>
+                                <div class="info-value" style="color: #059669; font-size: 12px;">L. {{ exit_pass_detail.total_value|floatformat:2 }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                    {% if exit_pass_detail_items %}
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Descripcion</th>
+                                <th class="text-right">Cantidad</th>
+                                <th class="text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in exit_pass_detail_items %}
+                            <tr>
+                                <td>{{ item.material.name|default:item.product.name|default:item.custom_description }}</td>
+                                <td class="text-right">{{ item.quantity }}</td>
+                                <td class="text-right">L. {{ item.total_value|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'UNIFORM_DELIVERY' and uniform_delivery_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Entrega de Uniforme</h3></div>
+                <div class="card-body">
+                    <span class="badge {% if uniform_delivery_detail.is_delivered %}badge-success{% else %}badge-warning{% endif %}">
+                        {% if uniform_delivery_detail.is_delivered %}Entregado{% else %}Pendiente de Entrega{% endif %}
+                    </span>
+                    {% if uniform_delivery_detail_items %}
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Talla</th>
+                                <th>Color</th>
+                                <th class="text-right">Cantidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in uniform_delivery_detail_items %}
+                            <tr>
+                                <td>{{ item.get_item_type_display }}</td>
+                                <td>{{ item.size }}</td>
+                                <td>{{ item.color|default:"-" }}</td>
+                                <td class="text-right">{{ item.quantity }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'OVERTIME' and overtime_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Horas Extra</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 25%;">
+                                <div class="info-label">Tipo</div>
+                                <div class="info-value">{{ overtime_detail.get_overtime_type_display }}</div>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="info-label">Fecha</div>
+                                <div class="info-value">{{ overtime_detail.overtime_date|date:"d/m/Y" }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Horario</div>
+                                <div class="info-value">{{ overtime_detail.start_time|time:"H:i" }} - {{ overtime_detail.end_time|time:"H:i" }}</div>
+                            </td>
+                            <td style="width: 20%;">
+                                <div class="info-label">Total</div>
+                                <div class="info-value">{{ overtime_detail.total_hours }}h</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'SHIFT_CHANGE' and shift_change_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Cambio de Turno</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 30%;">
+                                <div class="info-label">Motivo</div>
+                                <div class="info-value">{{ shift_change_detail.get_reason_display }}</div>
+                            </td>
+                            <td style="width: 40%;">
+                                <div class="info-label">Turno</div>
+                                <div class="info-value">{{ shift_change_detail.current_shift_name }} - {{ shift_change_detail.new_shift_name }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Fecha</div>
+                                <div class="info-value">{{ shift_change_detail.change_date|date:"d/m/Y" }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                    <div style="margin-top: 8px;">
+                        <span class="badge {% if shift_change_detail.is_permanent %}badge-info{% else %}badge-warning{% endif %}">
+                            {% if shift_change_detail.is_permanent %}Permanente{% else %}Temporal{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'SUBSTITUTION' and substitution_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Sustitucion</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 40%;">
+                                <div class="info-label">Personal Sustituido</div>
+                                <div class="info-value">{{ substitution_detail.substituted_personnel.full_name }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Motivo</div>
+                                <div class="info-value">{{ substitution_detail.get_reason_display }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Periodo</div>
+                                <div class="info-value">{{ substitution_detail.start_date|date:"d/m" }} - {{ substitution_detail.end_date|date:"d/m/Y" }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if token.token_type == 'RATE_CHANGE' and rate_change_detail %}
+            <div class="card">
+                <div class="card-header"><h3>Detalles - Cambio de Tasa</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 25%;">
+                                <div class="info-label">Motivo</div>
+                                <div class="info-value">{{ rate_change_detail.get_reason_display }}</div>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="info-label">Tasa Actual</div>
+                                <div class="info-value">L. {{ rate_change_detail.current_rate|floatformat:2 }}</div>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="info-label">Nueva Tasa</div>
+                                <div class="info-value">L. {{ rate_change_detail.new_rate|floatformat:2 }}</div>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="info-label">Diferencia</div>
+                                <div class="info-value" style="color: #059669;">+L. {{ rate_change_detail.rate_difference|floatformat:2 }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes -->
+            {% if token.requester_notes %}
+            <div class="notes-box">
+                <div class="notes-label">Notas del Solicitante</div>
+                <div class="notes-text">{{ token.requester_notes }}</div>
+            </div>
+            {% endif %}
+
+            <!-- Bottom Section: Approval Flow + QR -->
+            <table class="bottom-section-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="width: 70%; padding-right: 10px;">
+                        <!-- Approval Flow -->
+                        <div class="card">
+                            <div class="card-header"><h3>Flujo de Aprobacion</h3></div>
+                            <div class="card-body" style="padding: 8px 12px;">
+                                <table class="timeline-table" cellpadding="0" cellspacing="0">
+                                    {% if token.requires_level_1 %}
+                                    <tr class="timeline-row">
+                                        <td style="width: 16px;">
+                                            <div class="timeline-dot {% if token.approved_level_1_at %}dot-completed{% elif token.status == 'PENDING_L1' %}dot-pending{% else %}dot-inactive{% endif %}"></div>
+                                        </td>
+                                        <td style="padding-left: 8px;">
+                                            <div class="timeline-title">Nivel 1 - Supervisor</div>
+                                            {% if token.approved_level_1_at %}
+                                            <div class="timeline-info">{{ token.approved_level_1_by.full_name }} | {{ token.approved_level_1_at|date:"d/m/Y H:i" }}</div>
+                                            {% else %}
+                                            <div class="timeline-info">Pendiente de aprobacion</div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if token.requires_level_2 %}
+                                    <tr class="timeline-row">
+                                        <td style="width: 16px;">
+                                            <div class="timeline-dot {% if token.approved_level_2_at %}dot-completed{% elif token.status == 'PENDING_L2' %}dot-pending{% else %}dot-inactive{% endif %}"></div>
+                                        </td>
+                                        <td style="padding-left: 8px;">
+                                            <div class="timeline-title">Nivel 2 - Jefe de Area</div>
+                                            {% if token.approved_level_2_at %}
+                                            <div class="timeline-info">{{ token.approved_level_2_by.full_name }} | {{ token.approved_level_2_at|date:"d/m/Y H:i" }}</div>
+                                            {% else %}
+                                            <div class="timeline-info">Pendiente de aprobacion</div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if token.requires_level_3 %}
+                                    <tr class="timeline-row">
+                                        <td style="width: 16px;">
+                                            <div class="timeline-dot {% if token.approved_level_3_at %}dot-completed{% elif token.status == 'PENDING_L3' %}dot-pending{% else %}dot-inactive{% endif %}"></div>
+                                        </td>
+                                        <td style="padding-left: 8px;">
+                                            <div class="timeline-title">Nivel 3 - Gerente CD</div>
+                                            {% if token.approved_level_3_at %}
+                                            <div class="timeline-info">{{ token.approved_level_3_by.full_name }} | {{ token.approved_level_3_at|date:"d/m/Y H:i" }}</div>
+                                            {% else %}
+                                            <div class="timeline-info">Pendiente de aprobacion</div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if not token.requires_level_1 and not token.requires_level_2 and not token.requires_level_3 %}
+                                    <tr class="timeline-row">
+                                        <td style="width: 16px;">
+                                            <div class="timeline-dot dot-completed"></div>
+                                        </td>
+                                        <td style="padding-left: 8px;">
+                                            <div class="timeline-title">Sin Aprobacion Requerida</div>
+                                            <div class="timeline-info">Aprobado automaticamente</div>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                </table>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 30%;">
+                        <!-- QR Code -->
+                        <div class="qr-bottom-card">
+                            <img src="{{ qr_data_url }}" class="qr-bottom-img" alt="QR">
+                            <div class="qr-label">Escanea para validar</div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Footer -->
+            <div class="footer">
+                <table class="footer-table" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td class="text-left">
+                            <span class="footer-text">ABInBev Tracker - Sistema de Tokens</span>
+                        </td>
+                        <td class="text-right">
+                            <span class="footer-text">Generado: {{ generated_at|date:"d/m/Y H:i" }} | ID: {{ token.token_code|truncatechars:13 }}</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

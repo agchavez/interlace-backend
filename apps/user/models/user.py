@@ -125,8 +125,27 @@ class UserModel(AbstractUser):
     def save(self, *args, **kwargs):
         self.first_name = self.first_name.upper()
         self.last_name = self.last_name.upper()
-        # Contraseña se encripta solo si se esta creando un usuario o si se esta actualizando y la contraseña cambio
-        if not self.pk or self.password != self.__class__.objects.get(pk=self.pk).password:
-            self.password = make_password(self.password)
+
+        # Solo hashear la contraseña si NO está ya hasheada
+        # Las contraseñas hasheadas comienzan con el algoritmo (ej: pbkdf2_sha256$, bcrypt$, argon2$)
+        password_is_hashed = (
+            self.password.startswith('pbkdf2_sha256$') or
+            self.password.startswith('bcrypt') or
+            self.password.startswith('argon2') or
+            self.password.startswith('sha1$') or
+            self.password.startswith('md5$')
+        )
+
+        # Si la contraseña NO está hasheada, hashearla
+        if not password_is_hashed:
+            # Verificar si es un usuario nuevo o si la contraseña cambió
+            if not self.pk:
+                # Usuario nuevo, hashear la contraseña
+                self.password = make_password(self.password)
+            else:
+                # Usuario existente, verificar si la contraseña cambió
+                old_password = self.__class__.objects.get(pk=self.pk).password
+                if self.password != old_password:
+                    self.password = make_password(self.password)
 
         return super(UserModel, self).save(*args, **kwargs)

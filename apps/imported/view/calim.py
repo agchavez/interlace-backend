@@ -191,7 +191,7 @@ class ClaimViewSet(
                         claim=reclamo,
                         product_id=p.get("product", "")
                 ).exists():
-                    cp = ClaimProductModel.objects.create(
+                    ClaimProductModel.objects.create(
                         claim=reclamo,
                         product_id=p.get("product", ""),
                         quantity=p.get("quantity", 0),
@@ -613,7 +613,7 @@ class ClaimViewSet(
         return FileResponse(io.BytesIO(blob_data), as_attachment=True, filename=filename)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(methods=["get"], detail=False, url_path="tracker/(?P<tracker_id>\d+)")
+    @action(methods=["get"], detail=False, url_path=r"tracker/(?P<tracker_id>\d+)")
     def get_claim_by_tracker(self, request, tracker_id=None):
         """
         Devuelve los reclamos asociados a un tracker específico.
@@ -859,4 +859,3 @@ class ClaimTypeViewSet(mixins.ListModelMixin, viewsets.GenericViewSet,
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["id"]
     search_fields = ["name", "id"]
-

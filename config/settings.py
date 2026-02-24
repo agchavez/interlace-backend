@@ -9,7 +9,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = 'django-insecure-bhjfjy4hy_6)c2qv@-yd28b$o&4w0*&%ge*yjy3zk+8svk1b69'
 
 DEBUG = config('DEBUG', default=False, cast=bool)
 APPEND_SLASH = False
@@ -32,6 +32,8 @@ LOCAL_APPS = [
     'apps.inventory',
     'apps.imported',
     'apps.document',
+    'apps.personnel',
+    'apps.tokens',
 ]
 
 INSTALLED_APPS = [
@@ -48,12 +50,13 @@ INSTALLED_APPS = [
                      'import_export',
                      'django_celery_beat',
                      'django_celery_results',
-                          'channels',
-                            'storages',
+                      'channels',
+                      'storages',
                  ] + LOCAL_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Servir archivos estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -88,6 +91,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 AUTH_USER_MODEL = 'user.UserModel'
 
+# Custom authentication backend for email-based authentication
+AUTHENTICATION_BACKENDS = [
+    'apps.authentication.backends.EmailBackend',  # Custom email backend
+    'django.contrib.auth.backends.ModelBackend',  # Default backend as fallback
+]
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
@@ -96,6 +105,10 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT'),
+        'TEST': {
+            'NAME': 'test_tracker_db',
+            'TEMPLATE': 'template0',  # Use template0 to avoid collation issues
+        }
     }
 }
 
@@ -114,7 +127,14 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'utils.custom_exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ) if not DEBUG else (
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ),
+
 }
 
 SIMPLE_JWT = {
@@ -148,6 +168,11 @@ TIME_ZONE = 'America/Tegucigalpa'
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+# Directorios de archivos estáticos fuente (se copian a STATIC_ROOT con collectstatic)
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'staticfiles'),
+]
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
@@ -172,7 +197,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("localhost", 6379)],
+            "hosts": [(os.getenv('REDIS_HOST', 'localhost'), int(os.getenv('REDIS_PORT', '6379')))],
         },
     },
 }
@@ -192,8 +217,6 @@ AZURE_OBJECT_PARAMETERS = {
 
 }
 
-
-
 STORAGES = {
     'default': {
         'BACKEND': 'storages.backends.azure_storage.AzureStorage',
@@ -204,7 +227,23 @@ STORAGES = {
             'custom_domain': AZURE_CUSTOM_DOMAIN,
         },
     },
-   "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
     }
 }
+
+# Configuracion de logging
+from config.logging_config import LOGGING
+
+# URL del frontend para links en correos electrónicos
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
+# Web Push Notifications - VAPID Configuration
+# Llaves VAPID hardcodeadas para simplificar deployment
+VAPID_PUBLIC_KEY = 'BHBnNHH1RSyj2e5_zIpdvt4pPgXUCQl4IfMWkrzHYoDoFQMR0qFuYNK7Sh6qbTyZ1xzGGz1G6iQ-35lX8TnhiGw'
+VAPID_PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgVBAyOFj26joNLLFx
+qN4jPz7zvTkHmDCydcpgvarhbs6hRANCAARwZzRx9UUso9nuf8yKXb7eKT4F1AkJ
+eCHzFpK8x2KA6BUDEdKhbmDSu0oeqm08mdccxhs9RuokPt+ZV/E54Yhs
+-----END PRIVATE KEY-----"""
+VAPID_ADMIN_EMAIL = 'tracker.logistics@outlook.com'

@@ -118,56 +118,115 @@ class NotificationViewSet(mixins.ListModelMixin,
 
         return Response(serializer.data)
 
-    @action(detail=False, methods=['get'], url_path='test', url_name='test_notification')
+    @action(detail=False, methods=['post', 'get'], url_path='test', url_name='test_notification')
     def test_notification(self, request):
         """
-        Endpoint para probar el sistema de notificaciones.
+        Endpoint para probar el sistema de notificaciones en tiempo real.
 
         POST /api/notification/test/
         {
             "user_id": 1,
             "title": "Prueba de notificación",
+            "subtitle": "Subtítulo de prueba",
             "description": "Esta es una notificación de prueba",
-            "type": "INFO",
-            "module": "TRACKER"
+            "type": "INFORMACION",
+            "module": "TRACKER",
+            "url": "/dashboard",
+            "identifier": 123,
+            "json_data": {"custom": "data"},
+            "html": "<p>Contenido HTML opcional</p>"
         }
+
+        GET /api/notification/test/?user_id=1
         """
-        user_id = request.query_params.get('user_id', 3)
+        # Soportar tanto GET como POST
+        if request.method == 'GET':
+            user_id = request.query_params.get('user_id')
+            data = {}
+        else:
+            user_id = request.data.get('user_id')
+            data = request.data
+
+        # Validar user_id
+        if not user_id:
+            return Response(
+                {"error": "El campo 'user_id' es requerido"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             user = get_user_model().objects.get(id=user_id)
         except get_user_model().DoesNotExist:
-            return Response({"error": f"Usuario con ID {user_id} no encontrado"},
-                            status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": f"Usuario con ID {user_id} no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Validar tipo de notificación
+        notification_type = data.get('type', NotificationModel.Type.INFO)
+        if notification_type not in dict(NotificationModel.Type.choices):
+            return Response(
+                {
+                    "error": f"Tipo de notificación inválido: {notification_type}",
+                    "valid_types": [choice[0] for choice in NotificationModel.Type.choices]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validar módulo
+        module = data.get('module', NotificationModel.Modules.TRACKER)
+        if module not in dict(NotificationModel.Modules.choices):
+            return Response(
+                {
+                    "error": f"Módulo inválido: {module}",
+                    "valid_modules": [choice[0] for choice in NotificationModel.Modules.choices]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Crear notificación
         notification = NotificationModel.objects.create(
             user=user,
-            type=request.data.get('type', NotificationModel.Type.INFO),
-            identifier=request.data.get('identifier', 1),
-            title=request.data.get('title', 'Notificación de prueba'),
-            subtitle=request.data.get('subtitle', 'Subtítulo de prueba'),
-            description=request.data.get('description', 'Esta es una notificación generada para pruebas'),
-            module=request.data.get('module', NotificationModel.Modules.TRACKER),
-            url=request.data.get('url', '/dashboard'),
+            type=notification_type,
+            identifier=data.get('identifier'),
+            title=data.get('title', 'Notificación de prueba'),
+            subtitle=data.get('subtitle', 'Subtítulo de prueba'),
+            description=data.get('description', 'Esta es una notificación generada para pruebas del sistema'),
+            module=module,
+            url=data.get('url', '/dashboard'),
+            html=data.get('html'),
             json={
                 'test': True,
                 'timestamp': str(timezone.now()),
-                'data': request.data.get('json_data', {})
+                'method': request.method,
+                'data': data.get('json_data', {})
             }
         )
 
         # Enviar notificación a través de websocket
         group_name = str(user.id)
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            group_name,
-            {
-                'type': 'send_notification',
-                'data': NotificationSerializer(notification).data
-            }
-        )
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    'type': 'send_notification',
+                    'data': NotificationSerializer(notification).data
+                }
+            )
+            websocket_sent = True
+        except Exception as e:
+            websocket_sent = False
+            error_message = str(e)
+
+        # Preparar respuesta
+        response_data = NotificationSerializer(notification).data
+        response_data['websocket_sent'] = websocket_sent
+        if not websocket_sent:
+            response_data['websocket_error'] = error_message
 
         return Response(
-            NotificationSerializer(notification).data,
+            response_data,
             status=status.HTTP_201_CREATED
         )

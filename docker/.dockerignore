@@ -1,0 +1,58 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables (keep .env.example if you have one)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Database
+*.sqlite3
+db.sqlite3
+
+# Docker (exclude compose files but keep entrypoint scripts)
+.dockerignore
+Dockerfile.dev
+docker-compose*.yml
+!docker-compose.prod.yml
+
+# Git
+.git/
+.gitignore
+
+# Tests
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Batch files (Windows scripts)
+*.bat
+

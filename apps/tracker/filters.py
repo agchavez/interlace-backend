@@ -43,13 +43,23 @@ class TrackerFilter(django_filters.FilterSet):
         method='filter_status',
     )
 
+    type = django_filters.CharFilter(
+        field_name='type',
+        label='Type',
+        method='filter_type',
+    )
+
     def filter_status(self, queryset, name, value):
         values = value.split(',')
         return queryset.filter(status__in=values)
 
+    def filter_type(self, queryset, name, value):
+        values = value.split(',')
+        return queryset.filter(type__in=values)
+
     class Meta:
         model = TrackerModel
-        fields = ('transporter', 'trailer', 'status','type', 'user', 'date', 'distributor_center', 'id')
+        fields = ('transporter', 'trailer', 'status', 'type', 'user', 'date', 'distributor_center', 'id')
 
 class TrackerDetailProductModelFilter(django_filters.FilterSet):
         order_by = django_filters.OrderingFilter(

@@ -9,7 +9,7 @@ __pycache__/
 daphne.sock.lock
 
 static/
-staticfiles/
+# staticfiles/ - NO ignorar, contiene archivos estáticos fuente (logos, etc.)
 
 # C extensions
 *.so
@@ -70,6 +70,7 @@ coverage.xml
 
 # Django stuff:
 *.log
+logs/*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -123,6 +124,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# VAPID Keys (Push Notifications)
+vapid_private.pem
+vapid_public.pem
 
 # Spyder project settings
 .spyderproject

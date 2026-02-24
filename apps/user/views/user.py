@@ -95,6 +95,113 @@ class UserViewSet(mixins.CreateModelMixin,
         serializer.save()
         return Response(serializer.data)
 
+    @action(methods=['post'], detail=False, permission_classes=[IsAuthenticated], url_path='generate-username')
+    def generate_username(self, request):
+        """
+        Genera sugerencias de username basado en nombre y apellido
+        POST /api/users/generate-username/
+        Body: {"first_name": "Juan", "last_name": "Perez"}
+        """
+        first_name = request.data.get('first_name', '').strip()
+        last_name = request.data.get('last_name', '').strip()
+
+        if not first_name or not last_name:
+            return Response({
+                'error': 'Se requieren first_name y last_name'
+            }, status=400)
+
+        # Normalizar nombres (eliminar acentos, convertir a minúsculas)
+        import unicodedata
+        def normalize(text):
+            text = unicodedata.normalize('NFD', text)
+            text = text.encode('ascii', 'ignore').decode('utf-8')
+            return text.lower().replace(' ', '')
+
+        first = normalize(first_name)
+        last = normalize(last_name)
+
+        # Generar múltiples sugerencias
+        suggestions = []
+        patterns = [
+            f"{first}.{last}",                    # juan.perez
+            f"{first[0]}{last}",                  # jperez
+            f"{first}{last[0]}",                  # juanp
+            f"{first}_{last}",                    # juan_perez
+            f"{last}.{first}",                    # perez.juan
+            f"{first[:3]}{last[:3]}",             # juaper
+        ]
+
+        # Verificar disponibilidad y agregar números si es necesario
+        for pattern in patterns:
+            username = pattern
+            counter = 1
+
+            # Verificar disponibilidad
+            while UserModel.objects.filter(username=username).exists():
+                username = f"{pattern}{counter}"
+                counter += 1
+                if counter > 99:  # Límite de seguridad
+                    break
+
+            if counter <= 99:  # Solo agregar si encontramos uno disponible
+                suggestions.append({
+                    'username': username,
+                    'available': True
+                })
+
+            if len(suggestions) >= 5:  # Máximo 5 sugerencias
+                break
+
+        return Response({
+            'suggestions': suggestions,
+            'first_name': first_name,
+            'last_name': last_name
+        })
+
+    @action(methods=['post'], detail=False, permission_classes=[IsAuthenticated], url_path='check-username')
+    def check_username(self, request):
+        """
+        Verifica si un username está disponible
+        POST /api/users/check-username/
+        Body: {"username": "jperez"}
+        """
+        username = request.data.get('username', '').strip()
+
+        if not username:
+            return Response({
+                'error': 'Se requiere username'
+            }, status=400)
+
+        # Validar formato (solo letras, números, puntos, guiones bajos)
+        import re
+        if not re.match(r'^[a-zA-Z0-9._-]+$', username):
+            return Response({
+                'available': False,
+                'error': 'El username solo puede contener letras, números, puntos, guiones bajos y guiones'
+            })
+
+        # Verificar longitud
+        if len(username) < 3:
+            return Response({
+                'available': False,
+                'error': 'El username debe tener al menos 3 caracteres'
+            })
+
+        if len(username) > 150:
+            return Response({
+                'available': False,
+                'error': 'El username no puede exceder 150 caracteres'
+            })
+
+        # Verificar disponibilidad
+        available = not UserModel.objects.filter(username=username).exists()
+
+        return Response({
+            'username': username,
+            'available': available,
+            'message': 'Usuario disponible' if available else 'Usuario no disponible'
+        })
+
 
 
 

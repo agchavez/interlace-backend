@@ -13,6 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from ..serializers import LoginSerializer
 from apps.user.serializers import UserSerializer
 from apps.user.models import UserModel
+from ..exceptions import TokenInvalid, MissingCredentials
 class AuthView(viewsets.GenericViewSet):
     serializer_class = UserSerializer
 
@@ -22,23 +23,20 @@ class AuthView(viewsets.GenericViewSet):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data
-        if user is not None:
-            update_last_login(None, user)
-            # el token durará 24 horas
-            refresh = RefreshToken.for_user(user)
-            access_token_obs = AccessToken(str(refresh.access_token))
-            return Response({
-                'user': UserSerializer(user).data,
-                'token': {
-                    'access': str(refresh.access_token),
-                    'refresh': str(refresh),
-                    'exp': access_token_obs['exp'],
-                }
-            })
-        else:
-            return Response({
-                'error': 'Credenciales inválidas'
-            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        update_last_login(None, user)
+        # el token durará 24 horas
+        refresh = RefreshToken.for_user(user)
+        access_token_obs = AccessToken(str(refresh.access_token))
+
+        return Response({
+            'user': UserSerializer(user).data,
+            'token': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'exp': access_token_obs['exp'],
+            }
+        })
 
     @action(methods=['post'], detail=False)
     def logout(self, request):
@@ -48,8 +46,13 @@ class AuthView(viewsets.GenericViewSet):
     @action(methods=['post'], detail=False, url_path='refresh-token')
     def refresh_token(self, request):
         refresh_token = request.data.get('refresh_token')
+
         if refresh_token is None:
-            return Response({'error': 'refresh_token es requerido'}, status=status.HTTP_400_BAD_REQUEST)
+            raise MissingCredentials({
+                'mensage': 'refresh_token es requerido',
+                'error_code': 'missing_refresh_token'
+            })
+
         try:
             refresh_token = RefreshToken(refresh_token)
             access_token = str(refresh_token.access_token)
@@ -57,13 +60,16 @@ class AuthView(viewsets.GenericViewSet):
             user_id = access_token_obs['user_id']
 
         except Exception as e:
-            return Response({'error': 'refresh_token inválido'}, status=status.HTTP_400_BAD_REQUEST)
+            raise TokenInvalid({
+                'mensage': 'refresh_token inválido',
+                'error_code': 'invalid_refresh_token'
+            })
 
         return Response({
             'user': UserSerializer(UserModel.objects.get(id=user_id)).data,
             'token': {
-                        'access': access_token,
-                        'refresh': str(refresh_token),
-                        'exp': access_token_obs['exp'],
+                'access': access_token,
+                'refresh': str(refresh_token),
+                'exp': access_token_obs['exp'],
             }
-                        })
+        })

@@ -1,6 +1,19 @@
 from django.contrib import admin
-from apps.user.models import UserModel, DetailGroup
+from apps.user.models import UserModel, DetailGroup, PushSubscription
 from django.contrib.auth.models import Permission, ContentType
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ['user', 'endpoint_short', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['user__username', 'user__email', 'endpoint']
+    readonly_fields = ['endpoint', 'auth', 'p256dh', 'created_at', 'updated_at']
+
+    def endpoint_short(self, obj):
+        return f"{obj.endpoint[:50]}..."
+    endpoint_short.short_description = 'Endpoint'
+
 
 # Register your models here.
 admin.site.register(UserModel)

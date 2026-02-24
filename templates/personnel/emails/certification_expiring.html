@@ -1,0 +1,114 @@
+{% extends "personnel/emails/base_email.html" %}
+
+{% block title %}Certificación Próxima a Vencer - ABInBev Tracker{% endblock %}
+
+{% block content %}
+    <!-- Alert Banner -->
+    <div class="alert-banner alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <strong>Atención:</strong> Su certificación está próxima a vencer
+    </div>
+
+    <!-- Greeting -->
+    <h1>Estimado/a {{ personnel.full_name }},</h1>
+
+    <p>
+        Le informamos que su certificación <strong>{{ certification.certification_type.name }}</strong>
+        está próxima a vencer en <span class="highlight">{{ days_until_expiration }} día{% if days_until_expiration != 1 %}s{% endif %}</span>.
+    </p>
+
+    <!-- Certification Details Card -->
+    <div class="info-card">
+        <h2>📋 Detalles de la Certificación</h2>
+        <div class="info-row">
+            <span class="info-label">Tipo de Certificación:</span>
+            <span class="info-value">{{ certification.certification_type.name }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Número de Certificación:</span>
+            <span class="info-value">{{ certification.certification_number }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Fecha de Emisión:</span>
+            <span class="info-value">{{ certification.issue_date|date:"d/m/Y" }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Fecha de Expiración:</span>
+            <span class="info-value"><strong>{{ certification.expiration_date|date:"d/m/Y" }}</strong></span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Estado:</span>
+            <span class="info-value">
+                {% if days_until_expiration <= 7 %}
+                    <span class="badge badge-danger">Expira Pronto</span>
+                {% else %}
+                    <span class="badge badge-warning">Por Vencer</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Autoridad Emisora:</span>
+            <span class="info-value">{{ certification.issuing_authority }}</span>
+        </div>
+    </div>
+
+    <!-- Personnel Info Card -->
+    <div class="info-card">
+        <h2>👤 Información del Personal</h2>
+        <div class="info-row">
+            <span class="info-label">Código de Empleado:</span>
+            <span class="info-value">{{ personnel.employee_code }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Posición:</span>
+            <span class="info-value">{{ personnel.position }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Área:</span>
+            <span class="info-value">{{ personnel.area.get_code_display }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Centro de Distribución:</span>
+            <span class="info-value">{{ personnel.distributor_center.name }}</span>
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Action Required -->
+    <h2>🎯 Acción Requerida</h2>
+    <p>
+        {% if certification.certification_type.requires_renewal %}
+            Es necesario <strong>renovar esta certificación</strong> antes de la fecha de expiración para
+            continuar desempeñando las funciones asociadas a la misma.
+        {% else %}
+            Le recomendamos gestionar la renovación de esta certificación para mantener sus credenciales actualizadas.
+        {% endif %}
+    </p>
+
+    {% if certification.certification_type.requires_renewal %}
+    <p style="background-color: #fee2e2; padding: 12px; border-radius: 6px; border-left: 4px solid #ef4444; color: #991b1b;">
+        <strong>⚠️ Importante:</strong> Esta certificación es <strong>obligatoria</strong>.
+        Su vencimiento podría afectar sus actividades laborales.
+    </p>
+    {% endif %}
+
+    <!-- Call to Action Button -->
+    <center>
+        <a href="{{ portal_url }}" class="btn btn-warning" style="display: inline-block;">
+            🔄 Gestionar Renovación
+        </a>
+    </center>
+
+    <div class="divider"></div>
+
+    <!-- Additional Info -->
+    <p style="font-size: 14px; color: #718096;">
+        <strong>Nota:</strong> Si ya ha iniciado el proceso de renovación o tiene alguna consulta,
+        por favor contacte al departamento de People/RRHH o a su supervisor inmediato.
+    </p>
+
+    <p style="font-size: 14px; color: #718096;">
+        Este recordatorio se envió automáticamente {{ days_until_expiration }} días antes del vencimiento.
+    </p>
+{% endblock %}
