@@ -436,6 +436,37 @@ class TokenRequest(BaseModel):
 
         return False
 
+    def _cascade_approval(self, personnel, notes=''):
+        """
+        Si el aprobador tiene jerarquía suficiente, auto-aprueba los niveles
+        pendientes restantes sin requerir firmas/fotos adicionales.
+        """
+        from apps.personnel.models import PersonnelProfile
+        now = timezone.now()
+
+        can_l2 = personnel.can_approve_tokens_level_2()
+        can_l3 = personnel.can_approve_tokens_level_3()
+
+        if self.requires_level_2 and not self.approved_level_2_at and can_l2:
+            self.approved_level_2_by = personnel
+            self.approved_level_2_at = now
+            self.approved_level_2_notes = notes
+
+        if self.requires_level_3 and not self.approved_level_3_at and can_l3:
+            self.approved_level_3_by = personnel
+            self.approved_level_3_at = now
+            self.approved_level_3_notes = notes
+
+        # Recalcular estado final
+        l2_done = not self.requires_level_2 or self.approved_level_2_at
+        l3_done = not self.requires_level_3 or self.approved_level_3_at
+        if l2_done and l3_done:
+            self.status = self.Status.APPROVED
+        elif self.requires_level_2 and not self.approved_level_2_at:
+            self.status = self.Status.PENDING_L2
+        elif self.requires_level_3 and not self.approved_level_3_at:
+            self.status = self.Status.PENDING_L3
+
     def approve_level_1(self, personnel, notes='', signature=None, photo=None):
         """Aprobar nivel 1"""
         if not self.can_user_approve(personnel, 1):
@@ -449,13 +480,8 @@ class TokenRequest(BaseModel):
         if photo:
             self.approved_level_1_photo = photo
 
-        # Determinar siguiente estado
-        if self.requires_level_2:
-            self.status = self.Status.PENDING_L2
-        elif self.requires_level_3:
-            self.status = self.Status.PENDING_L3
-        else:
-            self.status = self.Status.APPROVED
+        # Intentar cascada si el aprobador tiene jerarquía suficiente
+        self._cascade_approval(personnel, notes)
 
         self.save()
 
@@ -472,11 +498,15 @@ class TokenRequest(BaseModel):
         if photo:
             self.approved_level_2_photo = photo
 
-        # Determinar siguiente estado
-        if self.requires_level_3:
-            self.status = self.Status.PENDING_L3
-        else:
-            self.status = self.Status.APPROVED
+        # Intentar cascada si el aprobador tiene jerarquía suficiente
+        if self.requires_level_3 and not self.approved_level_3_at:
+            if personnel.can_approve_tokens_level_3():
+                self.approved_level_3_by = personnel
+                self.approved_level_3_at = timezone.now()
+                self.approved_level_3_notes = notes
+
+        l3_done = not self.requires_level_3 or self.approved_level_3_at
+        self.status = self.Status.APPROVED if l3_done else self.Status.PENDING_L3
 
         self.save()
 
