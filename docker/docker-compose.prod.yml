@@ -8,28 +8,28 @@ services:
     labels:
       - "traefik.enable=true"
       # Router para API REST (HTTPS)
-      - "traefik.http.routers.trainer-api.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.trainer-api.entrypoints=websecure"
-      - "traefik.http.routers.trainer-api.tls=true"
-      - "traefik.http.routers.trainer-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.trainer-api.service=trainer-backend"
-      - "traefik.http.routers.trainer-api.priority=100"
+      - "traefik.http.routers.interlace-api.rule=Host(`interlace.center`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.interlace-api.entrypoints=websecure"
+      - "traefik.http.routers.interlace-api.tls=true"
+      - "traefik.http.routers.interlace-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.interlace-api.service=interlace-backend"
+      - "traefik.http.routers.interlace-api.priority=100"
       # Router para WebSocket (WSS)
-      - "traefik.http.routers.trainer-ws.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/ws`)"
-      - "traefik.http.routers.trainer-ws.entrypoints=websecure"
-      - "traefik.http.routers.trainer-ws.tls=true"
-      - "traefik.http.routers.trainer-ws.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.trainer-ws.service=trainer-backend"
-      - "traefik.http.routers.trainer-ws.priority=100"
+      - "traefik.http.routers.interlace-ws.rule=Host(`interlace.center`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.interlace-ws.entrypoints=websecure"
+      - "traefik.http.routers.interlace-ws.tls=true"
+      - "traefik.http.routers.interlace-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.interlace-ws.service=interlace-backend"
+      - "traefik.http.routers.interlace-ws.priority=100"
       # Router para Admin (HTTPS) - Alta prioridad para evitar que el frontend lo intercepte
-      - "traefik.http.routers.trainer-admin.rule=Host(`trainer.tracker.lat`) && PathPrefix(`/admin`)"
-      - "traefik.http.routers.trainer-admin.entrypoints=websecure"
-      - "traefik.http.routers.trainer-admin.tls=true"
-      - "traefik.http.routers.trainer-admin.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.trainer-admin.service=trainer-backend"
-      - "traefik.http.routers.trainer-admin.priority=100"
+      - "traefik.http.routers.interlace-admin.rule=Host(`interlace.center`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.interlace-admin.entrypoints=websecure"
+      - "traefik.http.routers.interlace-admin.tls=true"
+      - "traefik.http.routers.interlace-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.interlace-admin.service=interlace-backend"
+      - "traefik.http.routers.interlace-admin.priority=100"
       # Servicio backend
-      - "traefik.http.services.trainer-backend.loadbalancer.server.port=8000"
+      - "traefik.http.services.interlace-backend.loadbalancer.server.port=8000"
     environment:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
