@@ -203,9 +203,9 @@ CHANNEL_LAYERS = {
 }
 #sp=racwdli&st=2025-03-19T15:09:16Z&se=2025-12-06T23:09:16Z&sip=181.115.60.7&sv=2022-11-02&sr=c&sig=***REMOVED***
 #https://trackerlogisticstorage.blob.core.windows.net/tracker?sp=racwdli&st=2025-03-19T15:09:16Z&se=2025-12-06T23:09:16Z&sip=181.115.60.7&sv=2022-11-02&sr=c&sig=***REMOVED***
-AZURE_ACCOUNT_NAME = "trackerlogisticstorage"
-AZURE_ACCOUNT_KEY = "***REMOVED***"
-AZURE_CONTAINER = "tracker"
+AZURE_ACCOUNT_NAME = os.getenv("AZURE_ACCOUNT_NAME", "trackerlogisticstorage")
+AZURE_ACCOUNT_KEY = os.getenv("AZURE_ACCOUNT_KEY", "")
+AZURE_CONTAINER = os.getenv("AZURE_CONTAINER", "tracker")
 AZURE_CUSTOM_DOMAIN = f"{AZURE_ACCOUNT_NAME}.blob.core.windows.net"
 
 #DEFAULT_FILE_STORAGE = "apps.core.storage_backends.AzureMediaStorage"
