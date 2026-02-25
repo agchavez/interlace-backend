@@ -2,7 +2,7 @@ name: Build and Deploy Backend QA
 
 on:
   push:
-    branches: [feature/personal]
+    branches: [main]
   workflow_dispatch:
 
 env:
