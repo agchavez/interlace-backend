@@ -21,10 +21,13 @@ def generate_blob_sas_url(blob_name: str, expiry_hours: int = 1) -> str:
         return None
 
     try:
+        # Sanitizar la clave: eliminar espacios/saltos de línea que corrompen el Base64
+        account_key = settings.AZURE_ACCOUNT_KEY.strip()
+
         # Generar SAS token
         sas_token = generate_blob_sas(
             account_name=settings.AZURE_ACCOUNT_NAME,
-            account_key=settings.AZURE_ACCOUNT_KEY,
+            account_key=account_key,
             container_name=settings.AZURE_CONTAINER,
             blob_name=blob_name,
             permission=BlobSasPermissions(read=True),
