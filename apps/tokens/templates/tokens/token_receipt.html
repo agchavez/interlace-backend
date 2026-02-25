@@ -244,7 +244,7 @@
 
         <!-- Header -->
         <div class="header">
-            <div class="company-name">ABINBEV</div>
+            <div class="company-name">{{ token.distributor_center.code }} - {{ token.distributor_center.name }}</div>
             <div class="receipt-title">COMPROBANTE DE TOKEN</div>
         </div>
 
@@ -275,7 +275,7 @@
             {% endif %}
             <div class="info-row">
                 <span class="info-label">CD:</span>
-                <span class="info-value">{{ token.distributor_center.name|truncatechars:18 }}</span>
+                <span class="info-value">{{ token.distributor_center.code }} - {{ token.distributor_center.name|truncatechars:15 }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">SOLICITADO:</span>
