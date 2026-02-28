@@ -463,8 +463,10 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
             return response
         except Exception as e:
             import logging
+            import traceback
             logger = logging.getLogger(__name__)
             logger.error(f"Error generando PDF para token {token.id}: {e}")
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
             return Response(
                 {'error': 'Error al generar el documento PDF'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -160,8 +160,9 @@ def generate_token_pdf(token: TokenRequest) -> io.BytesIO:
         except Exception:
             beneficiary_name = "Persona Externa"
 
-    # Obtener código de país del centro de distribución
+    # Obtener código de país y nombre del centro de distribución
     country_code = 'hn'  # Default Honduras
+    distributor_center_name = token.distributor_center.name if token.distributor_center else "-"
     try:
         if token.distributor_center and token.distributor_center.country:
             country_code = token.distributor_center.country.code.lower()
@@ -183,6 +184,7 @@ def generate_token_pdf(token: TokenRequest) -> io.BytesIO:
         'beneficiary_area': beneficiary_area,
         'beneficiary_position': beneficiary_position,
         'is_external_beneficiary': is_external_beneficiary,
+        'distributor_center_name': distributor_center_name,
     }
 
     # Agregar detalles específicos del tipo
@@ -204,12 +206,36 @@ def generate_token_pdf(token: TokenRequest) -> io.BytesIO:
             if detail:
                 context[detail_attr] = detail
                 if hasattr(detail, 'items'):
-                    context[f'{detail_attr}_items'] = detail.items.all()
-        except Exception:
-            pass
+                    # Pre-procesar items como dicts para evitar accesos lazy en el template
+                    safe_items = []
+                    for item in detail.items.select_related('material', 'product').all():
+                        mat_name = None
+                        prod_name = None
+                        try:
+                            mat_name = item.material.name if item.material_id else None
+                        except Exception:
+                            pass
+                        try:
+                            prod_name = item.product.name if item.product_id else None
+                        except Exception:
+                            pass
+                        safe_items.append({
+                            'description': mat_name or prod_name or item.custom_description or '-',
+                            'quantity': item.quantity,
+                            'total_value': item.total_value,
+                            'requires_return': item.requires_return,
+                            'return_date': item.return_date,
+                        })
+                    context[f'{detail_attr}_items'] = safe_items
+        except Exception as e:
+            logger.warning(f"Error preparando detalle {detail_attr}: {e}")
 
-    # Renderizar HTML
-    html_content = render_to_string('tokens/token_pdf.html', context)
+    # Renderizar HTML con logging detallado
+    try:
+        html_content = render_to_string('tokens/token_pdf.html', context)
+    except Exception as e:
+        logger.error(f"Error en render_to_string token_pdf.html: {type(e).__name__}: {e}")
+        raise
 
     # Opciones de PDF
     options = {

@@ -471,7 +471,7 @@
                                     <tr>
                                         <td style="width: 50%;">
                                             <div class="info-label">Centro Distribucion</div>
-                                            <div class="info-value">{{ token.distributor_center.name }}</div>
+                                            <div class="info-value">{{ distributor_center_name }}</div>
                                         </td>
                                         <td style="width: 50%;">
                                             <div class="info-label">Solicitado Por</div>
@@ -614,7 +614,7 @@
                         <tbody>
                             {% for item in exit_pass_detail_items %}
                             <tr>
-                                <td>{{ item.material.name|default:item.product.name|default:item.custom_description }}</td>
+                                <td>{{ item.description }}</td>
                                 <td class="text-right">{{ item.quantity }}</td>
                                 <td class="text-right">L. {{ item.total_value|floatformat:2 }}</td>
                             </tr>
