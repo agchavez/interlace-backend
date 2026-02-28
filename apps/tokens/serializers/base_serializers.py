@@ -59,9 +59,21 @@ class DistributorCenterBasicSerializer(serializers.ModelSerializer):
 
 class TokenRequestListSerializer(serializers.ModelSerializer):
     """Serializer para listado de tokens"""
-    personnel_name = serializers.CharField(source='personnel.full_name', read_only=True)
+    personnel_name = serializers.SerializerMethodField()
     personnel_code = serializers.CharField(source='personnel.employee_code', read_only=True)
     requested_by_name = serializers.SerializerMethodField()
+
+    def get_personnel_name(self, obj):
+        if obj.personnel:
+            return obj.personnel.full_name
+        # Para tokens de personas externas, buscar en exit_pass_detail
+        try:
+            ep = obj.exit_pass_detail.external_person
+            if ep:
+                return f"{ep.name} (Externo)"
+        except Exception:
+            pass
+        return None
 
     def get_requested_by_name(self, obj):
         if obj.requested_by:

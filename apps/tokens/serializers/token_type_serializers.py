@@ -9,6 +9,7 @@ from ..models import (
     SubstitutionDetail, RateChangeDetail, OvertimeDetail, ShiftChangeDetail
 )
 from apps.personnel.models import PersonnelProfile
+from .external_person_serializers import ExternalPersonBasicSerializer
 
 
 # ============ CATALOG SERIALIZERS ============
@@ -148,6 +149,7 @@ class ExitPassDetailSerializer(serializers.ModelSerializer):
         max_digits=12, decimal_places=2, read_only=True
     )
     requires_level_3_approval = serializers.BooleanField(read_only=True)
+    external_person = ExternalPersonBasicSerializer(read_only=True)
 
     class Meta:
         model = ExitPassDetail

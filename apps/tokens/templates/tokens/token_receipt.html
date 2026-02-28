@@ -261,16 +261,22 @@
         <div class="info-block">
             <div class="info-row">
                 <span class="info-label">BENEFICIARIO:</span>
-                <span class="info-value">{{ token.personnel.full_name|truncatechars:22 }}</span>
+                <span class="info-value">{{ beneficiary_name|truncatechars:22 }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">CODIGO:</span>
-                <span class="info-value">{{ token.personnel.employee_code }}</span>
+                <span class="info-value">{{ beneficiary_code }}</span>
             </div>
-            {% if token.personnel.area %}
+            {% if beneficiary_area and not is_external_beneficiary %}
             <div class="info-row">
                 <span class="info-label">AREA:</span>
-                <span class="info-value">{{ token.personnel.area.name|truncatechars:18 }}</span>
+                <span class="info-value">{{ beneficiary_area|truncatechars:18 }}</span>
+            </div>
+            {% endif %}
+            {% if is_external_beneficiary and beneficiary_area %}
+            <div class="info-row">
+                <span class="info-label">EMPRESA:</span>
+                <span class="info-value">{{ beneficiary_area|truncatechars:18 }}</span>
             </div>
             {% endif %}
             <div class="info-row">

@@ -66,5 +66,5 @@ class ExternalPersonBasicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ExternalPerson
-        fields = ['id', 'name', 'company']
-        read_only_fields = ['id', 'name', 'company']
+        fields = ['id', 'name', 'company', 'identification', 'phone']
+        read_only_fields = ['id', 'name', 'company', 'identification', 'phone']
