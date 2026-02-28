@@ -30,7 +30,7 @@ from ..permissions import (
     IsTokenOwnerOrApprover,
 )
 from ..filters import TokenRequestFilter
-from ..utils import generate_token_qr, TokenNotificationHelper, generate_token_pdf, generate_token_receipt
+from ..utils import generate_token_qr, TokenNotificationHelper, generate_token_pdf, generate_token_receipt, generate_receipt_html
 from ..services.approval_service import ApprovalLevelService
 from apps.personnel.models import PersonnelProfile
 
@@ -107,15 +107,13 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
         if user.is_superuser or user.is_staff:
             return qs
 
-        try:
-            personnel = user.personnel_profile
-        except:
-            return qs.none()
-
-        # Filtrar por centro de distribución del usuario
+        # Filtrar por centro de distribución del usuario (aplica a todos, incluso sin personnel_profile)
         user_centers = list(user.distributions_centers.values_list('id', flat=True))
         if user.centro_distribucion:
             user_centers.append(user.centro_distribucion.id)
+
+        if not user_centers:
+            return qs.none()
 
         return qs.filter(distributor_center_id__in=user_centers)
 
@@ -512,6 +510,35 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
                 {'error': 'Error al generar el recibo'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['get'])
+    def print_receipt(self, request, pk=None):
+        """
+        Retorna el recibo como HTML para imprimir directamente desde el navegador.
+        El HTML incluye @page { size: 80mm auto } para impresoras térmicas.
+        GET /api/tokens/{id}/print_receipt/?copy=true
+        """
+        token = self.get_object()
+
+        allowed_states = [TokenRequest.Status.APPROVED, TokenRequest.Status.USED]
+        if token.status not in allowed_states:
+            return Response(
+                {'error': f'El recibo solo está disponible para tokens aprobados o utilizados.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        is_copy = request.query_params.get('copy', '').lower() in ['true', '1', 'yes']
+
+        try:
+            html_content = generate_receipt_html(token, is_copy=is_copy)
+            return HttpResponse(html_content, content_type='text/html; charset=utf-8')
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generando recibo HTML para token {token.id}: {e}")
+            return Response({'error': 'Error al generar el recibo'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def pending_validation(self, request):

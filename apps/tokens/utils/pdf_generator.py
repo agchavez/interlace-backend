@@ -279,6 +279,102 @@ def get_token_type_label(token_type: str) -> str:
     return labels.get(token_type, token_type)
 
 
+def generate_receipt_html(token: TokenRequest, is_copy: bool = False) -> str:
+    """
+    Genera el HTML del recibo para imprimir directamente desde el navegador.
+    Retorna el HTML como string con @page size: 80mm para impresoras térmicas.
+    """
+    from django.template.loader import render_to_string
+
+    final_states = [TokenRequest.Status.APPROVED, TokenRequest.Status.USED]
+    if token.status not in final_states:
+        raise ValueError(f"El recibo solo está disponible para tokens aprobados o utilizados.")
+
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    qr_url = f"{frontend_url}/public/token/{token.token_code}"
+    logo_qr_path = Path(settings.BASE_DIR) / 'static' / 'images' / 'logo-qr.png'
+    qr_data_url = generate_qr_base64(qr_url, str(logo_qr_path) if logo_qr_path.exists() else None)
+    status_config = get_status_config(token.status)
+
+    requested_by_name = "-"
+    if token.requested_by:
+        name = f"{token.requested_by.first_name} {token.requested_by.last_name}".strip()
+        requested_by_name = name or token.requested_by.email
+
+    if token.personnel:
+        beneficiary_name = token.personnel.full_name
+        beneficiary_code = token.personnel.employee_code or "-"
+        beneficiary_area = token.personnel.area.name if token.personnel.area else "-"
+        is_external_beneficiary = False
+    else:
+        is_external_beneficiary = True
+        beneficiary_code = "-"
+        beneficiary_area = "-"
+        try:
+            ep = token.exit_pass_detail.external_person
+            beneficiary_name = ep.name if ep else "Persona Externa"
+            beneficiary_code = ep.identification if ep else "-"
+            beneficiary_area = ep.company if ep else "-"
+        except Exception:
+            beneficiary_name = "Persona Externa"
+
+    context = {
+        'token': token,
+        'qr_data_url': qr_data_url,
+        'status_config': status_config,
+        'generated_at': datetime.now(),
+        'is_copy': is_copy,
+        'token_type_label': get_token_type_label(token.token_type),
+        'requested_by_name': requested_by_name,
+        'beneficiary_name': beneficiary_name,
+        'beneficiary_code': beneficiary_code,
+        'beneficiary_area': beneficiary_area,
+        'is_external_beneficiary': is_external_beneficiary,
+    }
+
+    detail_attrs = {
+        'PERMIT_HOUR': 'permit_hour_detail',
+        'PERMIT_DAY': 'permit_day_detail',
+        'EXIT_PASS': 'exit_pass_detail',
+        'UNIFORM_DELIVERY': 'uniform_delivery_detail',
+        'OVERTIME': 'overtime_detail',
+        'SHIFT_CHANGE': 'shift_change_detail',
+        'SUBSTITUTION': 'substitution_detail',
+        'RATE_CHANGE': 'rate_change_detail',
+    }
+    detail_attr = detail_attrs.get(token.token_type)
+    if detail_attr:
+        try:
+            detail = getattr(token, detail_attr, None)
+            if detail:
+                context[detail_attr] = detail
+                if hasattr(detail, 'items'):
+                    safe_items = []
+                    for item in detail.items.select_related('material', 'product').all():
+                        mat_name = None
+                        prod_name = None
+                        try:
+                            mat_name = item.material.name if item.material_id else None
+                        except Exception:
+                            pass
+                        try:
+                            prod_name = item.product.name if item.product_id else None
+                        except Exception:
+                            pass
+                        safe_items.append({
+                            'description': mat_name or prod_name or item.custom_description or '-',
+                            'quantity': item.quantity,
+                            'total_value': item.total_value,
+                            'requires_return': item.requires_return,
+                            'return_date': item.return_date,
+                        })
+                    context[f'{detail_attr}_items'] = safe_items
+        except Exception:
+            pass
+
+    return render_to_string('tokens/token_receipt.html', context)
+
+
 def generate_token_receipt(token: TokenRequest, is_copy: bool = False) -> io.BytesIO:
     """
     Genera un recibo tipo ticket (80mm) para impresoras térmicas.

@@ -300,59 +300,98 @@
         <!-- Detalles específicos según tipo -->
         {% if token.token_type == 'PERMIT_HOUR' and permit_hour_detail %}
         <div class="details-block">
-            <div class="details-title">DETALLES DEL PERMISO</div>
+            <div class="details-title">-- PERMISO POR HORA --</div>
+            <div class="detail-row">Motivo: {{ permit_hour_detail.get_reason_type_display|truncatechars:28 }}</div>
             <div class="detail-row">Horas: {{ permit_hour_detail.hours_requested }}h</div>
-            <div class="detail-row">Motivo: {{ permit_hour_detail.get_reason_display|truncatechars:25 }}</div>
+            <div class="detail-row">Salida: {{ permit_hour_detail.exit_time|time:"H:i" }} / Retorno: {{ permit_hour_detail.expected_return_time|time:"H:i" }}</div>
+            {% if permit_hour_detail.destination %}
+            <div class="detail-row">Destino: {{ permit_hour_detail.destination|truncatechars:28 }}</div>
+            {% endif %}
+            <div class="detail-row">Goce de sueldo: {% if permit_hour_detail.with_pay %}SI{% else %}NO{% endif %}</div>
         </div>
         {% endif %}
 
         {% if token.token_type == 'PERMIT_DAY' and permit_day_detail %}
         <div class="details-block">
-            <div class="details-title">DETALLES DEL PERMISO</div>
-            <div class="detail-row">Dias: {{ permit_day_detail.total_days }}</div>
-            <div class="detail-row">Motivo: {{ permit_day_detail.get_reason_display|truncatechars:25 }}</div>
+            <div class="details-title">-- PERMISO POR DIA --</div>
+            <div class="detail-row">Motivo: {{ permit_day_detail.get_reason_display|truncatechars:28 }}</div>
+            <div class="detail-row">Total dias: {{ permit_day_detail.total_days }}</div>
+            <div class="detail-row">Goce de sueldo: {% if permit_day_detail.with_pay %}SI{% else %}NO{% endif %}</div>
         </div>
         {% endif %}
 
         {% if token.token_type == 'OVERTIME' and overtime_detail %}
         <div class="details-block">
-            <div class="details-title">HORAS EXTRA</div>
-            <div class="detail-row">Horas: {{ overtime_detail.hours_requested }}h</div>
-            <div class="detail-row">Tipo: {{ overtime_detail.get_overtime_type_display|truncatechars:20 }}</div>
+            <div class="details-title">-- HORAS EXTRA --</div>
+            <div class="detail-row">Tipo: {{ overtime_detail.get_overtime_type_display|truncatechars:28 }}</div>
+            <div class="detail-row">Fecha: {{ overtime_detail.overtime_date|date:"d/m/Y" }}</div>
+            <div class="detail-row">Horario: {{ overtime_detail.start_time|time:"H:i" }} - {{ overtime_detail.end_time|time:"H:i" }}</div>
+            <div class="detail-row">Total: {{ overtime_detail.total_hours }}h</div>
         </div>
         {% endif %}
 
         {% if token.token_type == 'SHIFT_CHANGE' and shift_change_detail %}
         <div class="details-block">
-            <div class="details-title">CAMBIO DE TURNO</div>
-            <div class="detail-row">Original: {{ shift_change_detail.original_shift.name|truncatechars:18 }}</div>
-            <div class="detail-row">Nuevo: {{ shift_change_detail.new_shift.name|truncatechars:18 }}</div>
+            <div class="details-title">-- CAMBIO DE TURNO --</div>
+            <div class="detail-row">Motivo: {{ shift_change_detail.get_reason_display|truncatechars:28 }}</div>
+            <div class="detail-row">Fecha: {{ shift_change_detail.change_date|date:"d/m/Y" }}</div>
+            <div class="detail-row">Tipo: {% if shift_change_detail.is_permanent %}Permanente{% else %}Temporal{% endif %}</div>
         </div>
         {% endif %}
 
         {% if token.token_type == 'SUBSTITUTION' and substitution_detail %}
         <div class="details-block">
-            <div class="details-title">SUSTITUCION</div>
-            <div class="detail-row">Sustituye a: {{ substitution_detail.substituted_personnel.full_name|truncatechars:20 }}</div>
+            <div class="details-title">-- SUSTITUCION --</div>
+            <div class="detail-row">Sustituye a: {{ substitution_detail.substituted_personnel.full_name|truncatechars:25 }}</div>
+            <div class="detail-row">Motivo: {{ substitution_detail.get_reason_display|truncatechars:28 }}</div>
+            <div class="detail-row">Periodo: {{ substitution_detail.start_date|date:"d/m/y" }} - {{ substitution_detail.end_date|date:"d/m/y" }}</div>
+        </div>
+        {% endif %}
+
+        {% if token.token_type == 'RATE_CHANGE' and rate_change_detail %}
+        <div class="details-block">
+            <div class="details-title">-- CAMBIO DE TASA --</div>
+            <div class="detail-row">Motivo: {{ rate_change_detail.get_reason_display|truncatechars:28 }}</div>
+            <div class="detail-row">Tasa actual: L. {{ rate_change_detail.current_rate }}</div>
+            <div class="detail-row">Nueva tasa: L. {{ rate_change_detail.new_rate }}</div>
         </div>
         {% endif %}
 
         {% if token.token_type == 'UNIFORM_DELIVERY' and uniform_delivery_detail %}
         <div class="details-block">
-            <div class="details-title">ARTICULOS</div>
-            {% for item in uniform_delivery_detail.items.all %}
-            <div class="item-row">- {{ item.get_item_type_display }} ({{ item.get_size_display }}) x{{ item.quantity }}</div>
+            <div class="details-title">-- ENTREGA DE UNIFORME --</div>
+            <div class="detail-row">Estado: {% if uniform_delivery_detail.is_delivered %}ENTREGADO{% else %}PENDIENTE{% endif %}</div>
+            {% for item in exit_pass_detail_items %}
+            <div class="item-row">{{ item.description }} ({{ item.size }}) x{{ item.quantity }}</div>
             {% endfor %}
         </div>
         {% endif %}
 
         {% if token.token_type == 'EXIT_PASS' and exit_pass_detail %}
         <div class="details-block">
-            <div class="details-title">PASE DE SALIDA</div>
-            <div class="detail-row">Destino: {{ exit_pass_detail.destination|truncatechars:22 }}</div>
-            {% for item in exit_pass_detail.items.all %}
-            <div class="item-row">- {{ item.description|truncatechars:25 }} x{{ item.quantity }}</div>
+            <div class="details-title">-- PASE DE SALIDA --</div>
+            <div class="detail-row">Destino: {{ exit_pass_detail.destination|truncatechars:28 }}</div>
+            <div class="detail-row">Motivo: {{ exit_pass_detail.purpose|truncatechars:28 }}</div>
+            {% if exit_pass_detail.driver_name %}
+            <div class="detail-row">Conductor: {{ exit_pass_detail.driver_name|truncatechars:25 }}</div>
+            {% endif %}
+            {% if exit_pass_detail.vehicle_plate %}
+            <div class="detail-row">Placa: {{ exit_pass_detail.vehicle_plate }}</div>
+            {% endif %}
+            {% if is_external_beneficiary %}
+            <div class="detail-row">Empresa: {{ beneficiary_area|truncatechars:28 }}</div>
+            {% endif %}
+            <div class="details-title" style="margin-top:4px;">ARTICULOS:</div>
+            {% for item in exit_pass_detail_items %}
+            <div class="item-row">
+                <span>{{ item.description|truncatechars:20 }}</span>
+                <span>x{{ item.quantity }}</span>
+                {% if item.requires_return %}<span>[RETORNA]</span>{% endif %}
+            </div>
             {% endfor %}
+            <div class="detail-row" style="border-top:1px dashed #000;margin-top:3px;padding-top:3px;">
+                TOTAL: L. {{ exit_pass_detail.total_value }}
+            </div>
         </div>
         {% endif %}
 
