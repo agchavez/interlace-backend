@@ -5,7 +5,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from ..models import (
     TokenRequest, PermitHourDetail, PermitDayDetail, PermitDayDate,
-    ExitPassDetail, ExitPassItem, Material,
+    ExitPassDetail, ExitPassItem, Material, ExternalPerson,
     UniformDeliveryDetail, UniformItem,
     SubstitutionDetail, RateChangeDetail, OvertimeDetail, ShiftChangeDetail
 )
@@ -471,6 +471,9 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
 
         elif token.token_type == TokenRequest.TokenType.EXIT_PASS and exit_pass_data:
             items_data = exit_pass_data.pop('items', [])
+            external_person_id = exit_pass_data.pop('external_person', None)
+            if external_person_id:
+                exit_pass_data['external_person'] = ExternalPerson.objects.get(pk=external_person_id)
             detail = ExitPassDetail.objects.create(token=token, **exit_pass_data)
             for item_data in items_data:
                 material_id = item_data.pop('material', None)

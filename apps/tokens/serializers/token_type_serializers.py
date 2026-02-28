@@ -153,8 +153,8 @@ class ExitPassDetailSerializer(serializers.ModelSerializer):
         model = ExitPassDetail
         fields = [
             'id', 'destination', 'purpose', 'vehicle_plate', 'driver_name',
-            'expected_return_date', 'items', 'total_value',
-            'requires_level_3_approval'
+            'expected_return_date', 'is_external', 'external_person',
+            'items', 'total_value', 'requires_level_3_approval'
         ]
         read_only_fields = ['id', 'total_value', 'requires_level_3_approval']
 
@@ -184,6 +184,8 @@ class ExitPassDetailCreateSerializer(serializers.Serializer):
     vehicle_plate = serializers.CharField(required=False, allow_blank=True)
     driver_name = serializers.CharField(required=False, allow_blank=True)
     expected_return_date = serializers.DateField(required=False)
+    is_external = serializers.BooleanField(default=False)
+    external_person = serializers.IntegerField(required=False, allow_null=True)
     items = ExitPassItemCreateSerializer(many=True)
 
     def validate_items(self, value):
