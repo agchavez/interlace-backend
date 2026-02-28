@@ -140,6 +140,26 @@ def generate_token_pdf(token: TokenRequest) -> io.BytesIO:
         name = f"{token.requested_by.first_name} {token.requested_by.last_name}".strip()
         requested_by_name = name or token.requested_by.email
 
+    # Datos del beneficiario (persona interna o externa)
+    if token.personnel:
+        beneficiary_name = token.personnel.full_name
+        beneficiary_code = token.personnel.employee_code or "-"
+        beneficiary_area = token.personnel.area.name if token.personnel.area else "-"
+        beneficiary_position = token.personnel.position or "-"
+        is_external_beneficiary = False
+    else:
+        is_external_beneficiary = True
+        beneficiary_code = "-"
+        beneficiary_area = "-"
+        beneficiary_position = "-"
+        try:
+            ep = token.exit_pass_detail.external_person
+            beneficiary_name = ep.name if ep else "Persona Externa"
+            beneficiary_code = ep.identification if ep else "-"
+            beneficiary_area = ep.company if ep else "-"
+        except Exception:
+            beneficiary_name = "Persona Externa"
+
     # Obtener código de país del centro de distribución
     country_code = 'hn'  # Default Honduras
     try:
@@ -158,6 +178,11 @@ def generate_token_pdf(token: TokenRequest) -> io.BytesIO:
         'generated_at': datetime.now(),
         'requested_by_name': requested_by_name,
         'country_code': country_code,
+        'beneficiary_name': beneficiary_name,
+        'beneficiary_code': beneficiary_code,
+        'beneficiary_area': beneficiary_area,
+        'beneficiary_position': beneficiary_position,
+        'is_external_beneficiary': is_external_beneficiary,
     }
 
     # Agregar detalles específicos del tipo

@@ -436,27 +436,27 @@
                 <tr>
                     <td>
                         <div class="card">
-                            <div class="card-header"><h3>Beneficiario</h3></div>
+                            <div class="card-header"><h3>Beneficiario{% if is_external_beneficiary %} (Externo){% endif %}</h3></div>
                             <div class="card-body">
                                 <table class="info-table">
                                     <tr>
                                         <td style="width: 60%;">
                                             <div class="info-label">Nombre</div>
-                                            <div class="info-value">{{ token.personnel.full_name }}</div>
+                                            <div class="info-value">{{ beneficiary_name }}</div>
                                         </td>
                                         <td style="width: 40%;">
-                                            <div class="info-label">Codigo</div>
-                                            <div class="info-value">{{ token.personnel.employee_code }}</div>
+                                            <div class="info-label">{% if is_external_beneficiary %}Identificacion{% else %}Codigo{% endif %}</div>
+                                            <div class="info-value">{{ beneficiary_code }}</div>
                                         </td>
                                     </tr>
                                     <tr>
                                         <td>
-                                            <div class="info-label">Area</div>
-                                            <div class="info-value">{{ token.personnel.area.name|default:"-" }}</div>
+                                            <div class="info-label">{% if is_external_beneficiary %}Empresa{% else %}Area{% endif %}</div>
+                                            <div class="info-value">{{ beneficiary_area }}</div>
                                         </td>
                                         <td>
                                             <div class="info-label">Cargo</div>
-                                            <div class="info-value">{{ token.personnel.position|default:"-" }}</div>
+                                            <div class="info-value">{{ beneficiary_position }}</div>
                                         </td>
                                     </tr>
                                 </table>
