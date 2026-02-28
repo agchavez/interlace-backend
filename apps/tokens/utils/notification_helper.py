@@ -160,9 +160,9 @@ class TokenNotificationHelper:
             is_active=True,
             user__isnull=False,
             user__is_active=True,
-        ).exclude(
-            id=token.personnel.id  # Excluir al beneficiario
         )
+        if token.personnel:
+            approvers = approvers.exclude(id=token.personnel.id)
 
         # Filtrar por centro de distribución
         approvers = approvers.filter(
@@ -176,6 +176,15 @@ class TokenNotificationHelper:
         token_type_label = get_token_type_label(token.token_type)
         level_name = level_names.get(current_level, f'Nivel {current_level}')
 
+        # Nombre del beneficiario (persona interna o externa)
+        if token.personnel:
+            beneficiary_name = token.personnel.full_name
+        else:
+            try:
+                beneficiary_name = token.exit_pass_detail.external_person.name
+            except Exception:
+                beneficiary_name = 'Persona externa'
+
         # Filtrar por capacidad de aprobación
         notified_count = 0
         for approver in approvers:
@@ -185,7 +194,7 @@ class TokenNotificationHelper:
                     cls._create_notification(
                         user=approver.user,
                         title=f"Solicitud pendiente de aprobación",
-                        description=f"{token.personnel.full_name} solicita {token_type_label}. Requiere su aprobación como {level_name}.",
+                        description=f"{beneficiary_name} solicita {token_type_label}. Requiere su aprobación como {level_name}.",
                         token=token,
                         notification_type=NotificationModel.Type.APROVAL,
                     )
@@ -212,11 +221,14 @@ class TokenNotificationHelper:
         level_name = level_names.get(level, f'Nivel {level}')
 
         # Si está completamente aprobado
+        personnel_user = token.personnel.user if token.personnel else None
+        personnel_name = token.personnel.full_name if token.personnel else None
+
         if token.status == 'APPROVED':
             # Notificar al beneficiario si tiene usuario
-            if token.personnel.user:
+            if personnel_user:
                 cls._create_notification(
-                    user=token.personnel.user,
+                    user=personnel_user,
                     title=f"Su {token_type_label} fue aprobado",
                     description=f"Su solicitud ha sido aprobada completamente y está lista para usar.",
                     token=token,
@@ -224,20 +236,20 @@ class TokenNotificationHelper:
                 )
 
             # Notificar al solicitante SOLO si es diferente al beneficiario
-            if token.requested_by and token.requested_by != token.personnel.user:
+            if token.requested_by and token.requested_by != personnel_user:
                 cls._create_notification(
                     user=token.requested_by,
                     title=f"Solicitud aprobada completamente",
-                    description=f"La solicitud de {token_type_label} para {token.personnel.full_name} ha sido aprobada y está lista para usar.",
+                    description=f"La solicitud de {token_type_label} para {personnel_name or 'persona externa'} ha sido aprobada y está lista para usar.",
                     token=token,
                     notification_type=NotificationModel.Type.CONFIRMATION,
                 )
         else:
             # Aprobación parcial - solo notificar al beneficiario si tiene usuario
             # El beneficiario quiere saber el progreso de su solicitud
-            if token.personnel.user:
+            if personnel_user:
                 cls._create_notification(
-                    user=token.personnel.user,
+                    user=personnel_user,
                     title=f"Solicitud aprobada por {level_name}",
                     description=f"Su {token_type_label} ha sido aprobado por {level_name}. Pendiente de aprobación siguiente.",
                     token=token,
@@ -252,19 +264,22 @@ class TokenNotificationHelper:
         token_type_label = get_token_type_label(token.token_type)
         rejection_reason = token.rejection_reason or 'No especificado'
 
+        personnel_user = token.personnel.user if token.personnel else None
+        personnel_name = token.personnel.full_name if token.personnel else 'persona externa'
+
         # Notificar al solicitante
         cls._create_notification(
             user=token.requested_by,
             title="Solicitud rechazada",
-            description=f"La solicitud de {token_type_label} para {token.personnel.full_name} fue rechazada. Motivo: {rejection_reason}",
+            description=f"La solicitud de {token_type_label} para {personnel_name} fue rechazada. Motivo: {rejection_reason}",
             token=token,
             notification_type=NotificationModel.Type.REJECTION,
         )
 
         # Notificar al beneficiario si tiene usuario y no es el solicitante
-        if token.personnel.user and token.personnel.user != token.requested_by:
+        if personnel_user and personnel_user != token.requested_by:
             cls._create_notification(
-                user=token.personnel.user,
+                user=personnel_user,
                 title=f"Su {token_type_label} fue rechazado",
                 description=f"Su solicitud fue rechazada. Motivo: {rejection_reason}",
                 token=token,
@@ -285,10 +300,13 @@ class TokenNotificationHelper:
         """
         token_type_label = get_token_type_label(token.token_type)
 
+        personnel_user = token.personnel.user if token.personnel else None
+        personnel_name = token.personnel.full_name if token.personnel else 'persona externa'
+
         # Notificar al beneficiario si tiene usuario Y no es quien completó la acción
-        if token.personnel.user and token.personnel.user != used_by_user:
+        if personnel_user and personnel_user != used_by_user:
             cls._create_notification(
-                user=token.personnel.user,
+                user=personnel_user,
                 title=f"Su {token_type_label} ha sido utilizado",
                 description=f"Su solicitud ha sido validada y registrada en el sistema.",
                 token=token,
@@ -297,12 +315,12 @@ class TokenNotificationHelper:
 
         # Notificar al solicitante SOLO si es diferente al beneficiario Y no es quien completó
         if (token.requested_by and
-            token.requested_by != token.personnel.user and
+            token.requested_by != personnel_user and
             token.requested_by != used_by_user):
             cls._create_notification(
                 user=token.requested_by,
                 title="Solicitud utilizada",
-                description=f"La solicitud de {token_type_label} de {token.personnel.full_name} ha sido validada y registrada.",
+                description=f"La solicitud de {token_type_label} de {personnel_name} ha sido validada y registrada.",
                 token=token,
                 notification_type=NotificationModel.Type.CONFIRMATION,
             )
@@ -314,7 +332,7 @@ class TokenNotificationHelper:
         """
         token_type_label = get_token_type_label(token.token_type)
 
-        if token.personnel.user:
+        if token.personnel and token.personnel.user:
             cls._create_notification(
                 user=token.personnel.user,
                 title="Solicitud por vencer",
