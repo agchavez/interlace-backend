@@ -1,2 +1,2 @@
-from .user import UserSerializer, PermissionSerializer, GroupSerializer, LogEntrySerializer, DetailGroupSerializer
+from .user import UserSerializer, PermissionSerializer, GroupSerializer, LogEntrySerializer, DetailGroupSerializer, BulkUploadRowSerializer
 from .push_subscription import PushSubscriptionSerializer, UnsubscribeSerializer

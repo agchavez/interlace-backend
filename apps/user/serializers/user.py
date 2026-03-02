@@ -114,6 +114,32 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 
+# Serializer para validar cada fila del Excel de carga masiva
+class BulkUploadRowSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=60)
+    last_name = serializers.CharField(max_length=60)
+    email = serializers.EmailField()
+    username = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    password = serializers.CharField(min_length=8, write_only=True)
+    employee_number = serializers.IntegerField(required=False, allow_null=True, default=None)
+    group = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_email(self, value):
+        if UserModel.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("El email ya está registrado.")
+        return value.lower()
+
+    def validate_username(self, value):
+        if value and UserModel.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError("El username ya existe.")
+        return value
+
+    def validate_employee_number(self, value):
+        if value and UserModel.objects.filter(employee_number=value).exists():
+            raise serializers.ValidationError("El número de empleado ya existe.")
+        return value
+
+
 # Serializers (ContentType)
 class ContentTypeSerializer(serializers.ModelSerializer):
     class Meta:
