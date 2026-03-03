@@ -33,20 +33,28 @@ class CertificationSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True
     )
+    completed_by_name = serializers.CharField(
+        source='completed_by.get_full_name',
+        read_only=True,
+        allow_null=True
+    )
 
     # Propiedades calculadas
     days_until_expiration = serializers.IntegerField(read_only=True)
     is_expiring_soon = serializers.BooleanField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     status_display = serializers.CharField(read_only=True)
-    certificate_document_url = serializers.CharField(read_only=True)
+    certificate_document_url = serializers.CharField(read_only=True, allow_null=True)
+    signature_url = serializers.CharField(read_only=True, allow_null=True)
 
     class Meta:
         model = Certification
         fields = '__all__'
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by',
-            'renewal_notification_sent', 'renewal_notification_date'
+            'renewal_notification_sent', 'renewal_notification_date',
+            'signature', 'completion_notes', 'completed_at', 'completed_by',
+            'non_completion_reason',
         ]
 
     def validate(self, data):
@@ -58,17 +66,19 @@ class CertificationSerializer(serializers.ModelSerializer):
                     'expiration_date': 'La fecha de vencimiento debe ser posterior a la fecha de emisión'
                 })
 
-        # Validar certificación duplicada
-        if self.instance is None:  # Solo en creación
-            existing = Certification.objects.filter(
-                personnel=data.get('personnel'),
-                certification_type=data.get('certification_type'),
-                is_valid=True
-            ).exists()
-            if existing:
-                raise serializers.ValidationError({
-                    'certification_type': 'Ya existe una certificación válida de este tipo para este empleado'
-                })
+        # Validar certificación duplicada (solo en creación, si hay número de certificación)
+        if self.instance is None:
+            cert_number = data.get('certification_number', '')
+            if cert_number:
+                existing = Certification.objects.filter(
+                    personnel=data.get('personnel'),
+                    certification_type=data.get('certification_type'),
+                    certification_number=cert_number,
+                ).exists()
+                if existing:
+                    raise serializers.ValidationError({
+                        'certification_number': 'Ya existe una certificación con este número para este empleado'
+                    })
 
         return data
 
@@ -89,7 +99,7 @@ class CertificationListSerializer(serializers.ModelSerializer):
     )
     status_display = serializers.CharField(read_only=True)
     days_until_expiration = serializers.IntegerField(read_only=True)
-    certificate_document_url = serializers.CharField(read_only=True)
+    certificate_document_url = serializers.CharField(read_only=True, allow_null=True)
 
     class Meta:
         model = Certification
@@ -97,7 +107,8 @@ class CertificationListSerializer(serializers.ModelSerializer):
             'id', 'personnel', 'personnel_name', 'personnel_code',
             'certification_type', 'certification_type_name',
             'certification_number', 'issuing_authority',
-            'issue_date', 'expiration_date', 'is_valid', 'status_display',
-            'days_until_expiration', 'certificate_document', 'certificate_document_url'
+            'issue_date', 'expiration_date', 'is_valid', 'status', 'status_display',
+            'days_until_expiration', 'certificate_document', 'certificate_document_url',
+            'completed_at',
         ]
         read_only_fields = fields

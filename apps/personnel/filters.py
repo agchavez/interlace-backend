@@ -2,6 +2,7 @@
 Filtros personalizados para el módulo de personal
 """
 from django_filters import rest_framework as filters
+from django.db.models import Q
 from datetime import date, timedelta
 from .models.personnel import PersonnelProfile
 from .models.medical import MedicalRecord
@@ -80,9 +81,17 @@ class MedicalRecordFilter(filters.FilterSet):
 
 class CertificationFilter(filters.FilterSet):
     """Filtros para certificaciones"""
+    search = filters.CharFilter(method='filter_search')
     personnel = filters.NumberFilter()
     certification_type = filters.NumberFilter()
+    status = filters.CharFilter(field_name='status')
     is_valid = filters.BooleanFilter()
+    distributor_center = filters.NumberFilter(
+        field_name='personnel__primary_distributor_center__id'
+    )
+    area = filters.NumberFilter(field_name='personnel__area__id')
+    hierarchy_level = filters.CharFilter(field_name='personnel__hierarchy_level')
+    position_type = filters.CharFilter(field_name='personnel__position_type')
     is_expiring_soon = filters.BooleanFilter(method='filter_expiring_soon')
     is_expired = filters.BooleanFilter(method='filter_expired')
     expiration_date_from = filters.DateFilter(
@@ -96,7 +105,15 @@ class CertificationFilter(filters.FilterSet):
 
     class Meta:
         model = Certification
-        fields = ['personnel', 'certification_type', 'is_valid']
+        fields = ['personnel', 'certification_type', 'status', 'is_valid']
+
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(personnel__employee_code__icontains=value) |
+            Q(personnel__first_name__icontains=value) |
+            Q(personnel__last_name__icontains=value) |
+            Q(certification_type__name__icontains=value)
+        )
 
     def filter_expiring_soon(self, queryset, name, value):
         if value:

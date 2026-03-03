@@ -14,6 +14,11 @@ def certification_document_path(instance, filename):
     return f'personnel/certifications/{instance.personnel.employee_code}/{filename}'
 
 
+def certification_signature_path(instance, filename):
+    """Ruta para firmas de certificaciones"""
+    return f'personnel/certifications/signatures/{instance.personnel.employee_code}/{filename}'
+
+
 class CertificationType(models.Model):
     """
     Tipos de certificaciones disponibles
@@ -71,8 +76,20 @@ class CertificationType(models.Model):
 
 class Certification(models.Model):
     """
-    Certificaciones del personal
+    Certificaciones y entrenamientos del personal
     """
+    # Estados de progreso
+    STATUS_PENDING = 'PENDING'
+    STATUS_IN_PROGRESS = 'IN_PROGRESS'
+    STATUS_COMPLETED = 'COMPLETED'
+    STATUS_NOT_COMPLETED = 'NOT_COMPLETED'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pendiente'),
+        (STATUS_IN_PROGRESS, 'En Progreso'),
+        (STATUS_COMPLETED, 'Completado'),
+        (STATUS_NOT_COMPLETED, 'No Completó'),
+    ]
+
     personnel = models.ForeignKey(
         PersonnelProfile,
         on_delete=models.CASCADE,
@@ -155,6 +172,46 @@ class Certification(models.Model):
         verbose_name='Notas'
     )
 
+    # Flujo de progreso
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        verbose_name='Estado',
+        db_index=True
+    )
+
+    # Completado con firma
+    signature = models.ImageField(
+        upload_to=certification_signature_path,
+        null=True,
+        blank=True,
+        verbose_name='Firma del participante'
+    )
+    completion_notes = models.TextField(
+        blank=True,
+        verbose_name='Notas de completado'
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha de completado'
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certifications_completed',
+        verbose_name='Completado por'
+    )
+
+    # No completado
+    non_completion_reason = models.TextField(
+        blank=True,
+        verbose_name='Motivo de no completado'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
@@ -203,16 +260,37 @@ class Certification(models.Model):
 
     @property
     def status_display(self):
-        """Retorna el estado de la certificación"""
-        if self.revoked:
-            return 'Revocada'
-        if not self.is_valid:
-            return 'Inválida'
-        if self.is_expired:
-            return 'Vencida'
-        if self.is_expiring_soon:
-            return 'Por vencer'
+        """Retorna el estado de la certificación (prioriza el flujo de progreso)"""
+        # Primero mostrar el estado del flujo
+        if self.status == self.STATUS_COMPLETED:
+            return 'Completado'
+        if self.status == self.STATUS_NOT_COMPLETED:
+            return 'No Completó'
+        if self.status == self.STATUS_IN_PROGRESS:
+            return 'En Progreso'
+        if self.status == self.STATUS_PENDING:
+            # Si está pendiente, mostrar validez del certificado si aplica
+            if self.revoked:
+                return 'Revocada'
+            if not self.is_valid:
+                return 'Inválida'
+            if self.is_expired:
+                return 'Vencida'
+            if self.is_expiring_soon:
+                return 'Por vencer'
+            return 'Pendiente'
         return 'Vigente'
+
+    @property
+    def signature_url(self):
+        """Retorna la URL de la firma con SAS token"""
+        if not self.signature:
+            return None
+        try:
+            return generate_blob_sas_url(self.signature.name, expiry_hours=2)
+        except Exception as e:
+            print(f"Error generando URL con SAS token para firma {self.id}: {str(e)}")
+            return None
 
     @property
     def certificate_document_url(self):
