@@ -8,19 +8,19 @@ services:
     labels:
       - "traefik.enable=true"
       # Router para API REST (HTTPS)
-      - "traefik.http.routers.interlace-api.rule=Host(`interlace.center`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.interlace-api.rule=Host(`interlace.tracker.lat`) && PathPrefix(`/api`)"
       - "traefik.http.routers.interlace-api.entrypoints=websecure"
       - "traefik.http.routers.interlace-api.tls=true"
       - "traefik.http.routers.interlace-api.service=interlace-backend"
       - "traefik.http.routers.interlace-api.priority=100"
       # Router para WebSocket (WSS)
-      - "traefik.http.routers.interlace-ws.rule=Host(`interlace.center`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.interlace-ws.rule=Host(`interlace.tracker.lat`) && PathPrefix(`/ws`)"
       - "traefik.http.routers.interlace-ws.entrypoints=websecure"
       - "traefik.http.routers.interlace-ws.tls=true"
       - "traefik.http.routers.interlace-ws.service=interlace-backend"
       - "traefik.http.routers.interlace-ws.priority=100"
       # Router para Admin (HTTPS)
-      - "traefik.http.routers.interlace-admin.rule=Host(`interlace.center`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.interlace-admin.rule=Host(`interlace.tracker.lat`) && PathPrefix(`/admin`)"
       - "traefik.http.routers.interlace-admin.entrypoints=websecure"
       - "traefik.http.routers.interlace-admin.tls=true"
       - "traefik.http.routers.interlace-admin.service=interlace-backend"
