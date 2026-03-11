@@ -797,7 +797,13 @@ class CertificationViewSet(viewsets.ModelViewSet):
         else:
             story = [title_para, meta_para, Spacer(1, 0.3*cm), table]
 
-        doc.build(story)
+        try:
+            doc.build(story)
+        except Exception as e:
+            return Response(
+                {'detail': f'Error al generar el PDF: {e}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         buffer.seek(0)
         today_file = date.today().strftime('%Y-%m-%d')
