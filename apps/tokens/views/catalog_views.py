@@ -9,8 +9,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 import django_filters
 
-from ..models import Material, UnitOfMeasure
-from ..serializers import MaterialSerializer, UnitOfMeasureSerializer
+from ..models import Material, UnitOfMeasure, OvertimeTypeModel, OvertimeReasonModel
+from ..serializers import (
+    MaterialSerializer, UnitOfMeasureSerializer,
+    OvertimeTypeModelSerializer, OvertimeReasonModelSerializer,
+)
 
 
 class MaterialFilter(django_filters.FilterSet):
@@ -69,5 +72,45 @@ class UnitOfMeasureViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['code', 'name', 'abbreviation']
+    ordering_fields = ['code', 'name']
+    ordering = ['name']
+
+
+class OvertimeTypeViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de Tipos de Horas Extra.
+
+    Endpoints:
+    - GET /api/tokens/overtime-types/ - Listar tipos
+    - POST /api/tokens/overtime-types/ - Crear tipo
+    - GET /api/tokens/overtime-types/{id}/ - Detalle
+    - PUT/PATCH /api/tokens/overtime-types/{id}/ - Actualizar
+    - DELETE /api/tokens/overtime-types/{id}/ - Eliminar
+    """
+    queryset = OvertimeTypeModel.objects.all()
+    serializer_class = OvertimeTypeModelSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name', 'default_multiplier']
+    ordering = ['name']
+
+
+class OvertimeReasonViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de Motivos de Horas Extra.
+
+    Endpoints:
+    - GET /api/tokens/overtime-reasons/ - Listar motivos
+    - POST /api/tokens/overtime-reasons/ - Crear motivo
+    - GET /api/tokens/overtime-reasons/{id}/ - Detalle
+    - PUT/PATCH /api/tokens/overtime-reasons/{id}/ - Actualizar
+    - DELETE /api/tokens/overtime-reasons/{id}/ - Eliminar
+    """
+    queryset = OvertimeReasonModel.objects.all()
+    serializer_class = OvertimeReasonModelSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['code', 'name', 'description']
     ordering_fields = ['code', 'name']
     ordering = ['name']

@@ -11,6 +11,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         certification_types = [
             {
+                'code': 'ETICA-COMP',
+                'name': 'Entrenamiento Anual de Etica y Compliance',
+                'description': 'Entrenamiento anual obligatorio sobre ética empresarial y cumplimiento normativo',
+                'validity_period_days': 365,
+                'requires_renewal': True,
+                'is_mandatory': True,
+            },
+            {
                 'code': 'MONT',
                 'name': 'Certificación de Montacargas',
                 'description': 'Certificación para operar montacargas',

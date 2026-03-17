@@ -505,6 +505,9 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
             items_data = uniform_delivery_data.pop('items', [])
             detail = UniformDeliveryDetail.objects.create(token=token, **uniform_delivery_data)
             for item_data in items_data:
+                material_id = item_data.pop('material', None)
+                if material_id:
+                    item_data['material_id'] = material_id
                 UniformItem.objects.create(uniform_delivery=detail, **item_data)
             # UNIFORM_DELIVERY: Ya está configurado como APPROVED por ApprovalLevelService
 
@@ -519,6 +522,21 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
             RateChangeDetail.objects.create(token=token, **rate_change_data)
 
         elif token.token_type == TokenRequest.TokenType.OVERTIME and overtime_data:
+            from datetime import datetime, time, date as date_type
+            # Convert FK IDs to _id fields for proper assignment
+            overtime_type_model_id = overtime_data.pop('overtime_type_model', None)
+            reason_model_id = overtime_data.pop('reason_model', None)
+            if overtime_type_model_id:
+                overtime_data['overtime_type_model_id'] = overtime_type_model_id
+            if reason_model_id:
+                overtime_data['reason_model_id'] = reason_model_id
+            # Parse string fields to proper types (data comes from DictField, not typed serializer)
+            if isinstance(overtime_data.get('start_time'), str):
+                overtime_data['start_time'] = datetime.strptime(overtime_data['start_time'], '%H:%M').time()
+            if isinstance(overtime_data.get('end_time'), str):
+                overtime_data['end_time'] = datetime.strptime(overtime_data['end_time'], '%H:%M').time()
+            if isinstance(overtime_data.get('overtime_date'), str):
+                overtime_data['overtime_date'] = datetime.strptime(overtime_data['overtime_date'], '%Y-%m-%d').date()
             OvertimeDetail.objects.create(token=token, **overtime_data)
 
         elif token.token_type == TokenRequest.TokenType.SHIFT_CHANGE and shift_change_data:
@@ -530,6 +548,44 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
             ShiftChangeDetail.objects.create(token=token, **shift_change_data)
 
         return token
+
+
+class BulkOvertimeCreateSerializer(serializers.Serializer):
+    """Serializer para creación masiva de tokens de horas extra"""
+    personnel_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1,
+        max_length=200,
+    )
+    distributor_center = serializers.PrimaryKeyRelatedField(
+        queryset=DistributorCenter.objects.all()
+    )
+    valid_from = serializers.DateTimeField()
+    valid_until = serializers.DateTimeField()
+    requester_notes = serializers.CharField(required=False, allow_blank=True, default='')
+    overtime_detail = serializers.DictField(required=True)
+
+    def validate_personnel_ids(self, value):
+        seen = set()
+        unique = []
+        for pid in value:
+            if pid not in seen:
+                seen.add(pid)
+                unique.append(pid)
+        existing = set(
+            PersonnelProfile.objects.filter(id__in=unique, is_active=True).values_list('id', flat=True)
+        )
+        not_found = [pid for pid in unique if pid not in existing]
+        if not_found:
+            raise serializers.ValidationError(f'IDs no encontrados o inactivos: {not_found}')
+        return unique
+
+    def validate(self, data):
+        if data['valid_from'] >= data['valid_until']:
+            raise serializers.ValidationError({
+                'valid_until': 'Debe ser posterior a valid_from.'
+            })
+        return data
 
 
 class TokenApprovalSerializer(serializers.Serializer):
@@ -647,11 +703,19 @@ class PublicTokenSerializer(serializers.ModelSerializer):
 
             elif obj.token_type == TokenRequest.TokenType.OVERTIME:
                 detail = obj.overtime_detail
+                tipo = detail.overtime_type_model.name if detail.overtime_type_model else detail.get_overtime_type_display()
+                motivo = detail.reason_model.name if detail.reason_model else detail.get_reason_display()
+                total_h = detail.total_hours
+                total_str = f"{int(total_h)}h" if total_h == int(total_h) else f"{total_h}h"
+                mult = detail.pay_multiplier
+                mult_str = f"x{int(mult)}" if mult == int(mult) else f"x{mult}"
                 return {
-                    'Tipo': detail.get_overtime_type_display(),
-                    'Fecha': detail.overtime_date.strftime('%d/%m/%Y'),
-                    'Horario': f"{detail.start_time.strftime('%H:%M')} - {detail.end_time.strftime('%H:%M')}",
-                    'Total Horas': f"{detail.total_hours}h",
+                    'Tipo': tipo,
+                    'Motivo': motivo,
+                    'Fecha': detail.overtime_date.strftime('%d %b %Y'),
+                    'Horario': f"{detail.start_time.strftime('%H:%M')} – {detail.end_time.strftime('%H:%M')}",
+                    'Duración': total_str,
+                    'Multiplicador': mult_str,
                 }
 
             elif obj.token_type == TokenRequest.TokenType.SHIFT_CHANGE:

@@ -22,14 +22,14 @@ class TokenRequest(BaseModel):
 
     class Status(models.TextChoices):
         DRAFT = 'DRAFT', 'Borrador'
-        PENDING_L1 = 'PENDING_L1', 'Pendiente Nivel 1'
-        PENDING_L2 = 'PENDING_L2', 'Pendiente Nivel 2'
-        PENDING_L3 = 'PENDING_L3', 'Pendiente Nivel 3'
-        APPROVED = 'APPROVED', 'Aprobado'
-        USED = 'USED', 'Utilizado'
-        EXPIRED = 'EXPIRED', 'Expirado'
-        CANCELLED = 'CANCELLED', 'Cancelado'
-        REJECTED = 'REJECTED', 'Rechazado'
+        PENDING_L1 = 'PENDING_L1', 'Pendiente de aprobación'
+        PENDING_L2 = 'PENDING_L2', 'Pendiente de aprobación'
+        PENDING_L3 = 'PENDING_L3', 'Pendiente de aprobación'
+        APPROVED = 'APPROVED', 'Abierto'
+        USED = 'USED', 'Finalizado'
+        EXPIRED = 'EXPIRED', 'Vencido'
+        CANCELLED = 'CANCELLED', 'Cerrado'
+        REJECTED = 'REJECTED', 'Cerrado'
 
     # Identificadores únicos
     token_code = models.UUIDField(

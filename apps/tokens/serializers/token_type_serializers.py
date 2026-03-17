@@ -6,7 +6,8 @@ from ..models import (
     PermitHourDetail, PermitDayDetail, PermitDayDate,
     ExitPassDetail, ExitPassItem, Material, UnitOfMeasure,
     UniformDeliveryDetail, UniformItem,
-    SubstitutionDetail, RateChangeDetail, OvertimeDetail, ShiftChangeDetail
+    SubstitutionDetail, RateChangeDetail, OvertimeDetail, ShiftChangeDetail,
+    OvertimeTypeModel, OvertimeReasonModel,
 )
 from apps.personnel.models import PersonnelProfile
 from .external_person_serializers import ExternalPersonBasicSerializer
@@ -33,6 +34,20 @@ class MaterialSerializer(serializers.ModelSerializer):
             'unit_of_measure', 'unit_of_measure_name',
             'unit_value', 'requires_return', 'category'
         ]
+        read_only_fields = ['id']
+
+
+class OvertimeTypeModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OvertimeTypeModel
+        fields = ['id', 'code', 'name', 'description', 'default_multiplier', 'is_active']
+        read_only_fields = ['id']
+
+
+class OvertimeReasonModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OvertimeReasonModel
+        fields = ['id', 'code', 'name', 'description', 'is_active']
         read_only_fields = ['id']
 
 
@@ -200,17 +215,24 @@ class ExitPassDetailCreateSerializer(serializers.Serializer):
 
 class UniformItemSerializer(serializers.ModelSerializer):
     item_type_display = serializers.CharField(
-        source='get_item_type_display', read_only=True
+        source='get_item_type_display', read_only=True, default=''
     )
     size_display = serializers.CharField(
         source='get_size_display', read_only=True
+    )
+    material_name = serializers.CharField(
+        source='material.name', read_only=True, default=None
+    )
+    material_code = serializers.CharField(
+        source='material.code', read_only=True, default=None
     )
     is_overdue = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = UniformItem
         fields = [
-            'id', 'item_type', 'item_type_display',
+            'id', 'material', 'material_name', 'material_code',
+            'item_type', 'item_type_display',
             'custom_description', 'size', 'size_display', 'color',
             'quantity', 'requires_return', 'return_date',
             'returned', 'returned_at', 'is_overdue'
@@ -255,7 +277,10 @@ class UniformDeliveryDetailSerializer(serializers.ModelSerializer):
 
 class UniformItemCreateSerializer(serializers.Serializer):
     """Serializer para crear item de uniforme"""
-    item_type = serializers.ChoiceField(choices=UniformItem.ItemType.choices)
+    material = serializers.IntegerField(required=False, allow_null=True)
+    item_type = serializers.ChoiceField(
+        choices=UniformItem.ItemType.choices, required=False, allow_blank=True
+    )
     custom_description = serializers.CharField(required=False, allow_blank=True)
     size = serializers.ChoiceField(
         choices=UniformItem.Size.choices, default=UniformItem.Size.NA
@@ -264,6 +289,20 @@ class UniformItemCreateSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(default=1, min_value=1)
     requires_return = serializers.BooleanField(default=False)
     return_date = serializers.DateField(required=False)
+
+    def validate(self, data):
+        if not data.get('material') and not data.get('item_type'):
+            raise serializers.ValidationError(
+                'Debe especificar material o tipo de prenda.'
+            )
+        if data.get('material'):
+            try:
+                material_obj = Material.objects.get(id=data['material'])
+                if not data.get('custom_description'):
+                    data['custom_description'] = material_obj.name
+            except Material.DoesNotExist:
+                raise serializers.ValidationError({'material': 'Material no encontrado.'})
+        return data
 
 
 class UniformDeliveryDetailCreateSerializer(serializers.Serializer):
@@ -378,6 +417,12 @@ class OvertimeDetailSerializer(serializers.ModelSerializer):
     reason_display = serializers.CharField(
         source='get_reason_display', read_only=True
     )
+    overtime_type_model_name = serializers.CharField(
+        source='overtime_type_model.name', read_only=True, default=None
+    )
+    reason_model_name = serializers.CharField(
+        source='reason_model.name', read_only=True, default=None
+    )
     estimated_pay = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
     )
@@ -386,7 +431,10 @@ class OvertimeDetailSerializer(serializers.ModelSerializer):
         model = OvertimeDetail
         fields = [
             'id', 'overtime_type', 'overtime_type_display',
-            'reason', 'reason_display', 'reason_detail',
+            'overtime_type_model', 'overtime_type_model_name',
+            'reason', 'reason_display',
+            'reason_model', 'reason_model_name',
+            'reason_detail',
             'overtime_date', 'start_time', 'end_time', 'total_hours',
             'pay_multiplier', 'assigned_task',
             'was_completed', 'actual_start_time', 'actual_end_time',
@@ -399,9 +447,23 @@ class OvertimeDetailCreateSerializer(serializers.Serializer):
     """Serializer para crear horas extra"""
     overtime_type = serializers.ChoiceField(
         choices=OvertimeDetail.OvertimeType.choices,
-        default=OvertimeDetail.OvertimeType.REGULAR
+        default=OvertimeDetail.OvertimeType.REGULAR,
+        required=False,
     )
-    reason = serializers.ChoiceField(choices=OvertimeDetail.OvertimeReason.choices)
+    overtime_type_model = serializers.PrimaryKeyRelatedField(
+        queryset=OvertimeTypeModel.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+    reason = serializers.ChoiceField(
+        choices=OvertimeDetail.OvertimeReason.choices,
+        required=False,
+    )
+    reason_model = serializers.PrimaryKeyRelatedField(
+        queryset=OvertimeReasonModel.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
     reason_detail = serializers.CharField(required=False, allow_blank=True)
     overtime_date = serializers.DateField()
     start_time = serializers.TimeField()

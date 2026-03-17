@@ -30,6 +30,74 @@ class UnitOfMeasure(BaseModel):
         return f"{self.code} - {self.name}"
 
 
+class OvertimeTypeModel(BaseModel):
+    """Tipos de horas extra configurables"""
+
+    code = models.CharField(
+        max_length=30,
+        unique=True,
+        verbose_name='Código'
+    )
+    name = models.CharField(
+        max_length=100,
+        verbose_name='Nombre'
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name='Descripción'
+    )
+    default_multiplier = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=1.5,
+        verbose_name='Multiplicador por Defecto'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Activo'
+    )
+
+    class Meta:
+        db_table = 'app_token_overtime_type'
+        verbose_name = 'Tipo de Hora Extra'
+        verbose_name_plural = 'Tipos de Horas Extra'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class OvertimeReasonModel(BaseModel):
+    """Motivos de horas extra configurables"""
+
+    code = models.CharField(
+        max_length=30,
+        unique=True,
+        verbose_name='Código'
+    )
+    name = models.CharField(
+        max_length=100,
+        verbose_name='Nombre'
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name='Descripción'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Activo'
+    )
+
+    class Meta:
+        db_table = 'app_token_overtime_reason'
+        verbose_name = 'Motivo de Hora Extra'
+        verbose_name_plural = 'Motivos de Horas Extra'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Material(BaseModel):
     """Catálogo de materiales para pases de salida"""
 

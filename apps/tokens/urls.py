@@ -8,6 +8,8 @@ from .views import (
     ExternalPersonViewSet,
     MaterialViewSet,
     UnitOfMeasureViewSet,
+    OvertimeTypeViewSet,
+    OvertimeReasonViewSet,
     public_token_detail,
     public_token_by_code,
     public_token_verify,
@@ -19,6 +21,8 @@ router = DefaultRouter()
 router.register(r'materials', MaterialViewSet, basename='material')
 router.register(r'units', UnitOfMeasureViewSet, basename='unit-of-measure')
 router.register(r'external-persons', ExternalPersonViewSet, basename='external-person')
+router.register(r'overtime-types', OvertimeTypeViewSet, basename='overtime-type')
+router.register(r'overtime-reasons', OvertimeReasonViewSet, basename='overtime-reason')
 # Tokens (ruta general al final)
 router.register(r'', TokenRequestViewSet, basename='token')
 

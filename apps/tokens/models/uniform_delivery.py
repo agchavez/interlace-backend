@@ -138,10 +138,19 @@ class UniformItem(BaseModel):
         related_name='items',
         verbose_name='Entrega de Uniforme'
     )
+    material = models.ForeignKey(
+        'tokens.Material',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='uniform_items',
+        verbose_name='Material'
+    )
     item_type = models.CharField(
         max_length=20,
         choices=ItemType.choices,
-        verbose_name='Tipo de Prenda'
+        blank=True,
+        verbose_name='Tipo de Prenda (legacy)'
     )
     custom_description = models.CharField(
         max_length=200,

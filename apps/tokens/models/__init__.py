@@ -1,5 +1,5 @@
 from .base import TokenRequest
-from .catalog import UnitOfMeasure, Material
+from .catalog import UnitOfMeasure, Material, OvertimeTypeModel, OvertimeReasonModel
 from .external_person import ExternalPerson
 from .permit_hour import PermitHourDetail
 from .permit_day import PermitDayDetail, PermitDayDate
@@ -16,6 +16,8 @@ __all__ = [
     # Catalog
     'UnitOfMeasure',
     'Material',
+    'OvertimeTypeModel',
+    'OvertimeReasonModel',
     'ExternalPerson',
     # Token type details
     'PermitHourDetail',

@@ -32,11 +32,27 @@ class OvertimeDetail(BaseModel):
         max_length=20,
         choices=OvertimeType.choices,
         default=OvertimeType.REGULAR,
+        verbose_name='Tipo de Hora Extra (legacy)'
+    )
+    overtime_type_model = models.ForeignKey(
+        'tokens.OvertimeTypeModel',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='overtime_details',
         verbose_name='Tipo de Hora Extra'
     )
     reason = models.CharField(
         max_length=20,
         choices=OvertimeReason.choices,
+        verbose_name='Motivo (legacy)'
+    )
+    reason_model = models.ForeignKey(
+        'tokens.OvertimeReasonModel',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='overtime_details',
         verbose_name='Motivo'
     )
     reason_detail = models.TextField(
