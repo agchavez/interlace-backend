@@ -416,6 +416,14 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
                 detail_field: f'Este campo es requerido para {token_type}.'
             })
 
+        # Validar que uniform delivery tenga al menos un item
+        if token_type == TokenRequest.TokenType.UNIFORM_DELIVERY:
+            uniform_data = data.get('uniform_delivery_detail', {})
+            if not uniform_data.get('items'):
+                raise serializers.ValidationError({
+                    'uniform_delivery_detail': 'Debe incluir al menos un artículo para la entrega de uniforme.'
+                })
+
         # Validar que tokens de dos niveles solo sean para operativos
         if token_type in ApprovalLevelService.TWO_LEVEL_TYPES:
             if personnel and personnel.hierarchy_level != PersonnelProfile.OPERATIVE:
