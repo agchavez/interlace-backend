@@ -315,7 +315,7 @@ class UserViewSet(mixins.CreateModelMixin,
             ('Fecha_Nacimiento*',    COL_PERS, 18),
             ('Genero*',              COL_PERS, 12),
             ('Estado_Civil',         COL_PERS, 16),
-            ('Telefono*',            COL_PERS, 16),
+            ('Telefono',             COL_PERS, 16),
             ('Email_Contacto',       COL_PERS, 28),
             ('Direccion',            COL_PERS, 28),
             ('Ciudad',               COL_PERS, 16),
@@ -562,14 +562,14 @@ class UserViewSet(mixins.CreateModelMixin,
             ('', None),
             ('COLUMNAS OBLIGATORIAS (para todos)', bold_blk),
             ('  Tipo_Registro*, Nombres*, Apellidos*, Codigo_Empleado*, Fecha_Nacimiento*,', norm),
-            ('  Genero*, Telefono*, Fecha_Ingreso*, Tipo_Contrato*, Area*, Nivel_Jerarquico*,', norm),
+            ('  Genero*, Fecha_Ingreso*, Tipo_Contrato*, Area*, Nivel_Jerarquico*,', norm),
             ('  Puesto*, Tipo_Posicion*', norm),
             ('', None),
             ('COLUMNAS OBLIGATORIAS adicionales solo para CON_USUARIO', bold_blk),
             ('  Email_Sistema*, Contrasena_Sistema* (mínimo 8 caracteres)', norm),
             ('', None),
             ('COLUMNAS OPCIONALES (para todos)', bold_blk),
-            ('  Num_Identidad, Estado_Civil, Email_Contacto, Direccion, Ciudad,', norm),
+            ('  Num_Identidad, Estado_Civil, Telefono, Email_Contacto, Direccion, Ciudad,', norm),
             ('  Talla_Camisa, Talla_Pantalon, Talla_Zapatos, Talla_Guantes, Talla_Casco', norm),
             ('  → Las tallas son texto libre, máximo 10 caracteres cada una.', norm),
             ('', None),
@@ -733,7 +733,7 @@ class UserViewSet(mixins.CreateModelMixin,
             if not genero:
                 errs.append({'campo': 'Genero', 'mensaje': 'Debe ser M o F.'})
 
-            if not telefono: errs.append({'campo': 'Telefono', 'mensaje': 'Obligatorio.'})
+            # Teléfono es opcional
 
             hire_date = _parse_date(hire_date_raw)
             if not hire_date: errs.append({'campo': 'Fecha_Ingreso', 'mensaje': 'Obligatorio. Formato: DD/MM/YYYY.'})

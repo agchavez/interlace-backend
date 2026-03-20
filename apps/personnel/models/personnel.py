@@ -206,6 +206,7 @@ class PersonnelProfile(models.Model):
     # Contacto
     phone = models.CharField(
         max_length=20,
+        blank=True,
         validators=[
             RegexValidator(
                 regex=r'^\+?[\d\s\-\(\)]+$',
