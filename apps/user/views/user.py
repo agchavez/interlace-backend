@@ -380,7 +380,7 @@ class UserViewSet(mixins.CreateModelMixin,
         ws.freeze_panes = 'A2'
 
         # ── Data Validations (listas desplegables) ───────────────
-        MAX_ROW = 502  # filas 4..502 = 499 filas disponibles (fila 1=header, 2-3=ejemplos)
+        MAX_ROW = 502
 
         def _add_list_validation(ws, col_letter, options_str, allow_blank=True):
             """Agrega una validación de lista desplegable a una columna."""
@@ -390,10 +390,11 @@ class UserViewSet(mixins.CreateModelMixin,
                 allow_blank=allow_blank,
                 showErrorMessage=True,
                 errorTitle='Valor no válido',
-                error=f'Seleccione un valor de la lista.',
+                error='Seleccione un valor de la lista.',
                 showInputMessage=True,
+                showDropDown=False,
             )
-            dv.add(f'{col_letter}4:{col_letter}{MAX_ROW}')
+            dv.add(f'{col_letter}2:{col_letter}{MAX_ROW}')
             ws.add_data_validation(dv)
 
         # Tipo_Registro (col A = 1)
@@ -439,7 +440,7 @@ class UserViewSet(mixins.CreateModelMixin,
                     errorTitle='Grupo no válido',
                     error='Seleccione un grupo de la lista.',
                 )
-                dv.add(f'AA4:AA{MAX_ROW}')
+                dv.add(f'AA2:AA{MAX_ROW}')
                 ws.add_data_validation(dv)
                 ws_groups.sheet_state = 'hidden'
 
@@ -522,13 +523,6 @@ class UserViewSet(mixins.CreateModelMixin,
             ('Tipo_Posicion*', 'ADMINISTRATIVO',     'Administrativo'),
             ('Tipo_Posicion*', 'OTRO',               'Otro'),
         ])
-        row = _ref_section(ws_ref, row, '👕 TALLAS EPP', [
-            ('Talla_Camisa',   'Texto libre (máx. 10 caracteres)', 'Ej: XS, S, M, L, XL, XXL, XXXL'),
-            ('Talla_Pantalon', 'Texto libre (máx. 10 caracteres)', 'Ej: 28, 30, 32, 34, 36'),
-            ('Talla_Zapatos',  'Texto libre (máx. 10 caracteres)', 'Ej: 7, 8, 9, 10, 11'),
-            ('Talla_Guantes',  'Texto libre (máx. 10 caracteres)', 'Ej: S, M, L, XL'),
-            ('Talla_Casco',    'Texto libre (máx. 10 caracteres)', 'Ej: S, M, L'),
-        ])
         # Grupos del sistema (dinámico)
         group_rows = [
             ('Grupo_Sistema', g.name, f'Grupo: {g.name}')
@@ -550,15 +544,21 @@ class UserViewSet(mixins.CreateModelMixin,
         lines = [
             ('INSTRUCCIONES — CARGA MASIVA DE PERSONAL', bold_blue),
             ('', None),
-            ('PASO 1: Revisa la hoja "Valores Válidos" para conocer las opciones de cada columna.', bold_blk),
-            ('PASO 2: Completa la hoja "Datos" a partir de la fila 4 (las filas 2 y 3 son ejemplos).', bold_blk),
-            ('PASO 3: Sube el archivo y revisa quién se registrará antes de confirmar.', bold_blk),
+            ('PASO 1: Completa la hoja "Datos" a partir de la fila 4 (las filas 2 y 3 son ejemplos).', bold_blk),
+            ('PASO 2: Usa las listas desplegables en cada celda para seleccionar los valores válidos.', bold_blk),
+            ('PASO 3: Consulta la hoja "Valores Válidos" si necesitas ver todas las opciones disponibles.', bold_blk),
+            ('PASO 4: Sube el archivo y revisa quién se registrará antes de confirmar.', bold_blk),
             ('', None),
             ('TIPOS DE REGISTRO', bold_blk),
             ('  SOLO_PERSONAL → Solo crea el perfil del empleado. No tiene login al sistema.', norm),
             ('                   Típico para operativos: pickers, contadores, cargadores, etc.', norm),
             ('  CON_USUARIO   → Crea perfil + usuario del sistema con acceso a la plataforma.', norm),
             ('                   Requiere: Email_Sistema, Contrasena_Sistema (mín. 8 caracteres).', norm),
+            ('', None),
+            ('COLUMNAS CON LISTA DESPLEGABLE', bold_blk),
+            ('  Tipo_Registro, Genero, Estado_Civil, Tipo_Contrato, Area,', norm),
+            ('  Nivel_Jerarquico, Tipo_Posicion, Grupo_Sistema', norm),
+            ('  → Haz clic en la celda y selecciona de la lista que aparece.', norm),
             ('', None),
             ('COLUMNAS OBLIGATORIAS (para todos)', bold_blk),
             ('  Tipo_Registro*, Nombres*, Apellidos*, Codigo_Empleado*, Fecha_Nacimiento*,', norm),
@@ -571,10 +571,11 @@ class UserViewSet(mixins.CreateModelMixin,
             ('COLUMNAS OPCIONALES (para todos)', bold_blk),
             ('  Num_Identidad, Estado_Civil, Email_Contacto, Direccion, Ciudad,', norm),
             ('  Talla_Camisa, Talla_Pantalon, Talla_Zapatos, Talla_Guantes, Talla_Casco', norm),
+            ('  → Las tallas son texto libre, máximo 10 caracteres cada una.', norm),
             ('', None),
             ('COLUMNAS OPCIONALES solo para CON_USUARIO', bold_blk),
             ('  Username_Sistema → Si se deja vacío se genera automáticamente (ej: carlos.ramirez)', norm),
-            ('  Grupo_Sistema    → Nombre exacto del grupo del sistema (ej: SUPERVISOR)', norm),
+            ('  Grupo_Sistema    → Selecciona de la lista desplegable', norm),
             ('', None),
             ('REGLAS GENERALES', bold_blk),
             ('  • Máximo 500 registros por archivo', norm),
