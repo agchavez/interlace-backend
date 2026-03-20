@@ -29,6 +29,7 @@ from django.http import HttpResponse
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 # Personnel models (para carga masiva)
 from apps.personnel.models import PersonnelProfile, Area
@@ -246,9 +247,7 @@ class UserViewSet(mixins.CreateModelMixin,
         'CONDUCTOR_DELIVERY': 'DELIVERY_DRIVER', 'ADMINISTRATIVO': 'ADMINISTRATIVE',
         'OTRO': 'OTHER',
     }
-    _CAMISA_MAP = {v: v for v in ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']}
-    _GUANTES_MAP = {v: v for v in ['S', 'M', 'L', 'XL']}
-    _CASCO_MAP = {v: v for v in ['S', 'M', 'L']}
+    # Tallas: texto libre (máximo 10 caracteres) — sin validación de valores fijos
 
     # ──────────────────────────────────────────────────────────────
     # CARGA MASIVA — Plantilla
@@ -380,6 +379,70 @@ class UserViewSet(mixins.CreateModelMixin,
 
         ws.freeze_panes = 'A2'
 
+        # ── Data Validations (listas desplegables) ───────────────
+        MAX_ROW = 502  # filas 4..502 = 499 filas disponibles (fila 1=header, 2-3=ejemplos)
+
+        def _add_list_validation(ws, col_letter, options_str, allow_blank=True):
+            """Agrega una validación de lista desplegable a una columna."""
+            dv = DataValidation(
+                type='list',
+                formula1=f'"{options_str}"',
+                allow_blank=allow_blank,
+                showErrorMessage=True,
+                errorTitle='Valor no válido',
+                error=f'Seleccione un valor de la lista.',
+                showInputMessage=True,
+            )
+            dv.add(f'{col_letter}4:{col_letter}{MAX_ROW}')
+            ws.add_data_validation(dv)
+
+        # Tipo_Registro (col A = 1)
+        _add_list_validation(ws, 'A', 'SOLO_PERSONAL,CON_USUARIO', allow_blank=False)
+
+        # Género (col G = 7)
+        _add_list_validation(ws, 'G', 'M,F', allow_blank=False)
+
+        # Estado_Civil (col H = 8)
+        _add_list_validation(ws, 'H', 'SOLTERO,SOLTERA,CASADO,CASADA,DIVORCIADO,DIVORCIADA,VIUDO,VIUDA,UNION_LIBRE')
+
+        # Tipo_Contrato (col N = 14)
+        _add_list_validation(ws, 'N', 'PERMANENTE,TEMPORAL,CONTRATO', allow_blank=False)
+
+        # Área (col O = 15)
+        _add_list_validation(ws, 'O', 'OPERACIONES,ADMINISTRACION,PEOPLE,SEGURIDAD,DELIVERY', allow_blank=False)
+
+        # Nivel_Jerárquico (col P = 16)
+        _add_list_validation(ws, 'P', 'OPERATIVO,SUPERVISOR,JEFE_AREA,GERENTE_CD', allow_blank=False)
+
+        # Tipo_Posición (col R = 18)
+        _add_list_validation(ws, 'R',
+            'PICKER,CONTADOR,OPM,CONDUCTOR_PATIO,CARGADOR,AYUDANTE_ALMACEN,GUARDIA,CONDUCTOR_DELIVERY,ADMINISTRATIVO,OTRO',
+            allow_blank=False)
+
+        # Grupo_Sistema (col AA = 27) — dinámico desde la BD
+        group_names = list(Group.objects.values_list('name', flat=True).order_by('name'))
+        if group_names:
+            group_str = ','.join(group_names)
+            # Si la lista cabe en 255 chars usar fórmula directa, sino referencia a hoja oculta
+            if len(group_str) <= 250:
+                _add_list_validation(ws, 'AA', group_str)
+            else:
+                # Crear hoja auxiliar oculta con los grupos
+                ws_groups = wb.create_sheet(title='_grupos')
+                for i, name in enumerate(group_names, start=1):
+                    ws_groups.cell(row=i, column=1, value=name)
+                dv = DataValidation(
+                    type='list',
+                    formula1=f"='_grupos'!$A$1:$A${len(group_names)}",
+                    allow_blank=True,
+                    showErrorMessage=True,
+                    errorTitle='Grupo no válido',
+                    error='Seleccione un grupo de la lista.',
+                )
+                dv.add(f'AA4:AA{MAX_ROW}')
+                ws.add_data_validation(dv)
+                ws_groups.sheet_state = 'hidden'
+
         # ── Hoja 2: Valores válidos (referencia) ──────────────────
         ws_ref = wb.create_sheet(title='Valores Válidos')
 
@@ -460,12 +523,20 @@ class UserViewSet(mixins.CreateModelMixin,
             ('Tipo_Posicion*', 'OTRO',               'Otro'),
         ])
         row = _ref_section(ws_ref, row, '👕 TALLAS EPP', [
-            ('Talla_Camisa',   'XS / S / M / L / XL / XXL / XXXL', 'Talla de camisa/camiseta'),
-            ('Talla_Pantalon', 'Número (ej: 28, 30, 32, 34, 36)',   'Talla de pantalón en número'),
-            ('Talla_Zapatos',  'Número (ej: 7, 8, 9, 10, 11)',      'Talla de zapatos en número'),
-            ('Talla_Guantes',  'S / M / L / XL',                    'Talla de guantes'),
-            ('Talla_Casco',    'S / M / L',                         'Talla de casco'),
+            ('Talla_Camisa',   'Texto libre (máx. 10 caracteres)', 'Ej: XS, S, M, L, XL, XXL, XXXL'),
+            ('Talla_Pantalon', 'Texto libre (máx. 10 caracteres)', 'Ej: 28, 30, 32, 34, 36'),
+            ('Talla_Zapatos',  'Texto libre (máx. 10 caracteres)', 'Ej: 7, 8, 9, 10, 11'),
+            ('Talla_Guantes',  'Texto libre (máx. 10 caracteres)', 'Ej: S, M, L, XL'),
+            ('Talla_Casco',    'Texto libre (máx. 10 caracteres)', 'Ej: S, M, L'),
         ])
+        # Grupos del sistema (dinámico)
+        group_rows = [
+            ('Grupo_Sistema', g.name, f'Grupo: {g.name}')
+            for g in Group.objects.all().order_by('name')
+        ]
+        if not group_rows:
+            group_rows = [('Grupo_Sistema', '(sin grupos)', 'No hay grupos configurados en el sistema')]
+        row = _ref_section(ws_ref, row, '👥 GRUPOS DEL SISTEMA', group_rows)
         _ref_section(ws_ref, row, '📅 FORMATO DE FECHAS', [
             ('Fecha_Nacimiento* / Fecha_Ingreso*', 'DD/MM/YYYY', 'Ejemplo: 15/03/1995  ó  01/06/2022'),
         ])
@@ -629,11 +700,11 @@ class UserViewSet(mixins.CreateModelMixin,
             jerarquia_raw   = _c(15).upper()
             puesto          = _c(16)
             posicion_raw    = _c(17).upper()
-            talla_camisa    = _c(18).upper() or None
+            talla_camisa    = _c(18) or None
             talla_pantalon  = _c(19) or None
             talla_zapatos   = _c(20) or None
-            talla_guantes   = _c(21).upper() or None
-            talla_casco     = _c(22).upper() or None
+            talla_guantes   = _c(21) or None
+            talla_casco     = _c(22) or None
             email_sistema   = _c(23).lower() or None
             username_sys    = _c(24) or None
             password_sys    = _c(25) or None
@@ -684,13 +755,16 @@ class UserViewSet(mixins.CreateModelMixin,
             if not posicion:
                 errs.append({'campo': 'Tipo_Posicion', 'mensaje': 'Ver hoja "Valores Válidos" para opciones.'})
 
-            # Tallas (opcionales, pero si se ponen deben ser válidas)
-            if talla_camisa and talla_camisa not in self._CAMISA_MAP:
-                errs.append({'campo': 'Talla_Camisa', 'mensaje': 'Valores: XS/S/M/L/XL/XXL/XXXL.'})
-            if talla_guantes and talla_guantes not in self._GUANTES_MAP:
-                errs.append({'campo': 'Talla_Guantes', 'mensaje': 'Valores: S/M/L/XL.'})
-            if talla_casco and talla_casco not in self._CASCO_MAP:
-                errs.append({'campo': 'Talla_Casco', 'mensaje': 'Valores: S/M/L.'})
+            # Tallas (opcionales, texto libre, máximo 10 caracteres)
+            for campo, valor, nombre in [
+                ('Talla_Camisa', talla_camisa, 'camisa'),
+                ('Talla_Pantalon', talla_pantalon, 'pantalón'),
+                ('Talla_Zapatos', talla_zapatos, 'zapatos'),
+                ('Talla_Guantes', talla_guantes, 'guantes'),
+                ('Talla_Casco', talla_casco, 'casco'),
+            ]:
+                if valor and len(valor) > 10:
+                    errs.append({'campo': campo, 'mensaje': f'Máximo 10 caracteres para talla de {nombre}.'})
 
             # Campos adicionales para CON_USUARIO
             if tipo == 'CON_USUARIO':

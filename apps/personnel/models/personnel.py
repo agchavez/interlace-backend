@@ -231,15 +231,6 @@ class PersonnelProfile(models.Model):
     # Tallas de uniformes y EPP
     shirt_size = models.CharField(
         max_length=10,
-        choices=[
-            ('XS', 'Extra Small'),
-            ('S', 'Small'),
-            ('M', 'Medium'),
-            ('L', 'Large'),
-            ('XL', 'Extra Large'),
-            ('XXL', '2XL'),
-            ('XXXL', '3XL'),
-        ],
         blank=True,
         verbose_name='Talla de camisa'
     )
@@ -257,22 +248,11 @@ class PersonnelProfile(models.Model):
     )
     glove_size = models.CharField(
         max_length=10,
-        choices=[
-            ('S', 'Small'),
-            ('M', 'Medium'),
-            ('L', 'Large'),
-            ('XL', 'Extra Large'),
-        ],
         blank=True,
         verbose_name='Talla de guantes'
     )
     helmet_size = models.CharField(
         max_length=10,
-        choices=[
-            ('S', 'Small'),
-            ('M', 'Medium'),
-            ('L', 'Large'),
-        ],
         blank=True,
         verbose_name='Talla de casco'
     )
