@@ -357,6 +357,8 @@ class PersonnelProfile(models.Model):
 
     @property
     def years_of_service(self):
+        if not self.hire_date:
+            return 0
         from datetime import date
         today = date.today()
         return today.year - self.hire_date.year - (

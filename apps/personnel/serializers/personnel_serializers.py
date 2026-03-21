@@ -160,6 +160,7 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
     )
 
     # Indicadores
+    years_of_service = serializers.SerializerMethodField()
     has_valid_certifications = serializers.BooleanField(read_only=True)
     certifications_count = serializers.SerializerMethodField()
     certifications_expiring_count = serializers.SerializerMethodField()
@@ -176,11 +177,20 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
             'position', 'position_type', 'position_type_display',
             'center_name', 'distributor_centers_names', 'area_name', 'department_name',
             'supervisor_name', 'hire_date', 'is_active',
-            'has_valid_certifications', 'certifications_count',
+            'years_of_service', 'has_valid_certifications', 'certifications_count',
             'certifications_expiring_count', 'phone', 'photo_url', 'authentication_methods',
             'is_profile_complete'
         ]
         read_only_fields = fields
+
+    def get_years_of_service(self, obj):
+        if not obj.hire_date:
+            return 0
+        from datetime import date
+        today = date.today()
+        return today.year - obj.hire_date.year - (
+            (today.month, today.day) < (obj.hire_date.month, obj.hire_date.day)
+        )
 
     def get_certifications_count(self, obj):
         return obj.certifications.filter(is_valid=True).count()
