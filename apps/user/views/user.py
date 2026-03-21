@@ -308,12 +308,12 @@ class UserViewSet(mixins.CreateModelMixin,
             # Sección tipo
             ('Tipo_Registro*',       COL_TIPO, 18),
             # Datos personales
-            ('Nombres*',             COL_PERS, 20),
+            ('Nombres',              COL_PERS, 20),
             ('Apellidos*',           COL_PERS, 20),
             ('Codigo_Empleado*',     COL_PERS, 18),
             ('Num_Identidad',        COL_PERS, 18),
-            ('Fecha_Nacimiento*',    COL_PERS, 18),
-            ('Genero*',              COL_PERS, 12),
+            ('Fecha_Nacimiento',     COL_PERS, 18),
+            ('Genero',               COL_PERS, 12),
             ('Estado_Civil',         COL_PERS, 16),
             ('Telefono',             COL_PERS, 16),
             ('Email_Contacto',       COL_PERS, 28),
@@ -401,7 +401,7 @@ class UserViewSet(mixins.CreateModelMixin,
         _add_list_validation(ws, 'A', 'SOLO_PERSONAL,CON_USUARIO', allow_blank=False)
 
         # Género (col G = 7)
-        _add_list_validation(ws, 'G', 'M,F', allow_blank=False)
+        _add_list_validation(ws, 'G', 'M,F', allow_blank=True)
 
         # Estado_Civil (col H = 8)
         _add_list_validation(ws, 'H', 'SOLTERO,SOLTERA,CASADO,CASADA,DIVORCIADO,DIVORCIADA,VIUDO,VIUDA,UNION_LIBRE')
@@ -561,15 +561,16 @@ class UserViewSet(mixins.CreateModelMixin,
             ('  → Haz clic en la celda y selecciona de la lista que aparece.', norm),
             ('', None),
             ('COLUMNAS OBLIGATORIAS (para todos)', bold_blk),
-            ('  Tipo_Registro*, Nombres*, Apellidos*, Codigo_Empleado*, Fecha_Nacimiento*,', norm),
-            ('  Genero*, Fecha_Ingreso*, Tipo_Contrato*, Area*, Nivel_Jerarquico*,', norm),
+            ('  Tipo_Registro*, Apellidos*, Codigo_Empleado*,', norm),
+            ('  Fecha_Ingreso*, Tipo_Contrato*, Area*, Nivel_Jerarquico*,', norm),
             ('  Puesto*, Tipo_Posicion*', norm),
             ('', None),
             ('COLUMNAS OBLIGATORIAS adicionales solo para CON_USUARIO', bold_blk),
             ('  Email_Sistema*, Contrasena_Sistema* (mínimo 8 caracteres)', norm),
             ('', None),
             ('COLUMNAS OPCIONALES (para todos)', bold_blk),
-            ('  Num_Identidad, Estado_Civil, Telefono, Email_Contacto, Direccion, Ciudad,', norm),
+            ('  Nombres, Num_Identidad, Fecha_Nacimiento, Genero, Estado_Civil,', norm),
+            ('  Telefono, Email_Contacto, Direccion, Ciudad,', norm),
             ('  Talla_Camisa, Talla_Pantalon, Talla_Zapatos, Talla_Guantes, Talla_Casco', norm),
             ('  → Las tallas son texto libre, máximo 10 caracteres cada una.', norm),
             ('', None),
@@ -718,7 +719,7 @@ class UserViewSet(mixins.CreateModelMixin,
                 errs.append({'campo': 'Tipo_Registro', 'mensaje': 'Debe ser SOLO_PERSONAL o CON_USUARIO.'})
 
             # Campos obligatorios comunes
-            if not first_name:  errs.append({'campo': 'Nombres', 'mensaje': 'Obligatorio.'})
+            # Nombres es opcional
             if not last_name:   errs.append({'campo': 'Apellidos', 'mensaje': 'Obligatorio.'})
             if not employee_code: errs.append({'campo': 'Codigo_Empleado', 'mensaje': 'Obligatorio.'})
             elif PersonnelProfile.objects.filter(employee_code=employee_code).exists():
@@ -727,11 +728,10 @@ class UserViewSet(mixins.CreateModelMixin,
                 errs.append({'campo': 'Codigo_Empleado', 'mensaje': f'Duplicado en fila {seen_codigos[employee_code]}.'})
 
             birth_date = _parse_date(birth_date_raw)
-            if not birth_date: errs.append({'campo': 'Fecha_Nacimiento', 'mensaje': 'Obligatorio. Formato: DD/MM/YYYY.'})
+            # Fecha de nacimiento es opcional
 
-            genero = self._GENERO_MAP.get(genero_raw)
-            if not genero:
-                errs.append({'campo': 'Genero', 'mensaje': 'Debe ser M o F.'})
+            genero = self._GENERO_MAP.get(genero_raw, '')
+            # Género es opcional
 
             # Teléfono es opcional
 
@@ -924,8 +924,8 @@ class UserViewSet(mixins.CreateModelMixin,
                     last_name=row.get('last_name', '').upper(),
                     email=row.get('email', ''),
                     personal_id=row.get('personal_id') or None,
-                    birth_date=row.get('birth_date'),
-                    gender=row.get('gender', 'M'),
+                    birth_date=row.get('birth_date') or None,
+                    gender=row.get('gender') or '',
                     marital_status=row.get('marital_status', ''),
                     phone=row.get('phone', ''),
                     personal_email=row.get('email', ''),

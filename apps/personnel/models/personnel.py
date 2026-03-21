@@ -76,6 +76,7 @@ class PersonnelProfile(models.Model):
 
     first_name = models.CharField(
         max_length=100,
+        blank=True,
         verbose_name='Nombres'
     )
 
@@ -179,6 +180,8 @@ class PersonnelProfile(models.Model):
         validators=[MinLengthValidator(13)]
     )
     birth_date = models.DateField(
+        null=True,
+        blank=True,
         verbose_name='Fecha de nacimiento'
     )
     gender = models.CharField(
@@ -188,6 +191,7 @@ class PersonnelProfile(models.Model):
             ('F', 'Femenino'),
             ('OTHER', 'Otro'),
         ],
+        blank=True,
         verbose_name='Género'
     )
     marital_status = models.CharField(
