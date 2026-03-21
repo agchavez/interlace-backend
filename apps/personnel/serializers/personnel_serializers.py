@@ -165,6 +165,7 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
     certifications_expiring_count = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
     authentication_methods = serializers.SerializerMethodField()
+    is_profile_complete = serializers.SerializerMethodField()
 
     class Meta:
         model = PersonnelProfile
@@ -176,7 +177,8 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
             'center_name', 'distributor_centers_names', 'area_name', 'department_name',
             'supervisor_name', 'hire_date', 'is_active',
             'has_valid_certifications', 'certifications_count',
-            'certifications_expiring_count', 'phone', 'photo_url', 'authentication_methods'
+            'certifications_expiring_count', 'phone', 'photo_url', 'authentication_methods',
+            'is_profile_complete'
         ]
         read_only_fields = fields
 
@@ -219,6 +221,21 @@ class PersonnelProfileListSerializer(serializers.ModelSerializer):
                 })
 
         return methods
+
+    def get_is_profile_complete(self, obj):
+        """Verifica si el perfil tiene la información clave completa."""
+        return bool(
+            obj.first_name
+            and obj.last_name
+            and obj.employee_code
+            and obj.birth_date
+            and obj.gender
+            and obj.phone
+            and obj.personal_id
+            and obj.hire_date
+            and obj.position
+            and obj.area_id
+        )
 
 
 class PersonnelProfileDetailSerializer(serializers.ModelSerializer):
