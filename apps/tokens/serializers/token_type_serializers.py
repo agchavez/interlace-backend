@@ -40,14 +40,14 @@ class MaterialSerializer(serializers.ModelSerializer):
 class OvertimeTypeModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = OvertimeTypeModel
-        fields = ['id', 'code', 'name', 'description', 'default_multiplier', 'is_active']
+        fields = ['id', 'name', 'category', 'description', 'default_multiplier', 'is_active']
         read_only_fields = ['id']
 
 
 class OvertimeReasonModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = OvertimeReasonModel
-        fields = ['id', 'code', 'name', 'description', 'is_active']
+        fields = ['id', 'name', 'category', 'description', 'is_active']
         read_only_fields = ['id']
 
 

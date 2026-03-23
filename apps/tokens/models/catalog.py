@@ -33,14 +33,14 @@ class UnitOfMeasure(BaseModel):
 class OvertimeTypeModel(BaseModel):
     """Tipos de horas extra configurables"""
 
-    code = models.CharField(
-        max_length=30,
-        unique=True,
-        verbose_name='Código'
-    )
     name = models.CharField(
         max_length=100,
         verbose_name='Nombre'
+    )
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Categoría'
     )
     description = models.TextField(
         blank=True,
@@ -70,14 +70,14 @@ class OvertimeTypeModel(BaseModel):
 class OvertimeReasonModel(BaseModel):
     """Motivos de horas extra configurables"""
 
-    code = models.CharField(
-        max_length=30,
-        unique=True,
-        verbose_name='Código'
-    )
     name = models.CharField(
         max_length=100,
         verbose_name='Nombre'
+    )
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Categoría'
     )
     description = models.TextField(
         blank=True,

@@ -79,38 +79,50 @@ class UnitOfMeasureViewSet(viewsets.ModelViewSet):
 class OvertimeTypeViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestión de Tipos de Horas Extra.
-
-    Endpoints:
-    - GET /api/tokens/overtime-types/ - Listar tipos
-    - POST /api/tokens/overtime-types/ - Crear tipo
-    - GET /api/tokens/overtime-types/{id}/ - Detalle
-    - PUT/PATCH /api/tokens/overtime-types/{id}/ - Actualizar
-    - DELETE /api/tokens/overtime-types/{id}/ - Eliminar
+    DELETE desactiva si tiene registros asociados, elimina si no.
     """
     queryset = OvertimeTypeModel.objects.all()
     serializer_class = OvertimeTypeModelSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['code', 'name', 'description']
-    ordering_fields = ['code', 'name', 'default_multiplier']
+    search_fields = ['name', 'category', 'description']
+    ordering_fields = ['name', 'category', 'default_multiplier']
     ordering = ['name']
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.overtime_details.exists():
+            instance.is_active = False
+            instance.save(update_fields=['is_active'])
+            return Response(
+                {'detail': 'Tipo desactivado porque tiene tokens asociados.'},
+                status=status.HTTP_200_OK,
+            )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class OvertimeReasonViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestión de Motivos de Horas Extra.
-
-    Endpoints:
-    - GET /api/tokens/overtime-reasons/ - Listar motivos
-    - POST /api/tokens/overtime-reasons/ - Crear motivo
-    - GET /api/tokens/overtime-reasons/{id}/ - Detalle
-    - PUT/PATCH /api/tokens/overtime-reasons/{id}/ - Actualizar
-    - DELETE /api/tokens/overtime-reasons/{id}/ - Eliminar
+    DELETE desactiva si tiene registros asociados, elimina si no.
     """
     queryset = OvertimeReasonModel.objects.all()
     serializer_class = OvertimeReasonModelSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['code', 'name', 'description']
-    ordering_fields = ['code', 'name']
+    search_fields = ['name', 'category', 'description']
+    ordering_fields = ['name', 'category']
     ordering = ['name']
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.overtime_details.exists():
+            instance.is_active = False
+            instance.save(update_fields=['is_active'])
+            return Response(
+                {'detail': 'Motivo desactivado porque tiene tokens asociados.'},
+                status=status.HTTP_200_OK,
+            )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
