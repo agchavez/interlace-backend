@@ -1110,7 +1110,7 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
 
         token_type = request.query_params.get('token_type')
         search = request.query_params.get('search', '')
-        limit = int(request.query_params.get('limit', 100))
+        limit = int(request.query_params.get('limit', 0))
 
         # Obtener centros del usuario
         user_centers = list(user_personnel.distributor_centers.values_list('id', flat=True))
@@ -1178,8 +1178,9 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
                 Q(employee_code__icontains=search)
             )
 
-        # Limitar resultados
-        queryset = queryset[:limit]
+        # Limitar resultados solo si se especifica un límite
+        if limit > 0:
+            queryset = queryset[:limit]
 
         serializer = PersonnelProfileListSerializer(queryset, many=True)
         return Response(serializer.data)
