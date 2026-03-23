@@ -94,7 +94,7 @@ class ExitPassItem(BaseModel):
         'tokens.Material',
         null=True,
         blank=True,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='exit_pass_items',
         verbose_name='Material'
     )
@@ -102,7 +102,7 @@ class ExitPassItem(BaseModel):
         'maintenance.ProductModel',
         null=True,
         blank=True,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name='exit_pass_items',
         verbose_name='Producto'
     )
