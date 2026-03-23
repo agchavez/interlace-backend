@@ -300,6 +300,14 @@ class Command(BaseCommand):
                 'add_externalperson',
                 'change_externalperson',
                 'delete_externalperson',
+                'view_overtimetypemodel',
+                'add_overtimetypemodel',
+                'change_overtimetypemodel',
+                'delete_overtimetypemodel',
+                'view_overtimereasonmodel',
+                'add_overtimereasonmodel',
+                'change_overtimereasonmodel',
+                'delete_overtimereasonmodel',
             ],
             # Usuarios - acceso completo
             'user': [
