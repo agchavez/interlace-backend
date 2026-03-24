@@ -460,10 +460,9 @@ class PersonnelProfileCreateUpdateSerializer(serializers.ModelSerializer):
         if user:
             existing_profile = PersonnelProfile.objects.filter(user=user).first()
             if existing_profile and (not self.instance or existing_profile.id != self.instance.id):
-                raise UserAlreadyAssigned({
-                    'mensage': f'Este usuario ya tiene un perfil asignado (Empleado: {existing_profile.employee_code})',
-                    'error_code': 'user_already_assigned'
-                })
+                raise UserAlreadyAssigned(
+                    f'Este usuario ya tiene un perfil asignado (Empleado: {existing_profile.employee_code})'
+                )
 
         # Validar que el supervisor tenga nivel superior
         if 'immediate_supervisor' in data and data['immediate_supervisor']:
@@ -479,10 +478,9 @@ class PersonnelProfileCreateUpdateSerializer(serializers.ModelSerializer):
                 0
             )
             if supervisor_level <= employee_level:
-                raise InvalidSupervisorHierarchy({
-                    'mensage': f'El supervisor debe tener un nivel jerárquico superior. El empleado es {data.get("hierarchy_level", "OPERATIVE")} y el supervisor es {data["immediate_supervisor"].hierarchy_level}',
-                    'error_code': 'invalid_supervisor_hierarchy'
-                })
+                raise InvalidSupervisorHierarchy(
+                    f'El supervisor debe tener un nivel jerárquico superior. El empleado es {data.get("hierarchy_level", "OPERATIVE")} y el supervisor es {data["immediate_supervisor"].hierarchy_level}'
+                )
 
         # Validar que department pertenezca al area
         if 'department' in data and data['department']:
