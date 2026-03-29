@@ -48,6 +48,7 @@ class PautaDeliveryDetailSerializer(serializers.ModelSerializer):
 
 class PautaListSerializer(serializers.ModelSerializer):
     truck_plate = serializers.CharField(source='truck.plate', read_only=True)
+    truck_code = serializers.CharField(source='truck.code', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
@@ -67,6 +68,7 @@ class PautaListSerializer(serializers.ModelSerializer):
             'is_reload',
             'truck',
             'truck_plate',
+            'truck_code',
             'distributor_center',
             'created_at',
         ]
@@ -84,6 +86,7 @@ class PautaBayAssignmentNestedSerializer(serializers.Serializer):
 
 class PautaDetailSerializer(serializers.ModelSerializer):
     truck_plate = serializers.CharField(source='truck.plate', read_only=True)
+    truck_code = serializers.CharField(source='truck.code', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     product_details = PautaProductDetailSerializer(many=True, read_only=True)
     delivery_details = PautaDeliveryDetailSerializer(many=True, read_only=True)

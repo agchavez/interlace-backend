@@ -14,6 +14,7 @@ from .views import (
         LotModelViewSet,
         PeriodViewSet,
         CountryViewSet)
+from .views.centro_distribucion import DCShiftViewSet
 
 # Routers
 router = routers.DefaultRouter()
@@ -29,3 +30,4 @@ router.register(r'output-type', OutputTypeModelViewSet)
 router.register(r'period', PeriodViewSet)
 router.register(r'lot', LotModelViewSet)
 router.register(r'country', CountryViewSet)
+router.register(r'dc-shift', DCShiftViewSet)

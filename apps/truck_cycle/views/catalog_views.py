@@ -19,7 +19,7 @@ from apps.truck_cycle.serializers.catalog_serializers import (
 def get_user_distributor_center(request):
     """Obtener el centro de distribución del usuario actual"""
     try:
-        return request.user.personnelprofile.primary_distributor_center
+        return request.user.personnel_profile.primary_distributor_center
     except Exception:
         return None
 

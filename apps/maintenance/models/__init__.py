@@ -1,4 +1,4 @@
-from .distributor_center import DistributorCenter,RouteModel,LocationModel, LotModel 
+from .distributor_center import DistributorCenter, RouteModel, LocationModel, LotModel, DCShiftModel
 from .operator import OperatorModel
 from .trailer import TrailerModel, TransporterModel
 from .product import ProductModel, OutputTypeModel
