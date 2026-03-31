@@ -116,6 +116,13 @@ class ExitPassItem(BaseModel):
         decimal_places=2,
         verbose_name='Cantidad'
     )
+    unit_label = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Etiqueta de Unidad',
+        help_text='Ej: Par, Cajas, Unidades, Litros'
+    )
     weight_kg = models.DecimalField(
         max_digits=10,
         decimal_places=2,

@@ -151,7 +151,7 @@ class ExitPassItemSerializer(serializers.ModelSerializer):
         model = ExitPassItem
         fields = [
             'id', 'material', 'material_name', 'product', 'product_name',
-            'custom_description', 'quantity', 'unit_value', 'total_value',
+            'custom_description', 'quantity', 'unit_label', 'unit_value', 'total_value',
             'requires_return', 'return_date', 'returned', 'returned_at',
             'returned_quantity', 'return_notes', 'is_overdue'
         ]
@@ -182,6 +182,7 @@ class ExitPassItemCreateSerializer(serializers.Serializer):
     product = serializers.IntegerField(required=False)
     custom_description = serializers.CharField(required=False, allow_blank=True)
     quantity = serializers.DecimalField(max_digits=10, decimal_places=2)
+    unit_label = serializers.CharField(required=False, allow_blank=True, default='')
     unit_value = serializers.DecimalField(max_digits=10, decimal_places=2)
     requires_return = serializers.BooleanField(default=False)
     return_date = serializers.DateField(required=False)
