@@ -6,7 +6,7 @@ from ..models import (
     PermitHourDetail, PermitDayDetail, PermitDayDate,
     ExitPassDetail, ExitPassItem, Material, UnitOfMeasure,
     UniformDeliveryDetail, UniformItem,
-    SubstitutionDetail, RateChangeDetail, OvertimeDetail, ShiftChangeDetail,
+    SubstitutionDetail, RateChangeDetail, OvertimeDetail, OvertimeSegment, ShiftChangeDetail,
     OvertimeTypeModel, OvertimeReasonModel,
 )
 from apps.personnel.models import PersonnelProfile
@@ -411,6 +411,33 @@ class RateChangeDetailCreateSerializer(serializers.Serializer):
 
 # ============ OVERTIME ============
 
+class OvertimeSegmentSerializer(serializers.ModelSerializer):
+    overtime_type_model_name = serializers.CharField(
+        source='overtime_type_model.name', read_only=True, default=None
+    )
+    estimated_pay = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = OvertimeSegment
+        fields = [
+            'id', 'start_time', 'end_time', 'hours',
+            'pay_multiplier', 'overtime_type_model', 'overtime_type_model_name',
+            'sequence', 'estimated_pay',
+        ]
+        read_only_fields = ['id', 'hours', 'estimated_pay']
+
+
+class OvertimeSegmentCreateSerializer(serializers.Serializer):
+    """Serializer para crear un segmento de hora extra"""
+    start_time = serializers.TimeField()
+    end_time = serializers.TimeField()
+    pay_multiplier = serializers.DecimalField(max_digits=5, decimal_places=2)
+    overtime_type_model = serializers.IntegerField(required=False, allow_null=True)
+    sequence = serializers.IntegerField(default=0)
+
+
 class OvertimeDetailSerializer(serializers.ModelSerializer):
     overtime_type_display = serializers.CharField(
         source='get_overtime_type_display', read_only=True
@@ -427,6 +454,8 @@ class OvertimeDetailSerializer(serializers.ModelSerializer):
     estimated_pay = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
     )
+    segments = OvertimeSegmentSerializer(many=True, read_only=True)
+    is_variable_rate = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = OvertimeDetail
@@ -439,13 +468,14 @@ class OvertimeDetailSerializer(serializers.ModelSerializer):
             'overtime_date', 'start_time', 'end_time', 'total_hours',
             'pay_multiplier', 'assigned_task',
             'was_completed', 'actual_start_time', 'actual_end_time',
-            'actual_hours', 'completion_notes', 'estimated_pay'
+            'actual_hours', 'completion_notes', 'estimated_pay',
+            'segments', 'is_variable_rate',
         ]
         read_only_fields = ['id', 'total_hours', 'estimated_pay']
 
 
 class OvertimeDetailCreateSerializer(serializers.Serializer):
-    """Serializer para crear horas extra"""
+    """Serializer para crear horas extra (soporta tasa variable con segmentos)"""
     overtime_type = serializers.ChoiceField(
         choices=OvertimeDetail.OvertimeType.choices,
         default=OvertimeDetail.OvertimeType.REGULAR,
@@ -470,9 +500,11 @@ class OvertimeDetailCreateSerializer(serializers.Serializer):
     start_time = serializers.TimeField()
     end_time = serializers.TimeField()
     pay_multiplier = serializers.DecimalField(
-        max_digits=3, decimal_places=2, default=1.5
+        max_digits=5, decimal_places=2, default=1.5
     )
     assigned_task = serializers.CharField(required=False, allow_blank=True)
+    # Segmentos opcionales para tasa variable
+    segments = OvertimeSegmentCreateSerializer(many=True, required=False)
 
 
 # ============ SHIFT CHANGE ============

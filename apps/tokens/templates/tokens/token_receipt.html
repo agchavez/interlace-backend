@@ -360,10 +360,34 @@
         {% if token.token_type == 'OVERTIME' and overtime_detail %}
         <div class="details-block">
             <div class="details-title">-- HORAS EXTRA --</div>
-            <div class="detail-row">Tipo: {{ overtime_detail.get_overtime_type_display|truncatechars:28 }}</div>
             <div class="detail-row">Fecha: {{ overtime_detail.overtime_date|date:"d/m/Y" }}</div>
+            {% if overtime_segments %}
+            <div class="details-title" style="margin-top:4px;">TRAMOS:</div>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Horario</th>
+                        <th>Hrs</th>
+                        <th>Mult.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for seg in overtime_segments %}
+                    <tr>
+                        <td>{{ seg.start_time|time:"H:i" }}-{{ seg.end_time|time:"H:i" }}</td>
+                        <td>{{ seg.hours|floatformat:1 }}</td>
+                        <td>x{{ seg.pay_multiplier }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
             <div class="detail-row">Horario: {{ overtime_detail.start_time|time:"H:i" }} - {{ overtime_detail.end_time|time:"H:i" }}</div>
-            <div class="detail-row">Total: {{ overtime_detail.total_hours }}h</div>
+            <div class="detail-row">Multiplicador: x{{ overtime_detail.pay_multiplier }}</div>
+            {% endif %}
+            <div class="detail-row" style="border-top:1px dashed #000;margin-top:3px;padding-top:3px;font-weight:bold;">
+                Total: {{ overtime_detail.total_hours|floatformat:1 }}h
+            </div>
         </div>
         {% endif %}
 

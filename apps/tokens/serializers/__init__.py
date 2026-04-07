@@ -46,6 +46,8 @@ from .token_type_serializers import (
     RateChangeDetailSerializer,
     RateChangeDetailCreateSerializer,
     # Overtime
+    OvertimeSegmentSerializer,
+    OvertimeSegmentCreateSerializer,
     OvertimeDetailSerializer,
     OvertimeDetailCreateSerializer,
     # Shift Change

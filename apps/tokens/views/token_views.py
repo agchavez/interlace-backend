@@ -209,18 +209,40 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
 
         # Parse overtime detail once (same for all)
         overtime_data = dict(overtime_detail_raw)
+        segments_data = overtime_data.pop('segments', []) or []
         overtime_type_model_id = overtime_data.pop('overtime_type_model', None)
         reason_model_id = overtime_data.pop('reason_model', None)
+        # Clean empty string legacy fields
+        if not overtime_data.get('overtime_type'):
+            overtime_data['overtime_type'] = 'REGULAR'
+        if not overtime_data.get('reason'):
+            overtime_data['reason'] = 'OTHER'
         if overtime_type_model_id:
             overtime_data['overtime_type_model_id'] = overtime_type_model_id
         if reason_model_id:
             overtime_data['reason_model_id'] = reason_model_id
-        if isinstance(overtime_data.get('start_time'), str):
+        if isinstance(overtime_data.get('start_time'), str) and overtime_data['start_time']:
             overtime_data['start_time'] = datetime.strptime(overtime_data['start_time'], '%H:%M').time()
-        if isinstance(overtime_data.get('end_time'), str):
+        if isinstance(overtime_data.get('end_time'), str) and overtime_data['end_time']:
             overtime_data['end_time'] = datetime.strptime(overtime_data['end_time'], '%H:%M').time()
-        if isinstance(overtime_data.get('overtime_date'), str):
+        if isinstance(overtime_data.get('overtime_date'), str) and overtime_data['overtime_date']:
             overtime_data['overtime_date'] = datetime.strptime(overtime_data['overtime_date'], '%Y-%m-%d').date()
+        # If overtime_date is empty, default to valid_from date
+        if not overtime_data.get('overtime_date'):
+            overtime_data['overtime_date'] = data['valid_from'].date() if hasattr(data['valid_from'], 'date') else datetime.strptime(str(data['valid_from'])[:10], '%Y-%m-%d').date()
+        # Parse segment times
+        parsed_segments = []
+        for idx, seg in enumerate(segments_data):
+            seg = dict(seg)
+            seg_type_id = seg.pop('overtime_type_model', None)
+            if isinstance(seg.get('start_time'), str):
+                seg['start_time'] = datetime.strptime(seg['start_time'], '%H:%M').time()
+            if isinstance(seg.get('end_time'), str):
+                seg['end_time'] = datetime.strptime(seg['end_time'], '%H:%M').time()
+            seg['sequence'] = seg.get('sequence', idx)
+            if seg_type_id:
+                seg['overtime_type_model_id'] = seg_type_id
+            parsed_segments.append(seg)
 
         personnel_list = PersonnelProfile.objects.filter(
             id__in=personnel_ids, is_active=True
@@ -267,7 +289,12 @@ class TokenRequestViewSet(viewsets.ModelViewSet):
                         status=initial_status,
                     )
 
-                    OvertimeDetail.objects.create(token=token, **dict(overtime_data))
+                    from ..models import OvertimeSegment
+                    detail = OvertimeDetail.objects.create(token=token, **dict(overtime_data))
+                    for seg in parsed_segments:
+                        OvertimeSegment.objects.create(overtime_detail=detail, **dict(seg))
+                    if parsed_segments:
+                        detail.recalculate_totals()
                     self._process_created_token(token, request.user)
 
                     created.append({

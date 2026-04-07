@@ -7,7 +7,7 @@ from .exit_pass import ExitPassDetail, ExitPassItem
 from .uniform_delivery import UniformDeliveryDetail, UniformItem
 from .substitution import SubstitutionDetail
 from .rate_change import RateChangeDetail
-from .overtime import OvertimeDetail
+from .overtime import OvertimeDetail, OvertimeSegment
 from .shift_change import ShiftChangeDetail
 
 __all__ = [
@@ -30,5 +30,6 @@ __all__ = [
     'SubstitutionDetail',
     'RateChangeDetail',
     'OvertimeDetail',
+    'OvertimeSegment',
     'ShiftChangeDetail',
 ]

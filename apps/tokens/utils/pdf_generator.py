@@ -369,6 +369,11 @@ def generate_receipt_html(token: TokenRequest, is_copy: bool = False) -> str:
                             'return_date': item.return_date,
                         })
                     context[f'{detail_attr}_items'] = safe_items
+                # Add overtime segments if available
+                if hasattr(detail, 'segments'):
+                    segments = detail.segments.select_related('overtime_type_model').all()
+                    if segments.exists():
+                        context['overtime_segments'] = segments
         except Exception:
             pass
 

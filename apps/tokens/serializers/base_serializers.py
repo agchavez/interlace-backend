@@ -531,6 +531,9 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
 
         elif token.token_type == TokenRequest.TokenType.OVERTIME and overtime_data:
             from datetime import datetime, time, date as date_type
+            from ..models import OvertimeSegment
+            # Extract segments before creating detail
+            segments_data = overtime_data.pop('segments', [])
             # Convert FK IDs to _id fields for proper assignment
             overtime_type_model_id = overtime_data.pop('overtime_type_model', None)
             reason_model_id = overtime_data.pop('reason_model', None)
@@ -545,7 +548,25 @@ class TokenRequestCreateSerializer(serializers.ModelSerializer):
                 overtime_data['end_time'] = datetime.strptime(overtime_data['end_time'], '%H:%M').time()
             if isinstance(overtime_data.get('overtime_date'), str):
                 overtime_data['overtime_date'] = datetime.strptime(overtime_data['overtime_date'], '%Y-%m-%d').date()
-            OvertimeDetail.objects.create(token=token, **overtime_data)
+            detail = OvertimeDetail.objects.create(token=token, **overtime_data)
+            # Create segments if provided (variable rate)
+            for idx, seg in enumerate(segments_data):
+                seg_type_model_id = seg.pop('overtime_type_model', None)
+                if isinstance(seg.get('start_time'), str):
+                    seg['start_time'] = datetime.strptime(seg['start_time'], '%H:%M').time()
+                if isinstance(seg.get('end_time'), str):
+                    seg['end_time'] = datetime.strptime(seg['end_time'], '%H:%M').time()
+                seg['sequence'] = seg.get('sequence', idx)
+                segment = OvertimeSegment(
+                    overtime_detail=detail,
+                    **seg,
+                )
+                if seg_type_model_id:
+                    segment.overtime_type_model_id = seg_type_model_id
+                segment.save()
+            # Recalculate totals from segments
+            if segments_data:
+                detail.recalculate_totals()
 
         elif token.token_type == TokenRequest.TokenType.SHIFT_CHANGE and shift_change_data:
             exchange_with_id = shift_change_data.pop('exchange_with', None)
