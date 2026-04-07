@@ -1111,12 +1111,22 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         token_type = request.query_params.get('token_type')
         search = request.query_params.get('search', '')
         limit = int(request.query_params.get('limit', 0))
+        distributor_center_id = request.query_params.get('distributor_center')
 
         # Obtener centros del usuario
         user_centers = list(user_personnel.distributor_centers.values_list('id', flat=True))
         if user_personnel.primary_distributor_center:
             user_centers.append(user_personnel.primary_distributor_center_id)
         user_centers = list(set(user_centers))
+
+        # Si se especifica un CD, filtrar solo por ese (debe estar en los centros del usuario)
+        if distributor_center_id:
+            try:
+                dc_id = int(distributor_center_id)
+                if dc_id in user_centers:
+                    user_centers = [dc_id]
+            except (ValueError, TypeError):
+                pass
 
         queryset = PersonnelProfile.objects.filter(is_active=True).select_related(
             'area', 'primary_distributor_center'
