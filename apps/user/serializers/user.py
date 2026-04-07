@@ -19,7 +19,7 @@ class UserDJSerializer(serializers.ModelSerializer):
 
 
 # Serializers (UserModel)
-INTERLACE_DISTRIBUTION_CENTER_ID = 1
+ACTIVE_DISTRIBUTION_CENTERS = [1, 2]  # CD LA GRANJA (1), CD COMAYAGUA (2)
 
 class UserSerializer(serializers.ModelSerializer):
     list_groups = serializers.SerializerMethodField()
@@ -66,7 +66,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_distributions_centers(self, obj):
         return list(
             obj.distributions_centers
-            .filter(id=INTERLACE_DISTRIBUTION_CENTER_ID)
+            .filter(id__in=ACTIVE_DISTRIBUTION_CENTERS)
             .values_list('id', flat=True)
         )
 
