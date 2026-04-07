@@ -185,6 +185,30 @@ class TokenNotificationHelper:
             except Exception:
                 beneficiary_name = 'Persona externa'
 
+        # Nombre del solicitante
+        requester_name = '-'
+        if token.requested_by:
+            name = f"{token.requested_by.first_name} {token.requested_by.last_name}".strip()
+            requester_name = name or token.requested_by.email
+
+        # Construir descripción según tipo de token
+        if token.token_type == 'OVERTIME':
+            total_hours = '-'
+            try:
+                total_hours = f"{token.overtime_detail.total_hours}h"
+            except Exception:
+                pass
+            description = (
+                f"{requester_name} solicita Horas Extra para el trabajador "
+                f"{beneficiary_name} por {total_hours}. "
+                f"Requiere tu aprobación como {level_name}."
+            )
+        else:
+            description = (
+                f"{requester_name} solicita {token_type_label} para {beneficiary_name}. "
+                f"Requiere tu aprobación como {level_name}."
+            )
+
         # Filtrar por capacidad de aprobación
         notified_count = 0
         for approver in approvers:
@@ -194,7 +218,7 @@ class TokenNotificationHelper:
                     cls._create_notification(
                         user=approver.user,
                         title=f"Solicitud pendiente de aprobación",
-                        description=f"{beneficiary_name} solicita {token_type_label}. Requiere su aprobación como {level_name}.",
+                        description=description,
                         token=token,
                         notification_type=NotificationModel.Type.APROVAL,
                     )
