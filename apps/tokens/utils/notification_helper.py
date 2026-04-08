@@ -149,9 +149,9 @@ class TokenNotificationHelper:
         }
 
         level_names = {
-            1: 'Supervisor',
-            2: 'Jefe de Área',
-            3: 'Gerente CD',
+            1: 'Line Manager',
+            2: 'Line Manager',
+            3: 'Line Manager',
         }
 
         # Obtener personal que puede aprobar en el nivel actual
