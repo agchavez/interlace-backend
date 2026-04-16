@@ -39,4 +39,10 @@ router.register(r'truck-cycle-pallet-ticket', PalletTicketViewSet, basename='tru
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('truck-cycle-public/arrival/<str:truck_code>/',
+         PautaViewSet.as_view({'post': 'public_arrival'}),
+         name='truck-cycle-public-arrival'),
+    path('truck-cycle-public/truck-status/<str:truck_code>/',
+         PautaViewSet.as_view({'get': 'public_truck_status'}),
+         name='truck-cycle-public-truck-status'),
 ]

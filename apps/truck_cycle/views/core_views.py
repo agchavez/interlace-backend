@@ -23,7 +23,6 @@ from apps.truck_cycle.models.catalogs import TruckModel, ProductCatalogModel
 from apps.truck_cycle.models.core import (
     PalletComplexUploadModel,
     PautaModel,
-    PautaProductDetailModel,
     PautaDeliveryDetailModel,
 )
 from apps.truck_cycle.models.operational import PautaTimestampModel, PautaAssignmentModel
@@ -142,17 +141,40 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def template(self, request):
-        """Descargar plantilla Excel vacía con las columnas esperadas"""
+        """Descargar plantilla Excel con las columnas esperadas (nivel resumen por transporte)"""
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Pauta de Complejidad"
+        ws.title = "Pautas"
+
         columns = [
-            'Transporte', 'Viaje', 'Ruta', 'Material',
-            'Descripción Material', 'División', 'Marca',
-            'Entrega', 'Cantidad', 'Placa Camión',
+            ('Viaje', 12),
+            ('Transporte', 18),
+            ('Camión', 15),
+            ('Placa', 15),
+            ('Ruta', 15),
+            ('Cajas', 12),
+            ('SKUs', 12),
+            ('Pallets Completos', 18),
+            ('Complejidad', 15),
         ]
-        for col_idx, col_name in enumerate(columns, 1):
-            ws.cell(row=1, column=col_idx, value=col_name)
+
+        header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+        header_fill = PatternFill(start_color='1976D2', end_color='1976D2', fill_type='solid')
+        header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        for col_idx, (col_name, width) in enumerate(columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+        # Ejemplo de fila
+        example = [1, '4000825134', 'HN-1264', 'PBR-4521', 'R-TGU-01', 775, 55, 1, 7.52]
+        for col_idx, val in enumerate(example, 1):
+            ws.cell(row=2, column=col_idx, value=val)
+
+        ws.freeze_panes = 'A2'
 
         output = io.BytesIO()
         wb.save(output)
@@ -162,14 +184,14 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             output.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
-        response['Content-Disposition'] = 'attachment; filename="plantilla_pauta_complejidad.xlsx"'
+        response['Content-Disposition'] = 'attachment; filename="plantilla_pautas.xlsx"'
         return response
 
     @action(detail=False, methods=['post'])
     def preview(self, request):
         """
-        Subir archivo Excel, parsear, validar y retornar vista previa
-        sin guardar pautas.
+        Subir archivo Excel con pautas a nivel resumen (1 fila = 1 pauta).
+        Columnas: Viaje, Transporte, Camión, Placa, Ruta, Cajas, SKUs, Pallets Completos, Complejidad
         """
         file = request.FILES.get('file')
         if not file:
@@ -196,66 +218,67 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
 
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         errors = []
-        pautas_grouped = defaultdict(lambda: {
-            'transport_number': '',
-            'trip_number': '',
-            'route_code': '',
-            'truck_plate': '',
-            'products': [],
-            'deliveries': [],
-            'total_boxes': 0,
-            'total_skus': set(),
-        })
+        warnings = []
+        pautas = []
 
         for row_idx, row in enumerate(rows, start=2):
-            if len(row) < 10:
-                errors.append(f"Fila {row_idx}: columnas insuficientes.")
+            if not row or all(c is None for c in row):
                 continue
 
-            transporte = str(row[0] or '').strip()
-            viaje = str(row[1] or '').strip()
-            ruta = str(row[2] or '').strip()
-            material = str(row[3] or '').strip()
-            descripcion = str(row[4] or '').strip()
-            division = str(row[5] or '').strip()
-            marca = str(row[6] or '').strip()
-            entrega = str(row[7] or '').strip()
-            cantidad = row[8]
-            placa = str(row[9] or '').strip()
+            if len(row) < 6:
+                errors.append(f"Fila {row_idx}: columnas insuficientes (mínimo 6).")
+                continue
+
+            viaje = str(row[0] or '').strip()
+            transporte = str(row[1] or '').strip()
+            camion = str(row[2] or '').strip()
+            placa = str(row[3] or '').strip()
+            ruta = str(row[4] or '').strip()
 
             if not transporte:
                 errors.append(f"Fila {row_idx}: Transporte es requerido.")
                 continue
-
-            try:
-                cantidad = int(cantidad) if cantidad else 0
-            except (ValueError, TypeError):
-                errors.append(f"Fila {row_idx}: Cantidad inválida '{cantidad}'.")
+            if not viaje:
+                errors.append(f"Fila {row_idx}: Viaje es requerido.")
                 continue
 
-            key = f"{transporte}|{viaje}"
-            group = pautas_grouped[key]
-            group['transport_number'] = transporte
-            group['trip_number'] = viaje
-            group['route_code'] = ruta
-            group['truck_plate'] = placa
-            group['total_boxes'] += cantidad
-            group['total_skus'].add(material)
-            group['products'].append({
-                'material_code': material,
-                'product_name': descripcion,
-                'division': division,
-                'brand': marca,
-                'total_boxes': cantidad,
-            })
-            group['deliveries'].append({
+            try:
+                cajas = int(float(row[5])) if row[5] else 0
+            except (ValueError, TypeError):
+                errors.append(f"Fila {row_idx}: Cajas inválido '{row[5]}'.")
+                continue
+
+            try:
+                skus = int(float(row[6])) if len(row) > 6 and row[6] else 0
+            except (ValueError, TypeError):
+                skus = 0
+
+            try:
+                completas = int(float(row[7])) if len(row) > 7 and row[7] else 0
+            except (ValueError, TypeError):
+                completas = 0
+
+            try:
+                complejidad = round(float(row[8]), 2) if len(row) > 8 and row[8] else 0
+            except (ValueError, TypeError):
+                complejidad = 0
+
+            if not camion and not placa:
+                warnings.append(f"Fila {row_idx}: Sin camión ni placa asignada.")
+
+            pautas.append({
+                'trip_number': viaje,
+                'transport_number': transporte,
+                'truck_code': camion,
+                'truck_plate': placa,
                 'route_code': ruta,
-                'delivery_number': entrega,
-                'material_code': material,
-                'delivery_quantity': cantidad,
+                'total_boxes': cajas,
+                'total_skus': skus,
+                'full_pallets': completas,
+                'complexity_score': complejidad,
             })
 
-        # Crear el registro de upload en estado PREVIEW
+        # Crear registro de upload en estado PREVIEW
         upload = PalletComplexUploadModel.objects.create(
             file_name=file.name,
             file=file,
@@ -266,27 +289,14 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             uploaded_by=request.user,
         )
 
-        # Preparar respuesta
-        preview_pautas = []
-        for key, group in pautas_grouped.items():
-            preview_pautas.append({
-                'transport_number': group['transport_number'],
-                'trip_number': group['trip_number'],
-                'route_code': group['route_code'],
-                'truck_plate': group['truck_plate'],
-                'total_boxes': group['total_boxes'],
-                'total_skus': len(group['total_skus']),
-                'products_count': len(group['products']),
-                'deliveries_count': len(group['deliveries']),
-            })
-
         return Response({
             'upload_id': upload.id,
             'file_name': file.name,
             'row_count': len(rows),
-            'pautas_count': len(preview_pautas),
+            'pautas_count': len(pautas),
             'errors': errors,
-            'pautas': preview_pautas,
+            'warnings': warnings,
+            'pautas_preview': pautas,
         })
 
     @action(detail=True, methods=['post'])
@@ -321,137 +331,77 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             )
 
         rows = list(ws.iter_rows(min_row=2, values_only=True))
-
-        # Agrupar por Transporte+Viaje
-        pautas_grouped = defaultdict(lambda: {
-            'transport_number': '',
-            'trip_number': '',
-            'route_code': '',
-            'truck_plate': '',
-            'products': [],
-            'deliveries': [],
-            'total_boxes': 0,
-            'total_skus': set(),
-        })
+        created_pautas = []
 
         for row in rows:
-            if len(row) < 10:
+            if not row or all(c is None for c in row):
                 continue
-            transporte = str(row[0] or '').strip()
-            viaje = str(row[1] or '').strip()
-            ruta = str(row[2] or '').strip()
-            material = str(row[3] or '').strip()
-            descripcion = str(row[4] or '').strip()
-            division = str(row[5] or '').strip()
-            marca = str(row[6] or '').strip()
-            entrega = str(row[7] or '').strip()
+            if len(row) < 6:
+                continue
+
+            viaje = str(row[0] or '').strip()
+            transporte = str(row[1] or '').strip()
+            camion_code = str(row[2] or '').strip()
+            placa = str(row[3] or '').strip()
+            ruta = str(row[4] or '').strip()
+
+            if not transporte or not viaje:
+                continue
+
             try:
-                cantidad = int(row[8]) if row[8] else 0
+                cajas = int(float(row[5])) if row[5] else 0
             except (ValueError, TypeError):
                 continue
-            placa = str(row[9] or '').strip()
 
-            if not transporte:
-                continue
+            try:
+                skus = int(float(row[6])) if len(row) > 6 and row[6] else 0
+            except (ValueError, TypeError):
+                skus = 0
 
-            key = f"{transporte}|{viaje}"
-            group = pautas_grouped[key]
-            group['transport_number'] = transporte
-            group['trip_number'] = viaje
-            group['route_code'] = ruta
-            group['truck_plate'] = placa
-            group['total_boxes'] += cantidad
-            group['total_skus'].add(material)
-            group['products'].append({
-                'material_code': material,
-                'product_name': descripcion,
-                'division': division,
-                'brand': marca,
-                'total_boxes': cantidad,
-            })
-            group['deliveries'].append({
-                'route_code': ruta,
-                'delivery_number': entrega,
-                'material_code': material,
-                'delivery_quantity': cantidad,
-            })
+            try:
+                completas = int(float(row[7])) if len(row) > 7 and row[7] else 0
+            except (ValueError, TypeError):
+                completas = 0
 
-        created_pautas = []
-        for key, group in pautas_grouped.items():
-            # Buscar camión por placa
-            truck = TruckModel.objects.filter(
-                plate=group['truck_plate'],
-                distributor_center=dc,
-                is_active=True,
-            ).first()
+            try:
+                complejidad = round(float(row[8]), 2) if len(row) > 8 and row[8] else 0
+            except (ValueError, TypeError):
+                complejidad = 0
 
+            # Buscar camión por código o placa
+            truck = None
+            if camion_code:
+                truck = TruckModel.objects.filter(
+                    code=camion_code, distributor_center=dc, is_active=True,
+                ).first()
+            if not truck and placa:
+                truck = TruckModel.objects.filter(
+                    plate=placa, distributor_center=dc, is_active=True,
+                ).first()
             if not truck:
-                # Crear camión si no existe
+                # Crear camión con los datos disponibles
                 truck = TruckModel.objects.create(
-                    code=group['truck_plate'],
-                    plate=group['truck_plate'],
+                    code=camion_code or placa,
+                    plate=placa or camion_code,
                     pallet_type='STANDARD',
                     pallet_spaces=0,
                     distributor_center=dc,
                 )
 
-            total_skus = len(group['total_skus'])
-
             pauta = PautaModel.objects.create(
-                transport_number=group['transport_number'],
-                trip_number=group['trip_number'],
-                route_code=group['route_code'],
-                total_boxes=group['total_boxes'],
-                total_skus=total_skus,
+                transport_number=transporte,
+                trip_number=viaje,
+                route_code=ruta,
+                total_boxes=cajas,
+                total_skus=skus,
+                total_pallets=completas,
+                complexity_score=complejidad,
                 status='PENDING_PICKING',
                 operational_date=operational_date,
                 truck=truck,
                 upload=upload,
                 distributor_center=dc,
             )
-
-            # Crear detalles de producto (agrupados por material)
-            product_totals = defaultdict(lambda: {
-                'product_name': '',
-                'total_boxes': 0,
-            })
-            for prod in group['products']:
-                mat = prod['material_code']
-                product_totals[mat]['product_name'] = prod['product_name']
-                product_totals[mat]['total_boxes'] += prod['total_boxes']
-
-            for mat_code, prod_data in product_totals.items():
-                # Buscar en catálogo
-                catalog_product = ProductCatalogModel.objects.filter(
-                    sku_code=mat_code,
-                    distributor_center=dc,
-                ).first()
-
-                boxes_per_pallet = catalog_product.boxes_per_pallet if catalog_product else 1
-                full_pallets = prod_data['total_boxes'] // boxes_per_pallet if boxes_per_pallet > 0 else 0
-                fraction_boxes = prod_data['total_boxes'] % boxes_per_pallet if boxes_per_pallet > 0 else 0
-                fraction = Decimal(str(fraction_boxes)) / Decimal(str(boxes_per_pallet)) if boxes_per_pallet > 0 else Decimal('0')
-
-                PautaProductDetailModel.objects.create(
-                    material_code=mat_code,
-                    product_name=prod_data['product_name'],
-                    total_boxes=prod_data['total_boxes'],
-                    full_pallets=full_pallets,
-                    fraction=fraction,
-                    pauta=pauta,
-                    product_catalog=catalog_product,
-                )
-
-            # Crear detalles de entrega
-            for deliv in group['deliveries']:
-                PautaDeliveryDetailModel.objects.create(
-                    route_code=deliv['route_code'],
-                    delivery_number=deliv['delivery_number'],
-                    material_code=deliv['material_code'],
-                    delivery_quantity=deliv['delivery_quantity'],
-                    pauta=pauta,
-                )
-
             created_pautas.append(pauta.id)
 
         upload.status = 'CONFIRMED'
@@ -568,7 +518,14 @@ class PautaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def complete_loading(self, request, pk=None):
-        return self._do_transition(request, pk, 'complete_loading')
+        response = self._do_transition(request, pk, 'complete_loading')
+        if response.status_code == 200:
+            pauta = self.get_object()
+            bay_assignment = getattr(pauta, 'bay_assignment', None)
+            if bay_assignment and not bay_assignment.released_at:
+                bay_assignment.released_at = timezone.now()
+                bay_assignment.save(update_fields=['released_at'])
+        return response
 
     @action(detail=True, methods=['post'])
     def assign_counter(self, request, pk=None):
@@ -632,6 +589,63 @@ class PautaViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def arrival(self, request, pk=None):
         return self._do_transition(request, pk, 'arrival')
+
+    @action(detail=False, methods=['post'], url_path='public-arrival/(?P<truck_code>[^/.]+)',
+            permission_classes=[permissions.AllowAny], authentication_classes=[])
+    def public_arrival(self, request, truck_code=None):
+        """Registro público de llegada — el chofer escanea QR en el bunker"""
+        from apps.truck_cycle.models.catalogs import TruckModel
+        truck = TruckModel.objects.filter(code=truck_code, is_active=True).first()
+        if not truck:
+            truck = TruckModel.objects.filter(plate=truck_code, is_active=True).first()
+        if not truck:
+            return Response({'error': 'Camión no encontrado'}, status=404)
+
+        pauta = PautaModel.objects.filter(
+            truck=truck, status='DISPATCHED'
+        ).order_by('-created_at').first()
+        if not pauta:
+            return Response({'error': 'No hay pautas despachadas para este camión'}, status=404)
+
+        transition = STATUS_TRANSITIONS['arrival']
+        pauta.status = transition['to']
+        pauta.save(update_fields=['status'])
+        if transition['event']:
+            from apps.truck_cycle.models.operational import PautaTimestampModel
+            PautaTimestampModel.objects.create(
+                pauta=pauta, event_type=transition['event']
+            )
+        return Response({
+            'message': f'Llegada registrada para T-{pauta.transport_number}',
+            'transport_number': pauta.transport_number,
+            'truck_code': truck.code,
+            'truck_plate': truck.plate,
+        })
+
+    @action(detail=False, methods=['get'], url_path='public-truck-status/(?P<truck_code>[^/.]+)',
+            permission_classes=[permissions.AllowAny], authentication_classes=[])
+    def public_truck_status(self, request, truck_code=None):
+        """Status público del camión para la página de QR"""
+        from apps.truck_cycle.models.catalogs import TruckModel
+        truck = TruckModel.objects.filter(code=truck_code, is_active=True).first()
+        if not truck:
+            truck = TruckModel.objects.filter(plate=truck_code, is_active=True).first()
+        if not truck:
+            return Response({'error': 'Camión no encontrado'}, status=404)
+
+        pauta = PautaModel.objects.filter(
+            truck=truck
+        ).exclude(status__in=['CLOSED', 'CANCELLED']).order_by('-created_at').first()
+
+        return Response({
+            'truck_code': truck.code,
+            'truck_plate': truck.plate,
+            'has_active_pauta': pauta is not None,
+            'status': pauta.status if pauta else None,
+            'status_display': pauta.get_status_display() if pauta else None,
+            'transport_number': pauta.transport_number if pauta else None,
+            'can_register_arrival': pauta.status == 'DISPATCHED' if pauta else False,
+        })
 
     @action(detail=True, methods=['post'])
     def process_return(self, request, pk=None):
@@ -761,67 +775,24 @@ class PautaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):
-        """Descargar PDF de una pauta individual"""
+        """Descargar PDF de una pauta individual (estilo moderno con pdfkit)"""
         pauta = self.get_object()
         try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib import colors
-            from reportlab.lib.units import cm
-        except ImportError:
+            from apps.truck_cycle.utils.pdf_generator import generate_pauta_pdf
+            pdf_buffer = generate_pauta_pdf(pauta)
+            response = HttpResponse(pdf_buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="pauta_{pauta.transport_number}_V{pauta.trip_number}.pdf"'
+            return response
+        except Exception as e:
+            import logging
+            import traceback
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error generando PDF para pauta {pauta.id}: {e}")
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
             return Response(
-                {'error': 'reportlab no está instalado.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {'error': 'Error al generar el documento PDF'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.5*cm, rightMargin=1.5*cm, topMargin=2*cm, bottomMargin=1.5*cm)
-        styles = getSampleStyleSheet()
-        story = []
-
-        # Title
-        title_style = ParagraphStyle('PautaTitle', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#1976d2'))
-        story.append(Paragraph(f"Pauta T-{pauta.transport_number} / Viaje {pauta.trip_number}", title_style))
-        story.append(Spacer(1, 12))
-
-        # Info
-        meta_style = ParagraphStyle('Meta', parent=styles['Normal'], fontSize=10, textColor=colors.grey)
-        story.append(Paragraph(f"Camión: {pauta.truck.code} - {pauta.truck.plate} | Estado: {pauta.get_status_display()} | Fecha: {pauta.operational_date}", meta_style))
-        story.append(Paragraph(f"Cajas: {pauta.total_boxes} | SKUs: {pauta.total_skus} | Pallets: {pauta.total_pallets} | Ruta: {pauta.route_code}", meta_style))
-        story.append(Spacer(1, 20))
-
-        # Products table
-        story.append(Paragraph("Productos", styles['Heading2']))
-        story.append(Spacer(1, 6))
-
-        products = pauta.product_details.all()
-        if products.exists():
-            data = [['Código', 'Producto', 'Cajas', 'Pallets', 'Fracción']]
-            for p in products:
-                data.append([p.material_code, p.product_name[:40], str(p.total_boxes), str(p.full_pallets), str(p.fraction)])
-
-            t = Table(data, colWidths=[3*cm, 8*cm, 2*cm, 2.5*cm, 2.5*cm])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1976d2')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            story.append(t)
-
-        doc.build(story)
-        buffer.seek(0)
-
-        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="pauta_{pauta.transport_number}_V{pauta.trip_number}.pdf"'
-        return response
 
     @action(detail=False, methods=['get'], url_path='export_excel')
     def export_excel(self, request):
