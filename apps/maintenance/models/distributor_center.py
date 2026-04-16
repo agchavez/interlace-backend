@@ -2,8 +2,10 @@
 from django.db import models
 from utils.BaseModel import BaseModel
 from .country import CountryModel
-# Modelo para el mantenimiento de los centros de distribución
+
+
 class DistributorCenter(models.Model):
+    """Centro de Distribución"""
     name = models.CharField(
         "Nombre",
         max_length=50)
@@ -13,7 +15,6 @@ class DistributorCenter(models.Model):
     country_code = models.CharField(
         "Código de País",
         max_length=5, null=True)
-
     country = models.ForeignKey(
         CountryModel,
         on_delete=models.SET_NULL,
@@ -23,19 +24,81 @@ class DistributorCenter(models.Model):
         blank=True,
         default=None)
 
+    # ── Campos extendidos para Ciclo del Camión ──
+    location_city = models.CharField(
+        "Ciudad / Ubicación",
+        max_length=200,
+        blank=True,
+    )
+    num_bays = models.PositiveIntegerField(
+        "Número de Bahías T2",
+        default=0,
+    )
 
     def __str__(self):
         return self.name
 
     def save(self, *args, **kwargs):
         self.name = self.name.upper()
-        self.direction = self.direction.upper()
+        if self.direction:
+            self.direction = self.direction.upper()
         return super(DistributorCenter, self).save(*args, **kwargs)
 
     class Meta:
         db_table = "distributor_center"
         verbose_name = "Centro de Distribución"
         verbose_name_plural = "Centros de Distribución"
+
+
+class DCShiftModel(models.Model):
+    """Turnos por día de la semana para un Centro de Distribución"""
+
+    DAY_CHOICES = [
+        ('MON', 'Lunes'),
+        ('TUE', 'Martes'),
+        ('WED', 'Miercoles'),
+        ('THU', 'Jueves'),
+        ('FRI', 'Viernes'),
+        ('SAT', 'Sabado'),
+        ('SUN', 'Domingo'),
+    ]
+
+    distributor_center = models.ForeignKey(
+        DistributorCenter,
+        on_delete=models.CASCADE,
+        verbose_name="Centro de Distribución",
+        related_name="shifts",
+    )
+    day_of_week = models.CharField(
+        "Día de la Semana",
+        max_length=3,
+        choices=DAY_CHOICES,
+    )
+    shift_name = models.CharField(
+        "Nombre del Turno",
+        max_length=10,
+        help_text="Ej: TA, TB, TC",
+    )
+    start_time = models.TimeField(
+        "Hora Inicio",
+    )
+    end_time = models.TimeField(
+        "Hora Fin",
+    )
+    is_active = models.BooleanField(
+        "Activo",
+        default=True,
+    )
+
+    def __str__(self):
+        return f"{self.distributor_center.name} - {self.get_day_of_week_display()} {self.shift_name} ({self.start_time}-{self.end_time})"
+
+    class Meta:
+        db_table = "dc_shift"
+        verbose_name = "Turno de CD"
+        verbose_name_plural = "Turnos de CD"
+        ordering = ['day_of_week', 'start_time']
+        unique_together = ['distributor_center', 'day_of_week', 'shift_name']
 
 
 # Localizaiones de envio de salida de productos, puede ser un cliente o un centro de distribución

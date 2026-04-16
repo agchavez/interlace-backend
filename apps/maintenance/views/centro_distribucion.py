@@ -8,10 +8,11 @@ import django_filters
 
 from ..exceptions.maintenance import LotAlreadyExistsError, NoDistributionCenterError
 # Models
-from ..models import DistributorCenter, LocationModel, RouteModel, LotModel
+from ..models import DistributorCenter, LocationModel, RouteModel, LotModel, DCShiftModel
 
 # Serializers
 from ..serializer import DistributorCenterSerializer, RouteModelSerializer, LocationModelSerializer, LotModelSerializer
+from ..serializer.centro_distribucion import DCShiftSerializer
 from ...user.views.user import CustomAccessPermission
 
 
@@ -165,3 +166,22 @@ class LotModelViewSet(mixins.ListModelMixin,
             if LotModel.objects.filter(code=code, distributor_center=data['distributor_center']).exists():
                 raise LotAlreadyExistsError()
         return super().create(request, *args, **kwargs)
+
+
+class DCShiftFilter(django_filters.FilterSet):
+    class Meta:
+        model = DCShiftModel
+        fields = {
+            'distributor_center': ['exact'],
+            'day_of_week': ['exact'],
+            'is_active': ['exact'],
+        }
+
+
+class DCShiftViewSet(viewsets.ModelViewSet):
+    """Gestión de turnos por Centro de Distribución"""
+    queryset = DCShiftModel.objects.all()
+    serializer_class = DCShiftSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = DCShiftFilter
+    permission_classes = [IsAuthenticated]
