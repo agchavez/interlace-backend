@@ -14,21 +14,25 @@ class TruckSerializer(serializers.ModelSerializer):
     class Meta:
         model = TruckModel
         fields = '__all__'
+        extra_kwargs = {'distributor_center': {'required': False}}
 
 
 class ProductCatalogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductCatalogModel
         fields = '__all__'
+        extra_kwargs = {'distributor_center': {'required': False}}
 
 
 class BaySerializer(serializers.ModelSerializer):
     class Meta:
         model = BayModel
         fields = '__all__'
+        extra_kwargs = {'distributor_center': {'required': False}}
 
 
 class KPITargetSerializer(serializers.ModelSerializer):
     class Meta:
         model = KPITargetModel
         fields = '__all__'
+        extra_kwargs = {'distributor_center': {'required': False}}
