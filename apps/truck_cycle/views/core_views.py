@@ -36,8 +36,10 @@ from apps.truck_cycle.filters import PautaFilter
 
 
 def get_user_distributor_center(request):
-    """Obtener el centro de distribución del usuario actual"""
+    """Obtener el centro de distribución seleccionado por el usuario"""
     try:
+        if request.user.centro_distribucion_id:
+            return request.user.centro_distribucion
         return request.user.personnel_profile.primary_distributor_center
     except Exception:
         return None

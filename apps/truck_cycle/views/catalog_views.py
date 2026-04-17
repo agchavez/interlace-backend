@@ -17,8 +17,12 @@ from apps.truck_cycle.serializers.catalog_serializers import (
 
 
 def get_user_distributor_center(request):
-    """Obtener el centro de distribución del usuario actual"""
+    """Obtener el centro de distribución seleccionado por el usuario"""
     try:
+        # Primero usar el CD seleccionado en el perfil de usuario
+        if request.user.centro_distribucion_id:
+            return request.user.centro_distribucion
+        # Fallback al CD primario del perfil de personal
         return request.user.personnel_profile.primary_distributor_center
     except Exception:
         return None
