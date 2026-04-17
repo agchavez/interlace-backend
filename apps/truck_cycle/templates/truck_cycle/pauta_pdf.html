@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Pauta T-{{ pauta.transport_number }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #ffffff;
+            color: #1e293b;
+            font-size: 10px;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .container {
+            background: #ffffff;
+        }
+
+        .top-logos {
+            padding: 12px 18px;
+            border-bottom: 2px solid #d3a238;
+        }
+
+        .top-logos-table {
+            width: 100%;
+        }
+
+        .logo-abinbev {
+            height: 40px;
+        }
+
+        .header-bar {
+            background-color: #1c2536 !important;
+            -webkit-print-color-adjust: exact !important;
+            margin: 0 18px;
+            border-radius: 8px;
+            margin-top: 14px;
+            margin-bottom: 14px;
+        }
+
+        .header-bar-table {
+            width: 100%;
+        }
+
+        .pauta-number-cell {
+            text-align: center;
+            vertical-align: middle;
+            padding: 16px 20px;
+        }
+
+        .pauta-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffffff !important;
+        }
+
+        .pauta-subtitle {
+            font-size: 11px;
+            color: #d3a238 !important;
+            margin-top: 3px;
+        }
+
+        .content {
+            padding: 14px 18px;
+        }
+
+        .status-bar {
+            background-color: {{ status_config.bg }} !important;
+            border-left: 4px solid {{ status_config.color }};
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            border-radius: 6px;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .status-text {
+            font-size: 11px;
+            font-weight: bold;
+            color: {{ status_config.color }};
+        }
+
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background-color: #f8fafc !important;
+            padding: 8px 14px;
+            border-bottom: 1px solid #e2e8f0;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .card-header h3 {
+            font-size: 10px;
+            font-weight: bold;
+            color: #475569;
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 12px 14px;
+            background: #ffffff;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .info-table td {
+            padding: 4px 6px;
+            vertical-align: top;
+        }
+
+        .info-label {
+            font-size: 9px;
+            color: #64748b;
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-size: 11px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .two-col-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .two-col-table > tbody > tr > td {
+            width: 50%;
+            vertical-align: top;
+            padding: 0 5px;
+        }
+
+        .two-col-table > tbody > tr > td:first-child {
+            padding-left: 0;
+        }
+
+        .two-col-table > tbody > tr > td:last-child {
+            padding-right: 0;
+        }
+
+        .stats-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 8px 0;
+        }
+
+        .stat-cell {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            width: 33%;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .stat-label {
+            font-size: 9px;
+            color: #64748b;
+            margin-bottom: 3px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .timeline-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .timeline-row td {
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .timeline-row:last-child td {
+            border-bottom: none;
+        }
+
+        .timeline-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-completed {
+            background-color: #22c55e !important;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .dot-active {
+            background-color: #3b82f6 !important;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .timeline-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .timeline-info {
+            font-size: 9px;
+            color: #64748b;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .items-table th {
+            background-color: #f1f5f9 !important;
+            color: #1e293b;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 9px;
+            font-weight: bold;
+            border-bottom: 1px solid #e2e8f0;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .items-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 10px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 9px;
+            font-weight: bold;
+            border-radius: 6px;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .badge-success {
+            background-color: #dcfce7 !important;
+            color: #166534;
+        }
+
+        .badge-warning {
+            background-color: #fef3c7 !important;
+            color: #92400e;
+        }
+
+        .badge-info {
+            background-color: #dbeafe !important;
+            color: #1e40af;
+        }
+
+        .badge-error {
+            background-color: #fee2e2 !important;
+            color: #991b1b;
+        }
+
+        .notes-box {
+            background-color: #fef9e7 !important;
+            border: 1px solid #d3a238;
+            border-left: 4px solid #d3a238;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-top: 14px;
+            -webkit-print-color-adjust: exact !important;
+        }
+
+        .notes-label {
+            font-size: 9px;
+            color: #b8860b;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .notes-text {
+            font-size: 10px;
+            color: #8b6914;
+        }
+
+        .bottom-section-table {
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .bottom-section-table > tbody > tr > td {
+            vertical-align: top;
+        }
+
+        .qr-bottom-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            background: #ffffff;
+        }
+
+        .qr-bottom-img {
+            width: 100px;
+            height: 100px;
+        }
+
+        .qr-label {
+            font-size: 9px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        .footer {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-table {
+            width: 100%;
+        }
+
+        .footer-table td {
+            padding: 0;
+            vertical-align: middle;
+        }
+
+        .footer-text {
+            font-size: 8px;
+            color: #94a3b8;
+        }
+
+        .text-left { text-align: left; }
+        .text-center { text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Logo -->
+        <div class="top-logos">
+            <table class="top-logos-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="text-align: left;">
+                        {% if logo_base64 %}
+                        <img src="{{ logo_base64 }}" class="logo-abinbev" alt="ABInBev">
+                        {% else %}
+                        <span style="font-size: 22px; font-weight: bold; color: #1e293b;">ABInBev</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <span style="font-size: 9px; color: #64748b;">Ciclo del Camion</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Header Bar -->
+        <div class="header-bar">
+            <table class="header-bar-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td class="pauta-number-cell">
+                        <div class="pauta-number">T-{{ pauta.transport_number }}</div>
+                        <div class="pauta-subtitle">Viaje {{ pauta.trip_number }} &middot; {{ pauta.truck.code }} - {{ pauta.truck.plate }}</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Status -->
+            <div class="status-bar">
+                <span class="status-text">Estado: {{ status_config.label }}</span>
+            </div>
+
+            <!-- Info Cards - Two columns -->
+            <table class="two-col-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td>
+                        <div class="card">
+                            <div class="card-header"><h3>Informacion de la Pauta</h3></div>
+                            <div class="card-body">
+                                <table class="info-table">
+                                    <tr>
+                                        <td style="width: 50%;">
+                                            <div class="info-label">Transporte</div>
+                                            <div class="info-value">{{ pauta.transport_number }}</div>
+                                        </td>
+                                        <td style="width: 50%;">
+                                            <div class="info-label">Viaje</div>
+                                            <div class="info-value">{{ pauta.trip_number }}</div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="info-label">Ruta</div>
+                                            <div class="info-value">{{ pauta.route_code|default:"-" }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="info-label">Fecha Operativa</div>
+                                            <div class="info-value">{{ pauta.operational_date }}</div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="info-label">Camion</div>
+                                            <div class="info-value">{{ pauta.truck.code }} - {{ pauta.truck.plate }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="info-label">Complejidad</div>
+                                            <div class="info-value">{{ pauta.complexity_score }}</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="card">
+                            <div class="card-header"><h3>Resumen de Carga</h3></div>
+                            <div class="card-body" style="padding: 8px;">
+                                <table class="stats-table" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td class="stat-cell" style="background-color: #f0f4ff !important; border: 1px solid #c7d2fe;">
+                                            <div class="stat-label">Cajas</div>
+                                            <div class="stat-value" style="color: #4338ca;">{{ pauta.total_boxes }}</div>
+                                        </td>
+                                        <td class="stat-cell" style="background-color: #ecfdf5 !important; border: 1px solid #a7f3d0;">
+                                            <div class="stat-label">SKUs</div>
+                                            <div class="stat-value" style="color: #059669;">{{ pauta.total_skus }}</div>
+                                        </td>
+                                        <td class="stat-cell" style="background-color: #fffbeb !important; border: 1px solid #fde68a;">
+                                            <div class="stat-label">Pallets</div>
+                                            <div class="stat-value" style="color: #d97706;">{{ pauta.total_pallets }}</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                                {% if pauta.is_reload %}
+                                <div style="margin-top: 8px; text-align: center;">
+                                    <span class="badge badge-warning">Recarga</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Timeline -->
+            {% if timestamps %}
+            <div class="card">
+                <div class="card-header"><h3>Linea de Tiempo</h3></div>
+                <div class="card-body" style="padding: 8px 12px;">
+                    <table class="timeline-table" cellpadding="0" cellspacing="0">
+                        {% for ts in timestamps %}
+                        <tr class="timeline-row">
+                            <td style="width: 16px;">
+                                <div class="timeline-dot {% if forloop.last %}dot-active{% else %}dot-completed{% endif %}"></div>
+                            </td>
+                            <td style="padding-left: 8px; width: 40%;">
+                                <div class="timeline-title">{{ ts.event_type_display }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="timeline-info">{{ ts.timestamp|date:"d/m/Y H:i" }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="timeline-info">{{ ts.recorded_by_name }}</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Assignments -->
+            {% if assignments %}
+            <div class="card">
+                <div class="card-header"><h3>Asignaciones</h3></div>
+                <div class="card-body" style="padding: 8px;">
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Rol</th>
+                                <th>Personal</th>
+                                <th>Asignado por</th>
+                                <th>Fecha</th>
+                                <th class="text-center">Activo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in assignments %}
+                            <tr>
+                                <td>{{ a.role_display }}</td>
+                                <td>{{ a.personnel_name }}</td>
+                                <td>{{ a.assigned_by_name }}</td>
+                                <td>{{ a.assigned_at|date:"d/m/Y H:i" }}</td>
+                                <td class="text-center">
+                                    {% if a.is_active %}
+                                    <span class="badge badge-success">Si</span>
+                                    {% else %}
+                                    <span class="badge" style="background-color: #e2e8f0 !important; color: #64748b;">No</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Inconsistencies -->
+            {% if inconsistencies %}
+            <div class="card">
+                <div class="card-header"><h3>Inconsistencias ({{ inconsistencies|length }})</h3></div>
+                <div class="card-body" style="padding: 8px;">
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Fase</th>
+                                <th>Tipo</th>
+                                <th>Producto</th>
+                                <th class="text-right">Esperado</th>
+                                <th class="text-right">Real</th>
+                                <th class="text-right">Diferencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inc in inconsistencies %}
+                            <tr>
+                                <td>{{ inc.phase }}</td>
+                                <td>
+                                    <span class="badge {% if inc.inconsistency_type == 'FALTANTE' %}badge-error{% elif inc.inconsistency_type == 'SOBRANTE' %}badge-warning{% else %}badge-info{% endif %}">
+                                        {{ inc.inconsistency_type }}
+                                    </span>
+                                </td>
+                                <td>{{ inc.product_name }}</td>
+                                <td class="text-right">{{ inc.expected_quantity }}</td>
+                                <td class="text-right">{{ inc.actual_quantity }}</td>
+                                <td class="text-right">{{ inc.difference }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Checkout Validation -->
+            {% if checkout_validation %}
+            <div class="card">
+                <div class="card-header"><h3>Validacion Checkout</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 50%;">
+                                <div class="info-label">Seguridad</div>
+                                <div class="info-value">
+                                    {% if checkout_validation.security_validated %}
+                                    {{ checkout_validation.security_validator_name|default:"Sin asignar" }} - {{ checkout_validation.security_validated_at|date:"d/m/Y H:i" }}
+                                    {% else %}
+                                    Pendiente
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td style="width: 50%;">
+                                <div class="info-label">Operaciones</div>
+                                <div class="info-value">
+                                    {% if checkout_validation.ops_validated %}
+                                    {{ checkout_validation.ops_validator_name|default:"Sin asignar" }} - {{ checkout_validation.ops_validated_at|date:"d/m/Y H:i" }}
+                                    {% else %}
+                                    Pendiente
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Bay Assignment -->
+            {% if bay_assignment %}
+            <div class="card">
+                <div class="card-header"><h3>Bahia Asignada</h3></div>
+                <div class="card-body">
+                    <table class="info-table">
+                        <tr>
+                            <td style="width: 40%;">
+                                <div class="info-label">Bahia</div>
+                                <div class="info-value">{{ bay_assignment.bay_code }} - {{ bay_assignment.bay_name }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Asignada</div>
+                                <div class="info-value">{{ bay_assignment.assigned_at|date:"d/m/Y H:i" }}</div>
+                            </td>
+                            <td style="width: 30%;">
+                                <div class="info-label">Liberada</div>
+                                <div class="info-value">{{ bay_assignment.released_at|date:"d/m/Y H:i"|default:"-" }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes -->
+            {% if pauta.notes %}
+            <div class="notes-box">
+                <div class="notes-label">Notas</div>
+                <div class="notes-text">{{ pauta.notes }}</div>
+            </div>
+            {% endif %}
+
+            <!-- Bottom: QR -->
+            <table class="bottom-section-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="width: 70%; padding-right: 10px;">
+                        <div class="card">
+                            <div class="card-header"><h3>Informacion Adicional</h3></div>
+                            <div class="card-body">
+                                <table class="info-table">
+                                    <tr>
+                                        <td style="width: 50%;">
+                                            <div class="info-label">Fecha de Creacion</div>
+                                            <div class="info-value">{{ pauta.created_at|date:"d/m/Y H:i" }}</div>
+                                        </td>
+                                        <td style="width: 50%;">
+                                            <div class="info-label">Recargas</div>
+                                            <div class="info-value">{{ pauta.reload_count }}</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 30%;">
+                        <div class="qr-bottom-card">
+                            <img src="{{ qr_data_url }}" class="qr-bottom-img" alt="QR">
+                            <div class="qr-label">Escanea para ver detalle</div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Footer -->
+            <div class="footer">
+                <table class="footer-table" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td class="text-left">
+                            <span class="footer-text">ABInBev Tracker - Ciclo del Camion</span>
+                        </td>
+                        <td class="text-right">
+                            <span class="footer-text">Generado: {{ generated_at|date:"d/m/Y H:i" }} | T-{{ pauta.transport_number }} V-{{ pauta.trip_number }}</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
