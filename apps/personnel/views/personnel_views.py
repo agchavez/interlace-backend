@@ -16,6 +16,7 @@ User = get_user_model()
 from ..models.personnel import PersonnelProfile, EmergencyContact
 from ..models.organization import Area, Department
 from ..serializers.personnel_serializers import (
+    PersonnelProfileAutocompleteSerializer,
     PersonnelProfileListSerializer,
     PersonnelProfileDetailSerializer,
     PersonnelProfileCreateUpdateSerializer,
@@ -167,6 +168,61 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
         instance.is_active = False
         instance.termination_date = date.today()
         instance.save()
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def autocomplete(self, request):
+        """
+        Endpoint ligero para autocompletes / dropdowns.
+        GET /api/profiles/autocomplete/
+
+        Query params: search, position_type, is_active, hierarchy_level,
+        primary_distributor_center, limit (default 50, max 200).
+
+        No aplica jerarquía (get_queryset permisos pesados) ni serializer completo;
+        devuelve solo id, employee_code, full_name, position, position_type.
+        """
+        qs = PersonnelProfile.objects.only(
+            'id', 'employee_code', 'first_name', 'last_name',
+            'position', 'position_type', 'is_active',
+            'primary_distributor_center_id', 'hierarchy_level',
+        )
+
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            val = str(is_active).lower() in ('1', 'true', 'yes')
+            qs = qs.filter(is_active=val)
+        else:
+            qs = qs.filter(is_active=True)
+
+        position_type = request.query_params.get('position_type')
+        if position_type:
+            values = [v.strip() for v in position_type.split(',') if v.strip()]
+            qs = qs.filter(position_type__in=values) if len(values) > 1 else qs.filter(position_type=values[0])
+
+        hierarchy_level = request.query_params.get('hierarchy_level')
+        if hierarchy_level:
+            qs = qs.filter(hierarchy_level=hierarchy_level)
+
+        dc_id = request.query_params.get('primary_distributor_center')
+        if dc_id:
+            qs = qs.filter(primary_distributor_center_id=dc_id)
+
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            qs = qs.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(employee_code__icontains=search)
+            )
+
+        try:
+            limit = min(int(request.query_params.get('limit', 50)), 200)
+        except (TypeError, ValueError):
+            limit = 50
+
+        qs = qs.order_by('first_name', 'last_name')[:limit]
+        data = PersonnelProfileAutocompleteSerializer(qs, many=True).data
+        return Response(data)
 
     @action(detail=False, methods=['get'])
     def my_profile(self, request):

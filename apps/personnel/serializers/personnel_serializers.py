@@ -125,6 +125,28 @@ class EmergencyContactSerializer(serializers.ModelSerializer):
         }
 
 
+class PersonnelProfileAutocompleteSerializer(serializers.ModelSerializer):
+    """
+    Serializer mínimo para autocompletes / dropdowns.
+    Solo incluye los campos necesarios para mostrar el item en una lista.
+    No hace queries adicionales ni accede a relaciones pesadas.
+    """
+    full_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = PersonnelProfile
+        fields = [
+            'id',
+            'employee_code',
+            'full_name',
+            'first_name',
+            'last_name',
+            'position',
+            'position_type',
+        ]
+        read_only_fields = fields
+
+
 class PersonnelProfileListSerializer(serializers.ModelSerializer):
     """Serializer ligero para listados"""
     full_name = serializers.CharField(read_only=True)

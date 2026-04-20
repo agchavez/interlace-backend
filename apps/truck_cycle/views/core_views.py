@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 
 import openpyxl
@@ -62,6 +62,16 @@ STATUS_TRANSITIONS = {
         'to': 'PICKING_DONE',
         'event': 'T1_PICKING_END',
     },
+    'assign_yard_driver': {
+        'from': ['PICKING_DONE'],
+        'to': 'MOVING_TO_BAY',
+        'event': 'T1A_YARD_START',
+    },
+    'position_at_bay': {
+        'from': ['MOVING_TO_BAY'],
+        'to': 'IN_BAY',
+        'event': 'T1B_YARD_END',
+    },
     'assign_bay': {
         'from': ['PICKING_DONE'],
         'to': 'IN_BAY',
@@ -93,7 +103,7 @@ STATUS_TRANSITIONS = {
         'event': 'T8_CHECKOUT_OPS',
     },
     'dispatch': {
-        'from': ['CHECKOUT_OPS'],
+        'from': ['CHECKOUT_SECURITY', 'CHECKOUT_OPS'],
         'to': 'DISPATCHED',
         'event': 'T9_DISPATCH',
     },
@@ -128,7 +138,7 @@ STATUS_TRANSITIONS = {
 class PalletComplexUploadViewSet(viewsets.ModelViewSet):
     """Gestión de cargas masivas de pautas"""
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -152,11 +162,11 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             ('Viaje', 12),
             ('Transporte', 18),
             ('Camión', 15),
-            ('Placa', 15),
             ('Ruta', 15),
             ('Cajas', 12),
             ('SKUs', 12),
             ('Pallets Completos', 18),
+            ('Fracciones Armadas', 20),
             ('Complejidad', 15),
         ]
 
@@ -172,7 +182,7 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             ws.column_dimensions[get_column_letter(col_idx)].width = width
 
         # Ejemplo de fila
-        example = [1, '4000825134', 'HN-1264', 'PBR-4521', 'R-TGU-01', 775, 55, 1, 7.52]
+        example = [1, '4000825134', 'HN-1264', 'R-TGU-01', 775, 55, 1, 3, 7.52]
         for col_idx, val in enumerate(example, 1):
             ws.cell(row=2, column=col_idx, value=val)
 
@@ -193,7 +203,10 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
     def preview(self, request):
         """
         Subir archivo Excel con pautas a nivel resumen (1 fila = 1 pauta).
-        Columnas: Viaje, Transporte, Camión, Placa, Ruta, Cajas, SKUs, Pallets Completos, Complejidad
+        Columnas: Viaje, Transporte, Camión, Ruta, Cajas, SKUs, Pallets Completos, Complejidad
+        Valida:
+         - Camión debe existir en el catálogo del CD (no se crea on-the-fly).
+         - (Transporte, Camión, Ruta) único por operational_date.
         """
         file = request.FILES.get('file')
         if not file:
@@ -218,24 +231,27 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        operational_date = request.data.get('operational_date') or timezone.now().date()
+
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         errors = []
         warnings = []
         pautas = []
+        missing_trucks = set()
+        seen_keys = {}
 
         for row_idx, row in enumerate(rows, start=2):
             if not row or all(c is None for c in row):
                 continue
 
-            if len(row) < 6:
-                errors.append(f"Fila {row_idx}: columnas insuficientes (mínimo 6).")
+            if len(row) < 5:
+                errors.append(f"Fila {row_idx}: columnas insuficientes (mínimo 5).")
                 continue
 
             viaje = str(row[0] or '').strip()
             transporte = str(row[1] or '').strip()
             camion = str(row[2] or '').strip()
-            placa = str(row[3] or '').strip()
-            ruta = str(row[4] or '').strip()
+            ruta = str(row[3] or '').strip()
 
             if not transporte:
                 errors.append(f"Fila {row_idx}: Transporte es requerido.")
@@ -243,40 +259,82 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             if not viaje:
                 errors.append(f"Fila {row_idx}: Viaje es requerido.")
                 continue
-
-            try:
-                cajas = int(float(row[5])) if row[5] else 0
-            except (ValueError, TypeError):
-                errors.append(f"Fila {row_idx}: Cajas inválido '{row[5]}'.")
+            if not camion:
+                errors.append(f"Fila {row_idx}: Camión es requerido.")
                 continue
 
             try:
-                skus = int(float(row[6])) if len(row) > 6 and row[6] else 0
+                cajas = int(float(row[4])) if row[4] else 0
+            except (ValueError, TypeError):
+                errors.append(f"Fila {row_idx}: Cajas inválido '{row[4]}'.")
+                continue
+
+            try:
+                skus = int(float(row[5])) if len(row) > 5 and row[5] else 0
             except (ValueError, TypeError):
                 skus = 0
 
             try:
-                completas = int(float(row[7])) if len(row) > 7 and row[7] else 0
+                completas = int(float(row[6])) if len(row) > 6 and row[6] else 0
             except (ValueError, TypeError):
                 completas = 0
+
+            try:
+                fracciones = int(float(row[7])) if len(row) > 7 and row[7] else 0
+            except (ValueError, TypeError):
+                fracciones = 0
 
             try:
                 complejidad = round(float(row[8]), 2) if len(row) > 8 and row[8] else 0
             except (ValueError, TypeError):
                 complejidad = 0
 
-            if not camion and not placa:
-                warnings.append(f"Fila {row_idx}: Sin camión ni placa asignada.")
+            # Validar existencia del camión en el catálogo del CD
+            truck = TruckModel.objects.filter(
+                code=camion, distributor_center=dc, is_active=True,
+            ).first()
+            if not truck:
+                errors.append(
+                    f"Fila {row_idx}: Camión '{camion}' no existe en el catálogo del centro de distribución."
+                )
+                missing_trucks.add(camion)
+                continue
+
+            # Validar unicidad (transporte, camión, ruta) dentro del archivo
+            dup_key = (transporte, camion, ruta)
+            if dup_key in seen_keys:
+                errors.append(
+                    f"Fila {row_idx}: Duplicado dentro del archivo — ya aparece en fila {seen_keys[dup_key]} "
+                    f"(Transporte '{transporte}', Camión '{camion}', Ruta '{ruta}')."
+                )
+                continue
+            seen_keys[dup_key] = row_idx
+
+            # Validar unicidad contra pautas existentes del día
+            exists = PautaModel.objects.filter(
+                transport_number=transporte,
+                truck=truck,
+                route_code=ruta,
+                operational_date=operational_date,
+                distributor_center=dc,
+            ).exists()
+            if exists:
+                errors.append(
+                    f"Fila {row_idx}: Ya existe una pauta para {operational_date} con "
+                    f"Transporte '{transporte}', Camión '{camion}', Ruta '{ruta}'."
+                )
+                continue
 
             pautas.append({
                 'trip_number': viaje,
                 'transport_number': transporte,
-                'truck_code': camion,
-                'truck_plate': placa,
+                'truck_code': truck.code,
+                'truck_plate': truck.plate,
                 'route_code': ruta,
                 'total_boxes': cajas,
                 'total_skus': skus,
                 'full_pallets': completas,
+                'assembled_fractions': fracciones,
                 'complexity_score': complejidad,
             })
 
@@ -285,7 +343,7 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             file_name=file.name,
             file=file,
             status='PREVIEW',
-            errors_json={'errors': errors},
+            errors_json={'errors': errors, 'missing_trucks': sorted(missing_trucks)},
             row_count=len(rows),
             distributor_center=dc,
             uploaded_by=request.user,
@@ -298,6 +356,7 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             'pautas_count': len(pautas),
             'errors': errors,
             'warnings': warnings,
+            'missing_trucks': sorted(missing_trucks),
             'pautas_preview': pautas,
         })
 
@@ -305,6 +364,10 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
     def confirm(self, request, pk=None):
         """
         Confirmar una carga y crear las pautas a partir del archivo subido.
+        Valida:
+         - Camión debe existir en el catálogo del CD.
+         - (Transporte, Camión, Ruta) único por operational_date (vs archivo y vs BD).
+        Si hay cualquier error la carga se aborta sin crear pautas.
         """
         upload = self.get_object()
 
@@ -321,7 +384,7 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        operational_date = request.data.get('operational_date', timezone.now().date())
+        operational_date = request.data.get('operational_date') or timezone.now().date()
 
         try:
             wb = openpyxl.load_workbook(upload.file, read_only=True)
@@ -333,76 +396,115 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             )
 
         rows = list(ws.iter_rows(min_row=2, values_only=True))
-        created_pautas = []
+        errors = []
+        missing_trucks = set()
+        to_create = []
+        seen_keys = {}
 
-        for row in rows:
+        for row_idx, row in enumerate(rows, start=2):
             if not row or all(c is None for c in row):
                 continue
-            if len(row) < 6:
+            if len(row) < 5:
                 continue
 
             viaje = str(row[0] or '').strip()
             transporte = str(row[1] or '').strip()
             camion_code = str(row[2] or '').strip()
-            placa = str(row[3] or '').strip()
-            ruta = str(row[4] or '').strip()
+            ruta = str(row[3] or '').strip()
 
-            if not transporte or not viaje:
+            if not transporte or not viaje or not camion_code:
+                errors.append(f"Fila {row_idx}: Transporte, Viaje y Camión son requeridos.")
                 continue
 
             try:
-                cajas = int(float(row[5])) if row[5] else 0
+                cajas = int(float(row[4])) if row[4] else 0
             except (ValueError, TypeError):
+                errors.append(f"Fila {row_idx}: Cajas inválido.")
                 continue
 
             try:
-                skus = int(float(row[6])) if len(row) > 6 and row[6] else 0
+                skus = int(float(row[5])) if len(row) > 5 and row[5] else 0
             except (ValueError, TypeError):
                 skus = 0
 
             try:
-                completas = int(float(row[7])) if len(row) > 7 and row[7] else 0
+                completas = int(float(row[6])) if len(row) > 6 and row[6] else 0
             except (ValueError, TypeError):
                 completas = 0
+
+            try:
+                fracciones = int(float(row[7])) if len(row) > 7 and row[7] else 0
+            except (ValueError, TypeError):
+                fracciones = 0
 
             try:
                 complejidad = round(float(row[8]), 2) if len(row) > 8 and row[8] else 0
             except (ValueError, TypeError):
                 complejidad = 0
 
-            # Buscar camión por código o placa
-            truck = None
-            if camion_code:
-                truck = TruckModel.objects.filter(
-                    code=camion_code, distributor_center=dc, is_active=True,
-                ).first()
-            if not truck and placa:
-                truck = TruckModel.objects.filter(
-                    plate=placa, distributor_center=dc, is_active=True,
-                ).first()
+            truck = TruckModel.objects.filter(
+                code=camion_code, distributor_center=dc, is_active=True,
+            ).first()
             if not truck:
-                # Crear camión con los datos disponibles
-                truck = TruckModel.objects.create(
-                    code=camion_code or placa,
-                    plate=placa or camion_code,
-                    pallet_type='STANDARD',
-                    pallet_spaces=0,
-                    distributor_center=dc,
+                errors.append(
+                    f"Fila {row_idx}: Camión '{camion_code}' no existe en el catálogo del CD."
                 )
+                missing_trucks.add(camion_code)
+                continue
 
-            pauta = PautaModel.objects.create(
+            dup_key = (transporte, camion_code, ruta)
+            if dup_key in seen_keys:
+                errors.append(
+                    f"Fila {row_idx}: Duplicado con fila {seen_keys[dup_key]} "
+                    f"(Transporte '{transporte}', Camión '{camion_code}', Ruta '{ruta}')."
+                )
+                continue
+            seen_keys[dup_key] = row_idx
+
+            if PautaModel.objects.filter(
                 transport_number=transporte,
-                trip_number=viaje,
+                truck=truck,
                 route_code=ruta,
-                total_boxes=cajas,
-                total_skus=skus,
-                total_pallets=completas,
-                complexity_score=complejidad,
+                operational_date=operational_date,
+                distributor_center=dc,
+            ).exists():
+                errors.append(
+                    f"Fila {row_idx}: Ya existe una pauta para {operational_date} con "
+                    f"Transporte '{transporte}', Camión '{camion_code}', Ruta '{ruta}'."
+                )
+                continue
+
+            to_create.append({
+                'transport_number': transporte,
+                'trip_number': viaje,
+                'route_code': ruta,
+                'total_boxes': cajas,
+                'total_skus': skus,
+                'total_pallets': completas,
+                'assembled_fractions': fracciones,
+                'complexity_score': complejidad,
+                'truck': truck,
+                'is_reload': str(viaje).strip() != '1',
+            })
+
+        if errors:
+            return Response(
+                {
+                    'error': 'La carga tiene errores. Corrija y vuelva a subir el archivo.',
+                    'errors': errors,
+                    'missing_trucks': sorted(missing_trucks),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created_pautas = []
+        for data in to_create:
+            pauta = PautaModel.objects.create(
                 status='PENDING_PICKING',
                 operational_date=operational_date,
-                truck=truck,
                 upload=upload,
                 distributor_center=dc,
+                **data,
             )
             created_pautas.append(pauta.id)
 
@@ -483,21 +585,712 @@ class PautaViewSet(viewsets.ModelViewSet):
                 )
         return response
 
+    @action(detail=False, methods=['get'])
+    def picker_stats(self, request):
+        """
+        Stats del turno del picker autenticado (o cualquier personnel via ?personnel_id=).
+
+        Devuelve:
+          date
+          completed_count           — pautas con picking completado hoy
+          total_boxes               — cajas totales de esas pautas
+          avg_picking_minutes       — promedio de minutos por pauta (T0→T1)
+          boxes_per_hour            — productividad (cajas / hora de picking)
+          in_progress               — pauta en progreso (si hay) con started_at
+        """
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Admin puede mirar las stats de otro picker.
+        personnel_id = request.query_params.get('personnel_id')
+        if personnel_id and (request.user.is_superuser or request.user.is_staff):
+            from apps.personnel.models.personnel import PersonnelProfile
+            try:
+                profile = PersonnelProfile.objects.get(pk=personnel_id)
+            except PersonnelProfile.DoesNotExist:
+                return Response({'error': 'Personnel no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        operational_date = request.query_params.get('operational_date') or timezone.localdate()
+
+        # Pautas donde este profile fue picker y ya pasó de picking.
+        done_statuses = [
+            'PICKING_DONE', 'MOVING_TO_BAY', 'IN_BAY', 'PENDING_COUNT', 'COUNTING',
+            'COUNTED', 'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
+            'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
+            'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
+        ]
+        pautas_done = PautaModel.objects.filter(
+            operational_date=operational_date,
+            assignments__role='PICKER',
+            assignments__personnel=profile,
+            status__in=done_statuses,
+        ).distinct()
+
+        completed = 0
+        total_boxes = 0
+        total_minutes = 0.0
+
+        for p in pautas_done:
+            t0 = p.timestamps.filter(event_type='T0_PICKING_START').order_by('timestamp').first()
+            t1 = p.timestamps.filter(event_type='T1_PICKING_END').order_by('timestamp').first()
+            if t0 and t1:
+                delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
+                if delta > 0:
+                    completed += 1
+                    total_minutes += delta
+                    total_boxes += p.total_boxes
+
+        avg_minutes = (total_minutes / completed) if completed else None
+        boxes_per_hour = (total_boxes / (total_minutes / 60)) if total_minutes > 0 else None
+
+        # Pauta en progreso (si hay).
+        in_progress = PautaModel.objects.filter(
+            operational_date=operational_date,
+            status='PICKING_IN_PROGRESS',
+            assignments__role='PICKER',
+            assignments__personnel=profile,
+            assignments__is_active=True,
+        ).distinct().first()
+
+        in_progress_data = None
+        if in_progress:
+            t0 = in_progress.timestamps.filter(event_type='T0_PICKING_START').order_by('timestamp').first()
+            in_progress_data = {
+                'id': in_progress.id,
+                'transport_number': in_progress.transport_number,
+                'total_boxes': in_progress.total_boxes,
+                'started_at': t0.timestamp.isoformat() if t0 else None,
+            }
+
+        return Response({
+            'date': str(operational_date),
+            'completed_count': completed,
+            'total_boxes': total_boxes,
+            'avg_picking_minutes': round(avg_minutes, 1) if avg_minutes is not None else None,
+            'boxes_per_hour': round(boxes_per_hour, 1) if boxes_per_hour is not None else None,
+            'in_progress': in_progress_data,
+        })
+
+    @action(detail=True, methods=['post'])
+    def take_as_picker(self, request, pk=None):
+        """Auto-asignación: el picker autenticado se toma una pauta del pool."""
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene un perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta = self.get_object()
+        if pauta.status != 'PENDING_PICKING':
+            return Response(
+                {'error': f'La pauta ya está en estado "{pauta.get_status_display()}" y no puede tomarse.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta.status = 'PICKING_ASSIGNED'
+        pauta.save(update_fields=['status'])
+        PautaAssignmentModel.objects.create(
+            role='PICKER',
+            pauta=pauta,
+            personnel=profile,
+            assigned_by=request.user,
+        )
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=True, methods=['post'])
+    def take_as_counter(self, request, pk=None):
+        """Auto-asignación: el contador autenticado se toma una pauta del pool
+        (PENDING_COUNT → COUNTING con timestamp T5_COUNT_START)."""
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene un perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta = self.get_object()
+        if pauta.status != 'PENDING_COUNT':
+            return Response(
+                {'error': f'La pauta ya está en estado "{pauta.get_status_display()}" y no puede tomarse para conteo.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta.status = 'COUNTING'
+        pauta.save(update_fields=['status'])
+        PautaAssignmentModel.objects.create(
+            role='COUNTER',
+            pauta=pauta,
+            personnel=profile,
+            assigned_by=request.user,
+        )
+        PautaTimestampModel.objects.create(
+            event_type='T5_COUNT_START',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=True, methods=['post'])
+    def take_as_security(self, request, pk=None):
+        """
+        Auto-validación: el guardia autenticado toma y valida seguridad en
+        una pauta (COUNTED/PENDING_CHECKOUT → CHECKOUT_SECURITY).
+        """
+        from apps.truck_cycle.models.operational import CheckoutValidationModel
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene un perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta = self.get_object()
+        if pauta.status not in ('COUNTED', 'PENDING_CHECKOUT'):
+            return Response(
+                {'error': f'La pauta está en estado "{pauta.get_status_display()}" — no se puede validar en seguridad.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta.status = 'CHECKOUT_SECURITY'
+        pauta.save(update_fields=['status'])
+        PautaTimestampModel.objects.create(
+            event_type='T7_CHECKOUT_SECURITY',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        checkout, _ = CheckoutValidationModel.objects.get_or_create(pauta=pauta)
+        checkout.security_validated = True
+        checkout.security_validated_at = timezone.now()
+        checkout.security_validator = profile
+        exit_pass = request.data.get('exit_pass_consumables')
+        if exit_pass is not None:
+            checkout.exit_pass_consumables = exit_pass
+        checkout.save()
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=False, methods=['get'])
+    def security_stats(self, request):
+        """Stats del turno del guardia autenticado (validaciones de seguridad)."""
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response({'error': 'Sin perfil.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        personnel_id = request.query_params.get('personnel_id')
+        if personnel_id and (request.user.is_superuser or request.user.is_staff):
+            from apps.personnel.models.personnel import PersonnelProfile
+            try:
+                profile = PersonnelProfile.objects.get(pk=personnel_id)
+            except PersonnelProfile.DoesNotExist:
+                return Response({'error': 'Personnel no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        operational_date = request.query_params.get('operational_date') or timezone.localdate()
+
+        # Pautas validadas por este profile (pasaron de COUNTED → CHECKOUT_SECURITY).
+        done_statuses = [
+            'CHECKOUT_SECURITY', 'CHECKOUT_OPS', 'DISPATCHED',
+            'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
+            'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
+        ]
+        pautas_done = PautaModel.objects.filter(
+            operational_date=operational_date,
+            checkout_validation__security_validator=profile,
+            status__in=done_statuses,
+        ).distinct()
+
+        completed = 0
+        total_boxes = 0
+        total_minutes = 0.0
+        for p in pautas_done:
+            t0 = p.timestamps.filter(event_type='T6_COUNT_END').order_by('timestamp').first()
+            t1 = p.timestamps.filter(event_type='T7_CHECKOUT_SECURITY').order_by('timestamp').first()
+            if t0 and t1:
+                delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
+                if delta >= 0:
+                    completed += 1
+                    total_minutes += delta
+                    total_boxes += p.total_boxes
+
+        avg_minutes = (total_minutes / completed) if completed else None
+        pautas_per_hour = (completed / (total_minutes / 60)) if total_minutes > 0 else None
+
+        return Response({
+            'date': str(operational_date),
+            'completed_count': completed,
+            'total_boxes': total_boxes,
+            'avg_validation_minutes': round(avg_minutes, 1) if avg_minutes is not None else None,
+            'pautas_per_hour': round(pautas_per_hour, 1) if pautas_per_hour is not None else None,
+        })
+
+    @action(detail=True, methods=['post'])
+    def take_as_ops(self, request, pk=None):
+        """
+        Auto-validación: el validador de operaciones toma y valida ops en
+        una pauta (CHECKOUT_SECURITY → CHECKOUT_OPS). Opcional.
+        """
+        from apps.truck_cycle.models.operational import CheckoutValidationModel
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response({'error': 'Sin perfil.'}, status=status.HTTP_400_BAD_REQUEST)
+        pauta = self.get_object()
+        if pauta.status != 'CHECKOUT_SECURITY':
+            return Response(
+                {'error': f'La pauta está en estado "{pauta.get_status_display()}" — no se puede validar operaciones.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta.status = 'CHECKOUT_OPS'
+        pauta.save(update_fields=['status'])
+        PautaTimestampModel.objects.create(
+            event_type='T8_CHECKOUT_OPS',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        checkout, _ = CheckoutValidationModel.objects.get_or_create(pauta=pauta)
+        checkout.ops_validated = True
+        checkout.ops_validated_at = timezone.now()
+        checkout.ops_validator = profile
+        checkout.save()
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=False, methods=['get'])
+    def ops_stats(self, request):
+        """Stats del turno del validador de operaciones."""
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response({'error': 'Sin perfil.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        personnel_id = request.query_params.get('personnel_id')
+        if personnel_id and (request.user.is_superuser or request.user.is_staff):
+            from apps.personnel.models.personnel import PersonnelProfile
+            try:
+                profile = PersonnelProfile.objects.get(pk=personnel_id)
+            except PersonnelProfile.DoesNotExist:
+                return Response({'error': 'Personnel no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        operational_date = request.query_params.get('operational_date') or timezone.localdate()
+
+        done_statuses = [
+            'CHECKOUT_OPS', 'DISPATCHED', 'IN_RELOAD_QUEUE',
+            'PENDING_RETURN', 'RETURN_PROCESSED', 'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
+        ]
+        pautas_done = PautaModel.objects.filter(
+            operational_date=operational_date,
+            checkout_validation__ops_validator=profile,
+            status__in=done_statuses,
+        ).distinct()
+
+        completed = 0
+        total_boxes = 0
+        total_minutes = 0.0
+        for p in pautas_done:
+            t0 = p.timestamps.filter(event_type='T7_CHECKOUT_SECURITY').order_by('timestamp').first()
+            t1 = p.timestamps.filter(event_type='T8_CHECKOUT_OPS').order_by('timestamp').first()
+            if t0 and t1:
+                delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
+                if delta >= 0:
+                    completed += 1
+                    total_minutes += delta
+                    total_boxes += p.total_boxes
+
+        avg_minutes = (total_minutes / completed) if completed else None
+        pautas_per_hour = (completed / (total_minutes / 60)) if total_minutes > 0 else None
+
+        return Response({
+            'date': str(operational_date),
+            'completed_count': completed,
+            'total_boxes': total_boxes,
+            'avg_validation_minutes': round(avg_minutes, 1) if avg_minutes is not None else None,
+            'pautas_per_hour': round(pautas_per_hour, 1) if pautas_per_hour is not None else None,
+        })
+
+    @action(detail=False, methods=['get'])
+    def vendor_stats(self, request):
+        """
+        Stats del turno del chofer vendedor autenticado.
+        Incluye active_trip con el timestamp T9_DISPATCH para el contador en vivo.
+        """
+        from django.db.models import Q
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response({'error': 'Sin perfil.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        operational_date = request.query_params.get('operational_date') or timezone.localdate()
+
+        qs = PautaModel.objects.filter(
+            operational_date=operational_date,
+            is_reload=True,  # Vendedores solo ven recargas, no el primer viaje.
+        ).filter(
+            Q(truck__primary_driver=profile)
+            | Q(assignments__role='DELIVERY_DRIVER', assignments__is_active=True, assignments__personnel=profile)
+        ).distinct()
+
+        trips_dispatched = qs.filter(
+            status__in=['DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
+                        'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED'],
+        ).count()
+        trips_completed = qs.filter(status='CLOSED').count()
+        total_boxes = sum(p.total_boxes for p in qs.filter(status__in=[
+            'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
+            'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
+        ]))
+
+        # Viaje activo: el más prioritario (PENDING_RETURN > IN_RELOAD_QUEUE > DISPATCHED).
+        active_statuses_order = ['PENDING_RETURN', 'IN_RELOAD_QUEUE', 'DISPATCHED']
+        active_pauta = None
+        for s in active_statuses_order:
+            active_pauta = qs.filter(status=s).order_by('id').first()
+            if active_pauta:
+                break
+
+        active_count = qs.filter(status__in=['DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN']).count()
+
+        active_trip = None
+        if active_pauta:
+            dispatch_ts = active_pauta.timestamps.filter(event_type='T9_DISPATCH').order_by('timestamp').first()
+            trip_start_ts = active_pauta.timestamps.filter(event_type='T9B_TRIP_START').order_by('timestamp').first()
+            active_trip = {
+                'id': active_pauta.id,
+                'transport_number': active_pauta.transport_number,
+                'status': active_pauta.status,
+                'truck_code': active_pauta.truck.code if active_pauta.truck else None,
+                'dispatched_at': dispatch_ts.timestamp.isoformat() if dispatch_ts else None,
+                'trip_started_at': trip_start_ts.timestamp.isoformat() if trip_start_ts else None,
+            }
+
+        return Response({
+            'date': str(operational_date),
+            'trips_dispatched': trips_dispatched,
+            'trips_completed': trips_completed,
+            'active': active_count,
+            'total_boxes': total_boxes,
+            'active_trip': active_trip,
+        })
+
+    @action(detail=True, methods=['post'])
+    def start_trip(self, request, pk=None):
+        """
+        Chofer vendedor marca inicio del viaje (ya se subió al camión y sale).
+        Crea timestamp T9B_TRIP_START. Solo permitido si status=DISPATCHED y aún
+        no se había marcado inicio.
+        """
+        pauta = self.get_object()
+        if pauta.status != 'DISPATCHED':
+            return Response(
+                {'error': f'La pauta está en "{pauta.get_status_display()}" — no se puede iniciar viaje.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if pauta.timestamps.filter(event_type='T9B_TRIP_START').exists():
+            return Response(
+                {'error': 'El viaje ya fue iniciado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        PautaTimestampModel.objects.create(
+            event_type='T9B_TRIP_START',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=True, methods=['post'])
+    def take_as_yard_driver(self, request, pk=None):
+        """
+        Auto-asignación: el chofer de patio toma una pauta PICKING_DONE,
+        la pone en MOVING_TO_BAY y arranca el cronómetro de movimiento.
+        Solo aplica a cargas (trip 1, is_reload=False).
+        """
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene un perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta = self.get_object()
+        if pauta.is_reload:
+            return Response(
+                {'error': 'Las recargas no pasan por el chofer de patio.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if pauta.status != 'PICKING_DONE':
+            return Response(
+                {'error': f'La pauta está en "{pauta.get_status_display()}" y no puede tomarse.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta.status = 'MOVING_TO_BAY'
+        pauta.save(update_fields=['status'])
+        PautaAssignmentModel.objects.create(
+            role='YARD_DRIVER',
+            pauta=pauta,
+            personnel=profile,
+            assigned_by=request.user,
+        )
+        PautaTimestampModel.objects.create(
+            event_type='T1A_YARD_START',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=False, methods=['get'])
+    def yard_stats(self, request):
+        """
+        Stats del turno del chofer de patio autenticado.
+        Devuelve: completed_count (pautas movidas), total_boxes,
+        avg_movement_minutes (T1A→T1B), boxes_per_hour, in_progress.
+        """
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'Sin perfil.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        personnel_id = request.query_params.get('personnel_id')
+        if personnel_id and (request.user.is_superuser or request.user.is_staff):
+            from apps.personnel.models.personnel import PersonnelProfile
+            try:
+                profile = PersonnelProfile.objects.get(pk=personnel_id)
+            except PersonnelProfile.DoesNotExist:
+                return Response({'error': 'Personnel no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        operational_date = request.query_params.get('operational_date') or timezone.localdate()
+
+        done_statuses = [
+            'IN_BAY', 'PENDING_COUNT', 'COUNTING', 'COUNTED',
+            'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
+            'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
+            'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
+        ]
+        pautas_done = PautaModel.objects.filter(
+            operational_date=operational_date,
+            assignments__role='YARD_DRIVER',
+            assignments__personnel=profile,
+            status__in=done_statuses,
+        ).distinct()
+
+        completed = 0
+        total_boxes = 0
+        total_minutes = 0.0
+        for p in pautas_done:
+            t0 = p.timestamps.filter(event_type='T1A_YARD_START').order_by('timestamp').first()
+            t1 = p.timestamps.filter(event_type='T1B_YARD_END').order_by('timestamp').first()
+            if t0 and t1:
+                delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
+                if delta >= 0:
+                    completed += 1
+                    total_minutes += delta
+                    total_boxes += p.total_boxes
+
+        avg_minutes = (total_minutes / completed) if completed else None
+        boxes_per_hour = (total_boxes / (total_minutes / 60)) if total_minutes > 0 else None
+
+        # Pauta en movimiento ahora mismo por este chofer.
+        in_progress = PautaModel.objects.filter(
+            operational_date=operational_date,
+            status='MOVING_TO_BAY',
+            assignments__role='YARD_DRIVER',
+            assignments__personnel=profile,
+            assignments__is_active=True,
+        ).distinct().first()
+
+        in_progress_data = None
+        if in_progress:
+            t0 = in_progress.timestamps.filter(event_type='T1A_YARD_START').order_by('timestamp').first()
+            in_progress_data = {
+                'id': in_progress.id,
+                'transport_number': in_progress.transport_number,
+                'total_boxes': in_progress.total_boxes,
+                'started_at': t0.timestamp.isoformat() if t0 else None,
+            }
+
+        return Response({
+            'date': str(operational_date),
+            'completed_count': completed,
+            'total_boxes': total_boxes,
+            'avg_movement_minutes': round(avg_minutes, 1) if avg_minutes is not None else None,
+            'boxes_per_hour': round(boxes_per_hour, 1) if boxes_per_hour is not None else None,
+            'in_progress': in_progress_data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def counter_stats(self, request):
+        """
+        Stats del turno del contador autenticado.
+        Devuelve: completed_count, total_boxes, avg_counting_minutes,
+        boxes_per_hour, in_progress.
+        """
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        personnel_id = request.query_params.get('personnel_id')
+        if personnel_id and (request.user.is_superuser or request.user.is_staff):
+            from apps.personnel.models.personnel import PersonnelProfile
+            try:
+                profile = PersonnelProfile.objects.get(pk=personnel_id)
+            except PersonnelProfile.DoesNotExist:
+                return Response({'error': 'Personnel no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        operational_date = request.query_params.get('operational_date') or timezone.localdate()
+
+        done_statuses = [
+            'COUNTED', 'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
+            'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
+            'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
+        ]
+        pautas_done = PautaModel.objects.filter(
+            operational_date=operational_date,
+            assignments__role='COUNTER',
+            assignments__personnel=profile,
+            status__in=done_statuses,
+        ).distinct()
+
+        completed = 0
+        total_boxes = 0
+        total_minutes = 0.0
+
+        for p in pautas_done:
+            t0 = p.timestamps.filter(event_type='T5_COUNT_START').order_by('timestamp').first()
+            t1 = p.timestamps.filter(event_type='T6_COUNT_END').order_by('timestamp').first()
+            if t0 and t1:
+                delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
+                if delta > 0:
+                    completed += 1
+                    total_minutes += delta
+                    total_boxes += p.total_boxes
+
+        avg_minutes = (total_minutes / completed) if completed else None
+        boxes_per_hour = (total_boxes / (total_minutes / 60)) if total_minutes > 0 else None
+
+        in_progress = PautaModel.objects.filter(
+            operational_date=operational_date,
+            status='COUNTING',
+            assignments__role='COUNTER',
+            assignments__personnel=profile,
+            assignments__is_active=True,
+        ).distinct().first()
+
+        in_progress_data = None
+        if in_progress:
+            t0 = in_progress.timestamps.filter(event_type='T5_COUNT_START').order_by('timestamp').first()
+            in_progress_data = {
+                'id': in_progress.id,
+                'transport_number': in_progress.transport_number,
+                'total_boxes': in_progress.total_boxes,
+                'started_at': t0.timestamp.isoformat() if t0 else None,
+            }
+
+        return Response({
+            'date': str(operational_date),
+            'completed_count': completed,
+            'total_boxes': total_boxes,
+            'avg_counting_minutes': round(avg_minutes, 1) if avg_minutes is not None else None,
+            'boxes_per_hour': round(boxes_per_hour, 1) if boxes_per_hour is not None else None,
+            'in_progress': in_progress_data,
+        })
+
     @action(detail=True, methods=['post'])
     def start_picking(self, request, pk=None):
         return self._do_transition(request, pk, 'start_picking')
 
     @action(detail=True, methods=['post'])
     def complete_picking(self, request, pk=None):
-        return self._do_transition(request, pk, 'complete_picking')
+        """
+        Completa el picking. Si es una recarga ya re-ingresada con bahía asignada,
+        auto-avanza a IN_BAY sin pasar por selección manual.
+        """
+        response = self._do_transition(request, pk, 'complete_picking')
+        if response.status_code == 200:
+            pauta = self.get_object()
+            if (
+                pauta.is_reload
+                and pauta.reentered_at
+                and getattr(pauta, 'bay_assignment', None)
+            ):
+                pauta.status = 'IN_BAY'
+                pauta.save(update_fields=['status'])
+                PautaTimestampModel.objects.create(
+                    event_type='T2_BAY_ASSIGNED',
+                    pauta=pauta,
+                    recorded_by=request.user,
+                )
+                return Response(PautaDetailSerializer(pauta).data)
+        return response
+
+    @action(detail=True, methods=['post'])
+    def assign_yard_driver(self, request, pk=None):
+        """
+        Cargas (trip 1): PICKING_DONE → MOVING_TO_BAY. Asigna chofer de patio e inicia timer.
+        """
+        pauta = self.get_object()
+        if pauta.is_reload:
+            return Response(
+                {'error': 'Las recargas no usan flujo de chofer de patio. Use re-ingreso.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        personnel_id = request.data.get('personnel_id')
+        if not personnel_id:
+            return Response(
+                {'error': 'Debe seleccionar un chofer de patio.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        response = self._do_transition(request, pk, 'assign_yard_driver')
+        if response.status_code == 200:
+            PautaAssignmentModel.objects.create(
+                role='YARD_DRIVER',
+                pauta=pauta,
+                personnel_id=personnel_id,
+                assigned_by=request.user,
+            )
+        return response
+
+    @action(detail=True, methods=['post'])
+    def position_at_bay(self, request, pk=None):
+        """
+        Cargas (trip 1): MOVING_TO_BAY → IN_BAY. Registra bahía y cierra timer del movimiento.
+        """
+        from apps.truck_cycle.models.operational import PautaBayAssignmentModel
+        pauta = self.get_object()
+        bay_id = request.data.get('bay_id')
+        if not bay_id:
+            return Response(
+                {'error': 'Debe seleccionar la bahía donde se posicionó el camión.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        response = self._do_transition(request, pk, 'position_at_bay')
+        if response.status_code == 200:
+            PautaBayAssignmentModel.objects.update_or_create(
+                pauta=pauta,
+                defaults={
+                    'bay_id': bay_id,
+                    'assigned_by': request.user,
+                },
+            )
+        return response
 
     @action(detail=True, methods=['post'])
     def assign_bay(self, request, pk=None):
-        """Asignar andén y chofer de patio a la pauta"""
+        """Asignar andén directamente (legacy / uso manual)."""
+        pauta = self.get_object()
+        if pauta.is_reload and not pauta.reentered_at:
+            return Response(
+                {'error': 'La recarga aún no re-ingresó al CD. Debe registrarse el re-ingreso primero.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         response = self._do_transition(request, pk, 'assign_bay')
         if response.status_code == 200:
             from apps.truck_cycle.models.operational import PautaBayAssignmentModel
-            pauta = self.get_object()
             bay_id = request.data.get('bay_id')
             if bay_id:
                 PautaBayAssignmentModel.objects.update_or_create(
@@ -507,7 +1300,6 @@ class PautaViewSet(viewsets.ModelViewSet):
                         'assigned_by': request.user,
                     }
                 )
-            # Asignar chofer de patio si se proporcionó
             yard_driver_id = request.data.get('yard_driver_id')
             if yard_driver_id:
                 PautaAssignmentModel.objects.create(
@@ -519,15 +1311,79 @@ class PautaViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=True, methods=['post'])
+    def reload_reentry(self, request, pk=None):
+        """
+        Recargas: registra el re-ingreso del camión al CD.
+        Body: { truck_id: int, bay_id: int }
+        - Reasigna pauta.truck (permite que un camión traiga pauta de otro).
+        - Crea/actualiza PautaBayAssignment.
+        - Setea pauta.reentered_at = now.
+        - Si pauta está en PICKING_DONE → auto-avanza a IN_BAY.
+        - Si picking aún no completa → la bahía queda guardada y complete_picking la avanzará.
+        """
+        from apps.truck_cycle.models.catalogs import TruckModel
+        from apps.truck_cycle.models.operational import PautaBayAssignmentModel, PautaTimestampModel
+
+        pauta = self.get_object()
+        if not pauta.is_reload:
+            return Response(
+                {'error': 'El re-ingreso solo aplica a recargas.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        truck_id = request.data.get('truck_id')
+        bay_id = request.data.get('bay_id')
+        if not truck_id or not bay_id:
+            return Response(
+                {'error': 'Debe seleccionar el camión que re-ingresa y la bahía.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        truck = TruckModel.objects.filter(
+            pk=truck_id, distributor_center=pauta.distributor_center, is_active=True,
+        ).first()
+        if not truck:
+            return Response(
+                {'error': 'Camión no válido para este centro de distribución.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Reasigna el camión (puede traer pauta de otro camión).
+        pauta.truck = truck
+        pauta.reentered_at = timezone.now()
+        pauta.save(update_fields=['truck', 'reentered_at'])
+
+        PautaBayAssignmentModel.objects.update_or_create(
+            pauta=pauta,
+            defaults={'bay_id': bay_id, 'assigned_by': request.user},
+        )
+        PautaTimestampModel.objects.create(
+            event_type='T10A_RELOAD_REENTRY',
+            pauta=pauta,
+            recorded_by=request.user,
+            notes=request.data.get('notes', ''),
+        )
+
+        # Si ya está con picking listo, auto-avanzamos a IN_BAY.
+        if pauta.status == 'PICKING_DONE':
+            pauta.status = 'IN_BAY'
+            pauta.save(update_fields=['status'])
+            PautaTimestampModel.objects.create(
+                event_type='T2_BAY_ASSIGNED',
+                pauta=pauta,
+                recorded_by=request.user,
+            )
+
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=True, methods=['post'])
     def complete_loading(self, request, pk=None):
-        response = self._do_transition(request, pk, 'complete_loading')
-        if response.status_code == 200:
-            pauta = self.get_object()
-            bay_assignment = getattr(pauta, 'bay_assignment', None)
-            if bay_assignment and not bay_assignment.released_at:
-                bay_assignment.released_at = timezone.now()
-                bay_assignment.save(update_fields=['released_at'])
-        return response
+        """
+        Fin de carga: IN_BAY → PENDING_COUNT. El camión SIGUE físicamente
+        en la bahía mientras se cuenta, hace checkout, etc. La bahía se
+        libera hasta el despacho (T9_DISPATCH).
+        """
+        return self._do_transition(request, pk, 'complete_loading')
 
     @action(detail=True, methods=['post'])
     def assign_counter(self, request, pk=None):
@@ -586,7 +1442,56 @@ class PautaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='dispatch', url_name='dispatch')
     def dispatch_truck(self, request, pk=None):
-        return self._do_transition(request, pk, 'dispatch')
+        """
+        Despacho (T9_DISPATCH). Libera la bahía — el camión sale físicamente.
+
+        Requiere un chofer vendedor asignado. Si la pauta ya tiene asignación
+        activa con rol DELIVERY_DRIVER (ej. auto-asignado al regresar), se usa.
+        Si no, se requiere `driver_id` en el body para crear la asignación.
+        """
+        pauta = self.get_object()
+
+        existing = pauta.assignments.filter(
+            is_active=True, role='DELIVERY_DRIVER'
+        ).order_by('-assigned_at').first()
+
+        driver_id = request.data.get('driver_id')
+        if not existing and not driver_id:
+            return Response(
+                {'error': 'Debe seleccionar un chofer vendedor para despachar.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if driver_id and not existing:
+            from apps.personnel.models.personnel import PersonnelProfile
+            try:
+                driver = PersonnelProfile.objects.get(pk=driver_id, is_active=True)
+            except PersonnelProfile.DoesNotExist:
+                return Response(
+                    {'error': 'Chofer no encontrado o inactivo.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if driver.position_type != 'DELIVERY_DRIVER':
+                return Response(
+                    {'error': 'El personal seleccionado no es un chofer vendedor.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        response = self._do_transition(request, pk, 'dispatch')
+        if response.status_code == 200:
+            pauta = self.get_object()
+            if driver_id and not existing:
+                PautaAssignmentModel.objects.create(
+                    role='DELIVERY_DRIVER',
+                    pauta=pauta,
+                    personnel_id=driver_id,
+                    assigned_by=request.user,
+                )
+            bay_assignment = getattr(pauta, 'bay_assignment', None)
+            if bay_assignment and not bay_assignment.released_at:
+                bay_assignment.released_at = timezone.now()
+                bay_assignment.save(update_fields=['released_at'])
+        return response
 
     @action(detail=True, methods=['post'])
     def arrival(self, request, pk=None):
@@ -690,6 +1595,9 @@ class PautaViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset().filter(
             status='IN_RELOAD_QUEUE'
         ).order_by('created_at')
+        operational_date = request.query_params.get('operational_date')
+        if operational_date:
+            qs = qs.filter(operational_date=operational_date)
         serializer = PautaListSerializer(qs, many=True)
         return Response(serializer.data)
 

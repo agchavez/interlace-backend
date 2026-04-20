@@ -77,6 +77,7 @@ class PautaModel(BaseModel):
         ('PICKING_ASSIGNED', 'Picking Asignado'),
         ('PICKING_IN_PROGRESS', 'Picking en Progreso'),
         ('PICKING_DONE', 'Picking Completado'),
+        ('MOVING_TO_BAY', 'Moviéndose a Bahía'),
         ('IN_BAY', 'En Andén'),
         ('PENDING_COUNT', 'Pendiente de Conteo'),
         ('COUNTING', 'Contando'),
@@ -122,6 +123,11 @@ class PautaModel(BaseModel):
         decimal_places=1,
         default=0,
     )
+    assembled_fractions = models.PositiveIntegerField(
+        "Fracciones Armadas",
+        default=0,
+        help_text="Cantidad de tarimas parciales armadas (no llenas).",
+    )
     complexity_score = models.DecimalField(
         "Puntaje de Complejidad",
         max_digits=5,
@@ -144,6 +150,12 @@ class PautaModel(BaseModel):
     reload_count = models.PositiveIntegerField(
         "Cantidad de Recargas",
         default=0,
+    )
+    reentered_at = models.DateTimeField(
+        "Re-ingreso",
+        null=True,
+        blank=True,
+        help_text="Momento en que la recarga re-ingresó al CD.",
     )
     notes = models.TextField(
         "Notas",

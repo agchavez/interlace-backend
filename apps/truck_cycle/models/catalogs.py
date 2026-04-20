@@ -39,6 +39,15 @@ class TruckModel(models.Model):
         verbose_name="Centro de Distribución",
         related_name="trucks",
     )
+    primary_driver = models.ForeignKey(
+        'personnel.PersonnelProfile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_trucks',
+        verbose_name="Chofer asignado",
+        help_text="Chofer vendedor asignado por defecto a este camión.",
+    )
 
     class Meta:
         db_table = "truck_cycle_truck"
@@ -107,6 +116,16 @@ class BayModel(models.Model):
         "Nombre",
         max_length=50,
     )
+    row = models.PositiveIntegerField(
+        "Fila",
+        default=0,
+        help_text="Fila en el grid visual del estacionamiento (0-indexed).",
+    )
+    column = models.PositiveIntegerField(
+        "Columna",
+        default=0,
+        help_text="Columna en el grid visual del estacionamiento (0-indexed).",
+    )
     is_active = models.BooleanField(
         "Activo",
         default=True,
@@ -122,6 +141,7 @@ class BayModel(models.Model):
         db_table = "truck_cycle_bay"
         verbose_name = "Andén"
         verbose_name_plural = "Andenes"
+        ordering = ['row', 'column', 'code']
 
     def __str__(self):
         return f"{self.code} - {self.name}"

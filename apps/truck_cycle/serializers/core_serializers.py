@@ -53,6 +53,7 @@ class PautaListSerializer(serializers.ModelSerializer):
     last_status_change = serializers.SerializerMethodField()
     assigned_to = serializers.SerializerMethodField()
     bay_code = serializers.SerializerMethodField()
+    bay_id = serializers.SerializerMethodField()
 
     class Meta:
         model = PautaModel
@@ -69,6 +70,7 @@ class PautaListSerializer(serializers.ModelSerializer):
             'status_display',
             'operational_date',
             'is_reload',
+            'reentered_at',
             'truck',
             'truck_plate',
             'truck_code',
@@ -77,6 +79,7 @@ class PautaListSerializer(serializers.ModelSerializer):
             'last_status_change',
             'assigned_to',
             'bay_code',
+            'bay_id',
         ]
 
     def get_last_status_change(self, obj):
@@ -98,6 +101,7 @@ class PautaListSerializer(serializers.ModelSerializer):
         STATUS_ROLE_MAP = {
             'PENDING_PICKING': 'PICKER', 'PICKING_ASSIGNED': 'PICKER',
             'PICKING_IN_PROGRESS': 'PICKER', 'PICKING_DONE': 'PICKER',
+            'MOVING_TO_BAY': 'YARD_DRIVER',
             'IN_BAY': 'YARD_DRIVER',
             'PENDING_COUNT': 'COUNTER', 'COUNTING': 'COUNTER', 'COUNTED': 'COUNTER',
         }
@@ -127,6 +131,12 @@ class PautaListSerializer(serializers.ModelSerializer):
             return f'{bay_assignment.bay.code} - {bay_assignment.bay.name}'
         return None
 
+    def get_bay_id(self, obj):
+        bay_assignment = getattr(obj, 'bay_assignment', None)
+        if bay_assignment and not bay_assignment.released_at:
+            return bay_assignment.bay_id
+        return None
+
 
 class PautaBayAssignmentNestedSerializer(serializers.Serializer):
     """Serializer ligero para bay_assignment anidado en PautaDetail"""
@@ -141,6 +151,8 @@ class PautaBayAssignmentNestedSerializer(serializers.Serializer):
 class PautaDetailSerializer(serializers.ModelSerializer):
     truck_plate = serializers.CharField(source='truck.plate', read_only=True)
     truck_code = serializers.CharField(source='truck.code', read_only=True)
+    truck_primary_driver_id = serializers.IntegerField(source='truck.primary_driver_id', read_only=True)
+    truck_primary_driver_name = serializers.CharField(source='truck.primary_driver.full_name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     delivery_details = PautaDeliveryDetailSerializer(many=True, read_only=True)
     assignments = PautaAssignmentSerializer(many=True, read_only=True)

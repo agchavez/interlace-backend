@@ -141,7 +141,8 @@ class PersonnelProfile(models.Model):
         max_length=30,
         choices=POSITION_TYPE_CHOICES,
         verbose_name='Tipo de posición',
-        help_text='Categoría general del puesto'
+        help_text='Categoría general del puesto',
+        db_index=True,
     )
 
     # Supervisor inmediato (jerarquía)
@@ -315,6 +316,8 @@ class PersonnelProfile(models.Model):
             models.Index(fields=['is_active']),
             models.Index(fields=['primary_distributor_center', 'is_active']),
             models.Index(fields=['area', 'is_active']),
+            models.Index(fields=['position_type', 'is_active']),
+            models.Index(fields=['first_name', 'last_name']),
         ]
         permissions = [
             ('view_all_personnel', 'Puede ver todo el personal'),
