@@ -54,6 +54,12 @@ class PautaListSerializer(serializers.ModelSerializer):
     assigned_to = serializers.SerializerMethodField()
     bay_code = serializers.SerializerMethodField()
     bay_id = serializers.SerializerMethodField()
+    # Campos extra para vistas ricas (workstation status detail, etc.)
+    roles = serializers.SerializerMethodField()
+    status_started_at = serializers.SerializerMethodField()
+    inconsistencies_count = serializers.SerializerMethodField()
+    photos_count = serializers.SerializerMethodField()
+    assembled_fractions = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = PautaModel
@@ -66,6 +72,7 @@ class PautaListSerializer(serializers.ModelSerializer):
             'total_skus',
             'total_pallets',
             'complexity_score',
+            'assembled_fractions',
             'status',
             'status_display',
             'operational_date',
@@ -77,10 +84,76 @@ class PautaListSerializer(serializers.ModelSerializer):
             'distributor_center',
             'created_at',
             'last_status_change',
+            'status_started_at',
             'assigned_to',
+            'roles',
+            'inconsistencies_count',
+            'photos_count',
             'bay_code',
             'bay_id',
         ]
+
+    def get_roles(self, obj):
+        """Mapa role → {name, since} con la última asignación activa por rol."""
+        snapshot = {}
+        for a in obj.assignments.filter(is_active=True).select_related('personnel').order_by('-assigned_at'):
+            if a.role in snapshot or not a.personnel:
+                continue
+            snapshot[a.role] = {
+                'name': a.personnel.full_name,
+                'role_display': a.get_role_display(),
+                'since': a.assigned_at.isoformat(),
+            }
+        # Incluir checkout validators si aplica — útil para status CHECKOUT_*
+        checkout = getattr(obj, 'checkout_validation', None)
+        if checkout:
+            if checkout.security_validator and 'SECURITY' not in snapshot:
+                snapshot['SECURITY'] = {
+                    'name': checkout.security_validator.full_name,
+                    'role_display': 'Seguridad',
+                    'since': checkout.security_validated_at.isoformat() if checkout.security_validated_at else None,
+                }
+            if checkout.ops_validator and 'OPERATIONS' not in snapshot:
+                snapshot['OPERATIONS'] = {
+                    'name': checkout.ops_validator.full_name,
+                    'role_display': 'Operaciones',
+                    'since': checkout.ops_validated_at.isoformat() if checkout.ops_validated_at else None,
+                }
+        return snapshot
+
+    def get_status_started_at(self, obj):
+        """Timestamp del evento que llevó al status actual (para medir cuánto lleva)."""
+        # Mapa status → tipo de timestamp que lo inicia.
+        STATUS_EVENT = {
+            'PICKING_IN_PROGRESS': 'T0_PICKING_START',
+            'PICKING_DONE':        'T1_PICKING_END',
+            'MOVING_TO_BAY':       'T1A_YARD_START',
+            'IN_BAY':              'T1B_YARD_END',
+            'COUNTING':            'T5_COUNT_START',
+            'COUNTED':             'T6_COUNT_END',
+            'CHECKOUT_SECURITY':   'T7_CHECKOUT_SECURITY',
+            'CHECKOUT_OPS':        'T8_CHECKOUT_OPS',
+            'DISPATCHED':          'T9_DISPATCH',
+            'IN_RELOAD_QUEUE':     'T10_ARRIVAL',
+            'RETURN_PROCESSED':    'T13_RETURN_END',
+            'IN_AUDIT':            'T14_AUDIT_START',
+            'AUDIT_COMPLETE':      'T15_AUDIT_END',
+            'CLOSED':              'T16_CLOSE',
+        }
+        target = STATUS_EVENT.get(obj.status)
+        if target:
+            ts = obj.timestamps.filter(event_type=target).order_by('-timestamp').first()
+            if ts:
+                return ts.timestamp.isoformat()
+        # Fallback: último timestamp (o created_at si no hay).
+        last = obj.timestamps.order_by('-timestamp').first()
+        return last.timestamp.isoformat() if last else obj.created_at.isoformat()
+
+    def get_inconsistencies_count(self, obj):
+        return obj.inconsistencies.count()
+
+    def get_photos_count(self, obj):
+        return obj.photos.count()
 
     def get_last_status_change(self, obj):
         last = obj.timestamps.order_by('-timestamp').first()

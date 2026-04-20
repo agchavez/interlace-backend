@@ -20,6 +20,11 @@ ALLOWED_HOSTS = ['*']
 CORS_ALLOWED_ALL_ORIGINS = True
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
+# Headers adicionales permitidos por CORS. Sin esto el browser rechaza
+# /api/tv/* porque el header custom X-TV-Token no está en la lista default
+# de django-cors-headers.
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + ['x-tv-token']
 
 # Application definition
 LOCAL_APPS = [
@@ -35,6 +40,7 @@ LOCAL_APPS = [
     'apps.personnel',
     'apps.tokens',
     'apps.truck_cycle',
+    'apps.tv',
 ]
 
 INSTALLED_APPS = [
