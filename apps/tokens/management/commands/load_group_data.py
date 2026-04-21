@@ -262,6 +262,13 @@ class Command(BaseCommand):
                 'view_pautatimestampmodel',
                 'view_pautabayassignmentmodel',
                 'view_checkoutvalidationmodel',
+                # Acceso a las 6 pantallas /work/* del modulo Ciclo del Camion
+                'access_work_picker',
+                'access_work_counter',
+                'access_work_security',
+                'access_work_ops',
+                'access_work_yard',
+                'access_work_vendor',
             ],
         }
 
