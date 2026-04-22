@@ -82,6 +82,8 @@ class PautaTimestampModel(models.Model):
         ('T6_COUNT_END', 'T6 - Fin de Conteo'),
         ('T7_CHECKOUT_SECURITY', 'T7 - Checkout Seguridad'),
         ('T8_CHECKOUT_OPS', 'T8 - Checkout Operaciones'),
+        ('T8A_YARD_RETURN_START', 'T8A - Inicio Movimiento Bahía→Estacionamiento'),
+        ('T8B_YARD_RETURN_END', 'T8B - Fin Movimiento Bahía→Estacionamiento'),
         ('T9_DISPATCH', 'T9 - Despacho'),
         ('T9B_TRIP_START', 'T9B - Inicio de Viaje'),
         ('T10_ARRIVAL', 'T10 - Llegada'),

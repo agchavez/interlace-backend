@@ -22,6 +22,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.truck_cycle.models.operational import PautaAssignmentModel
+from apps.user.models.user import DetailGroup
 
 
 WORK_GROUPS = [
@@ -146,6 +147,12 @@ class Command(BaseCommand):
 
             group, g_created = Group.objects.get_or_create(name=spec['name'])
             group.permissions.add(perm)
+            # DetailGroup es el wrapper que el frontend muestra en /user/register.
+            # Sin él, el grupo no aparece en el select de "Grupo" al crear un usuario.
+            DetailGroup.objects.get_or_create(
+                group=group,
+                defaults={'requiered_access': True},
+            )
 
             self.stdout.write(self.style.SUCCESS(
                 f"  {'+' if g_created else '='} {spec['name']:<22}  perm={codename}  home={spec['home']}"

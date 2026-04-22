@@ -21,6 +21,7 @@ from .views.performance_new_views import (
     PerformanceEvaluationViewSet,
     EvaluationMetricValueViewSet
 )
+from .views.metric_sample_views import PersonnelMetricSampleViewSet
 
 router = DefaultRouter()
 
@@ -77,6 +78,13 @@ router.register(
     r'evaluation-metrics',
     EvaluationMetricValueViewSet,
     basename='evaluation-metric'
+)
+
+# Samples automáticas de métricas operativas (truck_cycle) + endpoint /live
+router.register(
+    r'metric-samples',
+    PersonnelMetricSampleViewSet,
+    basename='metric-sample'
 )
 
 urlpatterns = [

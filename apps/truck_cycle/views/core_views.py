@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from django.http import HttpResponse
 from django.db.models import Count, Avg, Sum
+from django.db.models.functions import Length
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -531,11 +532,20 @@ class PautaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         dc = get_user_distributor_center(self.request)
-        if dc:
-            return PautaModel.objects.filter(
-                distributor_center=dc
-            ).select_related('truck', 'upload', 'distributor_center')
-        return PautaModel.objects.none()
+        if not dc:
+            return PautaModel.objects.none()
+        # Orden estable: día desc, dentro del día por viaje ascendente (primer
+        # viaje arriba), luego por transporte y created_at. trip_number es
+        # CharField; se ordena primero por longitud y luego alfabético para
+        # que "1" < "2" < "9" < "10" < "99" sin necesidad de castear a int
+        # (evita fallas si algún valor llegara no-numérico).
+        return (
+            PautaModel.objects
+            .filter(distributor_center=dc)
+            .select_related('truck', 'upload', 'distributor_center')
+            .annotate(_trip_len=Length('trip_number'))
+            .order_by('-operational_date', '_trip_len', 'trip_number', 'transport_number', 'created_at')
+        )
 
     def _do_transition(self, request, pk, action_name):
         """Ejecutar una transición de estado"""
@@ -678,15 +688,49 @@ class PautaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def take_as_picker(self, request, pk=None):
-        """Auto-asignación: el picker autenticado se toma una pauta del pool."""
-        try:
-            profile = request.user.personnel_profile
-        except Exception:
-            return Response(
-                {'error': 'El usuario no tiene un perfil de personal asociado.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        """Asigna un picker a la pauta (PENDING_PICKING → PICKING_ASSIGNED).
+
+        El dispositivo lo opera un supervisor/checador (los pickers no tienen
+        celular), por lo que se debe enviar `personnel_id` en el body con la
+        persona que realmente va a armar la pauta. Si no viene, se intenta
+        como fallback el perfil del usuario autenticado (para compatibilidad).
+
+        Valida que el personnel tenga position_type ∈ {PICKER, LOADER} y
+        pertenezca al mismo centro de distribución de la pauta.
+        """
+        from apps.personnel.models.personnel import PersonnelProfile
+
         pauta = self.get_object()
+
+        personnel_id = request.data.get('personnel_id')
+        if personnel_id:
+            try:
+                profile = PersonnelProfile.objects.get(pk=personnel_id, is_active=True)
+            except PersonnelProfile.DoesNotExist:
+                return Response(
+                    {'error': 'Personal no encontrado o inactivo.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if profile.position_type not in ('PICKER', 'LOADER'):
+                return Response(
+                    {'error': f'El personal "{profile.first_name} {profile.last_name}" no es PICKER ni LOADER.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            picker_dc_id = profile.primary_distributor_center_id
+            if picker_dc_id and picker_dc_id != pauta.distributor_center_id:
+                return Response(
+                    {'error': 'El picker seleccionado no pertenece al mismo centro de distribución.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            try:
+                profile = request.user.personnel_profile
+            except Exception:
+                return Response(
+                    {'error': 'Debe enviar personnel_id o el usuario debe tener perfil.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         if pauta.status != 'PENDING_PICKING':
             return Response(
                 {'error': f'La pauta ya está en estado "{pauta.get_status_display()}" y no puede tomarse.'},
@@ -704,8 +748,14 @@ class PautaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def take_as_counter(self, request, pk=None):
-        """Auto-asignación: el contador autenticado se toma una pauta del pool
-        (PENDING_COUNT → COUNTING con timestamp T5_COUNT_START)."""
+        """Auto-asignación del contador. Acepta IN_BAY o PENDING_COUNT.
+
+        Si la pauta viene en IN_BAY, se emite T4_LOADING_END automáticamente
+        antes del T5_COUNT_START. Esto evita depender del paso manual
+        "Carga OK" (IN_BAY → PENDING_COUNT) que un supervisor tendría que
+        apretar desde /truck-cycle/operations: ese delay distorsiona las
+        mediciones de tiempo.
+        """
         try:
             profile = request.user.personnel_profile
         except Exception:
@@ -714,11 +764,19 @@ class PautaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         pauta = self.get_object()
-        if pauta.status != 'PENDING_COUNT':
+        if pauta.status not in ('IN_BAY', 'PENDING_COUNT'):
             return Response(
-                {'error': f'La pauta ya está en estado "{pauta.get_status_display()}" y no puede tomarse para conteo.'},
+                {'error': f'La pauta está en estado "{pauta.get_status_display()}" y no puede tomarse para conteo.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        if pauta.status == 'IN_BAY':
+            PautaTimestampModel.objects.create(
+                event_type='T4_LOADING_END',
+                pauta=pauta,
+                recorded_by=request.user,
+            )
+
         pauta.status = 'COUNTING'
         pauta.save(update_fields=['status'])
         PautaAssignmentModel.objects.create(
@@ -1035,6 +1093,75 @@ class PautaViewSet(viewsets.ModelViewSet):
             pauta=pauta,
             recorded_by=request.user,
         )
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=True, methods=['post'])
+    def take_bay_for_return(self, request, pk=None):
+        """Yard driver toma un camión desde la bahía para llevarlo al estacionamiento.
+
+        Emite T8A_YARD_RETURN_START. NO cambia el status de la pauta — el
+        flujo de despacho/recarga sigue siendo el mismo; este evento solo
+        sirve para medir el tiempo de movimiento bahía→estacionamiento.
+        Libera bay_assignment (released_at) si sigue abierta.
+        """
+        try:
+            profile = request.user.personnel_profile
+        except Exception:
+            return Response(
+                {'error': 'El usuario no tiene un perfil de personal asociado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pauta = self.get_object()
+        if pauta.status in ('CANCELLED',):
+            return Response(
+                {'error': f'La pauta está en "{pauta.get_status_display()}" — no se puede mover.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if pauta.timestamps.filter(event_type='T8A_YARD_RETURN_START').exists():
+            return Response(
+                {'error': 'Ya se registró el inicio del movimiento Bahía→Estacionamiento.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        PautaAssignmentModel.objects.create(
+            role='YARD_DRIVER',
+            pauta=pauta,
+            personnel=profile,
+            assigned_by=request.user,
+        )
+        PautaTimestampModel.objects.create(
+            event_type='T8A_YARD_RETURN_START',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        return Response(PautaDetailSerializer(pauta).data)
+
+    @action(detail=True, methods=['post'])
+    def park_truck(self, request, pk=None):
+        """Yard driver confirma que el camión quedó estacionado.
+
+        Emite T8B_YARD_RETURN_END. Requiere T8A previo. Libera la bay
+        assignment abierta. No cambia el status de la pauta.
+        """
+        pauta = self.get_object()
+        if not pauta.timestamps.filter(event_type='T8A_YARD_RETURN_START').exists():
+            return Response(
+                {'error': 'Primero debe registrarse el inicio del movimiento (T8A).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if pauta.timestamps.filter(event_type='T8B_YARD_RETURN_END').exists():
+            return Response(
+                {'error': 'El camión ya fue estacionado (T8B registrado).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        PautaTimestampModel.objects.create(
+            event_type='T8B_YARD_RETURN_END',
+            pauta=pauta,
+            recorded_by=request.user,
+        )
+        bay_assignment = getattr(pauta, 'bay_assignment', None)
+        if bay_assignment and not bay_assignment.released_at:
+            bay_assignment.released_at = timezone.now()
+            bay_assignment.save(update_fields=['released_at'])
         return Response(PautaDetailSerializer(pauta).data)
 
     @action(detail=False, methods=['get'])

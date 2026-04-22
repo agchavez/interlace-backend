@@ -16,6 +16,7 @@ class PersonnelProfileFilter(filters.FilterSet):
     full_name = filters.CharFilter(method='filter_full_name')
     hierarchy_level = filters.CharFilter()
     position_type = filters.CharFilter()
+    position_types = filters.CharFilter(method='filter_position_types')
     area = filters.NumberFilter(field_name='area__id')
     department = filters.NumberFilter(field_name='department__id')
     primary_distributor_center = filters.NumberFilter(field_name='primary_distributor_center__id')
@@ -33,6 +34,12 @@ class PersonnelProfileFilter(filters.FilterSet):
             'employee_code', 'hierarchy_level', 'position_type',
             'area', 'department', 'primary_distributor_center', 'is_active'
         ]
+
+    def filter_position_types(self, queryset, name, value):
+        types = [t.strip() for t in value.split(',') if t.strip()]
+        if types:
+            return queryset.filter(position_type__in=types)
+        return queryset
 
     def filter_full_name(self, queryset, name, value):
         return queryset.filter(
