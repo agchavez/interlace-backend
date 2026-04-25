@@ -32,3 +32,11 @@ class TruckCycleConsumer(AsyncWebsocketConsumer):
             'status': event.get('status'),
             'transport_number': event.get('transport_number'),
         }))
+
+    async def metrics_updated(self, event):
+        """Señal de que cambiaron métricas del CD (sample nuevo o evento medido)."""
+        await self.send(text_data=json.dumps({
+            'type': 'metrics_updated',
+            'metric_code': event.get('metric_code'),
+            'personnel_id': event.get('personnel_id'),
+        }))

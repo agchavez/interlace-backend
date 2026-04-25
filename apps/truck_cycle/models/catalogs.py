@@ -148,7 +148,15 @@ class BayModel(models.Model):
 
 
 class KPITargetModel(models.Model):
-    """Metas de KPIs"""
+    """Metas de KPIs por centro de distribución.
+
+    Soporta dos modalidades coexistentes:
+    - Legacy: `kpi_type` con enum fijo (5 valores).
+    - Nuevo: `metric_type` FK a PerformanceMetricType + `direction` para
+      semaforizar samples de truck_cycle.
+    El sistema de bandas (verde/amarillo/rojo) usa `target_value` (meta),
+    `warning_threshold` (disparador) y `direction`.
+    """
 
     KPI_TYPE_CHOICES = [
         ('BOXES_PER_HOUR', 'Cajas por Hora'),
@@ -158,26 +166,52 @@ class KPITargetModel(models.Model):
         ('DISPATCH_TIME', 'Tiempo de Despacho'),
     ]
 
+    DIRECTION_HIGHER_IS_BETTER = 'HIGHER_IS_BETTER'
+    DIRECTION_LOWER_IS_BETTER = 'LOWER_IS_BETTER'
+    DIRECTION_CHOICES = [
+        (DIRECTION_HIGHER_IS_BETTER, 'Mayor es mejor'),
+        (DIRECTION_LOWER_IS_BETTER, 'Menor es mejor'),
+    ]
+
     kpi_type = models.CharField(
-        "Tipo de KPI",
+        "Tipo de KPI (legacy)",
         max_length=30,
         choices=KPI_TYPE_CHOICES,
+        null=True,
+        blank=True,
+    )
+    metric_type = models.ForeignKey(
+        'personnel.PerformanceMetricType',
+        on_delete=models.CASCADE,
+        verbose_name="Tipo de métrica",
+        related_name="kpi_targets",
+        null=True,
+        blank=True,
+        help_text="Vincula la meta a un PerformanceMetricType (nueva modalidad).",
+    )
+    direction = models.CharField(
+        "Dirección",
+        max_length=20,
+        choices=DIRECTION_CHOICES,
+        default=DIRECTION_HIGHER_IS_BETTER,
     )
     target_value = models.DecimalField(
-        "Valor Meta",
+        "Meta",
         max_digits=10,
         decimal_places=2,
     )
     unit = models.CharField(
         "Unidad",
         max_length=20,
+        blank=True,
     )
     warning_threshold = models.DecimalField(
-        "Umbral de Alerta",
+        "Disparador",
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
+        help_text="Valor a partir del cual se marca en amarillo (antes del rojo).",
     )
     effective_from = models.DateField(
         "Vigente Desde",
@@ -198,6 +232,10 @@ class KPITargetModel(models.Model):
         db_table = "truck_cycle_kpi_target"
         verbose_name = "Meta de KPI"
         verbose_name_plural = "Metas de KPI"
+        indexes = [
+            models.Index(fields=['metric_type', 'distributor_center', '-effective_from']),
+        ]
 
     def __str__(self):
-        return f"{self.get_kpi_type_display()} - {self.target_value} {self.unit}"
+        label = self.metric_type.name if self.metric_type else self.get_kpi_type_display()
+        return f"{label} - {self.target_value} {self.unit}".strip()

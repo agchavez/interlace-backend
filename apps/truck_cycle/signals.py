@@ -22,7 +22,11 @@ _TIMESTAMP_TO_METRIC = {
 
 
 def _save_sample(personnel, metric_code, operational_date, value, pauta_id, context):
-    """Escribe un PersonnelMetricSample si existe el PerformanceMetricType."""
+    """Escribe un PersonnelMetricSample si existe el PerformanceMetricType.
+
+    Además emite 'metrics_updated' al WebSocket del CD de la persona, para que
+    las pantallas de workstation actualicen en vivo (no hace falta polling).
+    """
     from apps.personnel.models.performance_new import PerformanceMetricType
     from apps.personnel.models.metric_sample import PersonnelMetricSample
 
@@ -41,6 +45,25 @@ def _save_sample(personnel, metric_code, operational_date, value, pauta_id, cont
         pauta_id=pauta_id,
         context=context or {},
     )
+
+    # Broadcast WS al grupo del CD (no falla si no hay channel layer).
+    try:
+        dc_id = getattr(personnel, 'primary_distributor_center_id', None)
+        if dc_id:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'truck_cycle_cd_{dc_id}',
+                    {
+                        'type': 'metrics_updated',
+                        'metric_code': metric_code,
+                        'personnel_id': personnel.id,
+                    }
+                )
+    except Exception:
+        pass
 
 
 @receiver(post_save, sender=PautaTimestampModel)

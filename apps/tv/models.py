@@ -36,7 +36,10 @@ class TvSession(models.Model):
     ]
     DASHBOARD_CHOICES = [
         ('WORKSTATION',         'Workstation (estaciones de trabajo)'),
-        ('WORKSTATION_PICKING', 'Estación de trabajo del operador · Picking'),
+        ('WORKSTATION_PICKING', 'Estación de trabajo del operador · Picking (legacy)'),
+        ('WORKSTATION_PICKER',  'Workstation Picker · KPIs por turno'),
+        ('WORKSTATION_COUNTER', 'Workstation Contador · KPIs por turno'),
+        ('WORKSTATION_YARD',    'Workstation Chofer de Patio · KPIs por turno'),
     ]
 
     code = models.CharField('Código', max_length=9, unique=True, db_index=True, default=_gen_code)
