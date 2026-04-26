@@ -1,5 +1,7 @@
 """Endpoints para samples de métricas operativas y agregados en vivo."""
+from datetime import datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from django.db.models import Avg, Count, Sum, Q
 from django.utils import timezone
@@ -14,6 +16,64 @@ from apps.personnel.serializers.metric_sample_serializers import (
     PersonnelMetricSampleSerializer,
 )
 from apps.personnel.utils.bands import band_for
+
+
+HN_TZ = ZoneInfo('America/Tegucigalpa')
+DAY_MAP = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+
+
+def _resolve_active_shift(dc_id):
+    """Devuelve (shift, start_dt, end_dt) del turno vigente del CD.
+
+    Maneja turnos que cruzan medianoche. Si la hora actual cae en un turno
+    que empezó ayer y termina hoy (ej. TC 20:30→06:00 con ahora=03:00),
+    devuelve ese turno con start_dt = ayer 20:30, end_dt = hoy 06:00.
+
+    Si no hay turno activo, devuelve None.
+    """
+    if not dc_id:
+        return None
+    from apps.maintenance.models.distributor_center import DCShiftModel
+    now = timezone.localtime(timezone.now(), HN_TZ)
+    today_dow = DAY_MAP[now.weekday()]
+    yesterday_dow = DAY_MAP[(now.weekday() - 1) % 7]
+
+    # Turnos del día (normales y los que empiezan hoy)
+    today_shifts = DCShiftModel.objects.filter(
+        distributor_center_id=dc_id, day_of_week=today_dow, is_active=True,
+    )
+    for s in today_shifts:
+        if s.start_time <= s.end_time:
+            if s.start_time <= now.time() <= s.end_time:
+                start_dt = datetime.combine(now.date(), s.start_time, tzinfo=HN_TZ)
+                end_dt = datetime.combine(now.date(), s.end_time, tzinfo=HN_TZ)
+                return (s, start_dt, end_dt)
+        else:
+            # Cruza medianoche: empieza hoy, termina mañana
+            if now.time() >= s.start_time:
+                start_dt = datetime.combine(now.date(), s.start_time, tzinfo=HN_TZ)
+                end_dt = datetime.combine(now.date() + timedelta(days=1), s.end_time, tzinfo=HN_TZ)
+                return (s, start_dt, end_dt)
+
+    # Turnos de ayer que aún no terminan (cruzan a hoy)
+    yesterday_shifts = DCShiftModel.objects.filter(
+        distributor_center_id=dc_id, day_of_week=yesterday_dow, is_active=True,
+    )
+    for s in yesterday_shifts:
+        if s.start_time > s.end_time and now.time() <= s.end_time:
+            start_dt = datetime.combine(now.date() - timedelta(days=1), s.start_time, tzinfo=HN_TZ)
+            end_dt = datetime.combine(now.date(), s.end_time, tzinfo=HN_TZ)
+            return (s, start_dt, end_dt)
+
+    return None
+
+
+def _filter_by_shift(qs, shift_range):
+    """Filtra un queryset por created_at dentro del rango del turno."""
+    if not shift_range:
+        return qs
+    _, start_dt, end_dt = shift_range
+    return qs.filter(created_at__gte=start_dt, created_at__lte=end_dt)
 
 
 class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
@@ -71,7 +131,13 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         personnel_id = request.query_params.get('personnel_id')
         dc_id = request.query_params.get('distributor_center')
 
-        samples_qs = PersonnelMetricSample.objects.filter(operational_date=op_date)
+        # Filtro por turno vigente del CD (si existe). Si no, fallback al día.
+        shift_range = _resolve_active_shift(dc_id) if dc_id else None
+        if shift_range:
+            samples_qs = PersonnelMetricSample.objects.all()
+            samples_qs = _filter_by_shift(samples_qs, shift_range)
+        else:
+            samples_qs = PersonnelMetricSample.objects.filter(operational_date=op_date)
         if personnel_id:
             samples_qs = samples_qs.filter(personnel_id=personnel_id)
 
@@ -257,9 +323,15 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         except PerformanceMetricType.DoesNotExist:
             return Response({'error': f'metric {metric_code} no existe'}, status=404)
 
-        qs = PersonnelMetricSample.objects.filter(
-            operational_date=op_date, metric_type=mt,
-        )
+        # Filtro por turno vigente (rango de horas reales) en lugar de día.
+        shift_range = _resolve_active_shift(dc_id) if dc_id else None
+        if shift_range:
+            qs = PersonnelMetricSample.objects.filter(metric_type=mt)
+            qs = _filter_by_shift(qs, shift_range)
+        else:
+            qs = PersonnelMetricSample.objects.filter(
+                operational_date=op_date, metric_type=mt,
+            )
         if dc_id:
             qs = qs.filter(personnel__primary_distributor_center_id=dc_id)
         if personnel_id:
@@ -299,60 +371,44 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 hours.append({'hour': h, 'value': None, 'band': 'GRAY', 'count': 0})
 
-        # Turno vigente del CD: coincide con día de semana + hora local HN.
+        # Turno vigente del CD usando el helper compartido.
         shift_info = None
-        if dc_id:
+        now_hn = timezone.localtime(timezone.now(), HN_TZ)
+        if shift_range:
+            s, _start_dt, _end_dt = shift_range
+            end_h = s.end_time.hour
+            if s.end_time <= s.start_time:
+                end_h = s.end_time.hour + 24
+            shift_info = {
+                'name': s.shift_name,
+                'day_of_week': s.day_of_week,
+                'start_time': s.start_time.strftime('%H:%M'),
+                'end_time': s.end_time.strftime('%H:%M'),
+                'start_hour': s.start_time.hour,
+                'end_hour': end_h,
+                'is_active_now': True,
+                'current_hour': now_hn.hour,
+            }
+        elif dc_id:
+            # Fallback informativo: si no hay turno activo, devolver el primero
+            # del día para que el frontend pueda mostrarlo aunque sin filtrar.
             from apps.maintenance.models.distributor_center import DCShiftModel
-            from zoneinfo import ZoneInfo
-            now_hn = timezone.localtime(timezone.now(), ZoneInfo('America/Tegucigalpa'))
-            day_map = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-            dow = day_map[now_hn.weekday()]
-            today_shifts = list(
-                DCShiftModel.objects.filter(
-                    distributor_center_id=dc_id,
-                    day_of_week=dow,
-                    is_active=True,
-                ).order_by('start_time')
-            )
-            now_t = now_hn.time()
-
-            def _is_in_shift(s, t):
-                # Soporta turnos que cruzan medianoche (end < start).
-                if s.start_time <= s.end_time:
-                    return s.start_time <= t <= s.end_time
-                return t >= s.start_time or t <= s.end_time
-
-            active = next((s for s in today_shifts if _is_in_shift(s, now_t)), None)
-
-            # Si no hay turno activo hoy, revisar los de ayer (caso: turno noche
-            # empezó ayer y aún no termina).
-            if not active:
-                yesterday_dow = day_map[(now_hn.weekday() - 1) % 7]
-                yesterday_shifts = DCShiftModel.objects.filter(
-                    distributor_center_id=dc_id,
-                    day_of_week=yesterday_dow,
-                    is_active=True,
-                )
-                for s in yesterday_shifts:
-                    if s.start_time > s.end_time and now_t <= s.end_time:
-                        active = s
-                        break
-
-            target_shift = active or (today_shifts[0] if today_shifts else None)
-            if target_shift:
-                # Si cruza medianoche, end_hour efectivo es end_hour + 24 para
-                # rango de horas visibles.
-                end_h = target_shift.end_time.hour
-                if target_shift.end_time <= target_shift.start_time:
-                    end_h = target_shift.end_time.hour + 24
+            today_dow = DAY_MAP[now_hn.weekday()]
+            first_shift = DCShiftModel.objects.filter(
+                distributor_center_id=dc_id, day_of_week=today_dow, is_active=True,
+            ).order_by('start_time').first()
+            if first_shift:
+                end_h = first_shift.end_time.hour
+                if first_shift.end_time <= first_shift.start_time:
+                    end_h = first_shift.end_time.hour + 24
                 shift_info = {
-                    'name': target_shift.shift_name,
-                    'day_of_week': target_shift.day_of_week,
-                    'start_time': target_shift.start_time.strftime('%H:%M'),
-                    'end_time': target_shift.end_time.strftime('%H:%M'),
-                    'start_hour': target_shift.start_time.hour,
+                    'name': first_shift.shift_name,
+                    'day_of_week': first_shift.day_of_week,
+                    'start_time': first_shift.start_time.strftime('%H:%M'),
+                    'end_time': first_shift.end_time.strftime('%H:%M'),
+                    'start_hour': first_shift.start_time.hour,
                     'end_hour': end_h,
-                    'is_active_now': active is not None,
+                    'is_active_now': False,
                     'current_hour': now_hn.hour,
                 }
 
@@ -454,10 +510,14 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
 
         assignment_personnel = set(assignments.values_list('personnel_id', flat=True))
 
+        shift_range = _resolve_active_shift(dc_id)
         sample_personnel_qs = PersonnelMetricSample.objects.filter(
-            operational_date=op_date,
             metric_type__code__in=spec['metrics'],
         )
+        if shift_range:
+            sample_personnel_qs = _filter_by_shift(sample_personnel_qs, shift_range)
+        else:
+            sample_personnel_qs = sample_personnel_qs.filter(operational_date=op_date)
         if dc_id:
             sample_personnel_qs = sample_personnel_qs.filter(
                 personnel__primary_distributor_center_id=dc_id,
@@ -502,12 +562,16 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
                 'trigger': float(target.warning_threshold) if (target and target.warning_threshold is not None) else None,
             })
 
-        # Samples del día para todas las personas y métricas relevantes.
-        samples = PersonnelMetricSample.objects.filter(
-            operational_date=op_date,
+        # Samples del turno vigente (o del día si no hay turno).
+        samples_full = PersonnelMetricSample.objects.filter(
             personnel_id__in=personnel_ids,
             metric_type__code__in=spec['metrics'],
-        ).values('personnel_id', 'metric_type__code', 'numeric_value')
+        )
+        if shift_range:
+            samples_full = _filter_by_shift(samples_full, shift_range)
+        else:
+            samples_full = samples_full.filter(operational_date=op_date)
+        samples = samples_full.values('personnel_id', 'metric_type__code', 'numeric_value')
 
         # Agregación: por persona → por metric → lista de valores
         agg = {}
