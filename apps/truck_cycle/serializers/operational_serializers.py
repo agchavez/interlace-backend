@@ -66,12 +66,27 @@ class InconsistencySerializer(serializers.ModelSerializer):
     class Meta:
         model = InconsistencyModel
         fields = '__all__'
+        extra_kwargs = {
+            'expected_quantity': {'required': False, 'default': 0},
+        }
+
+    # Mapa de signo por tipo: el contador solo registra una cantidad y el
+    # tipo determina si suma o resta. CRUCE quedó deprecated — los registros
+    # antiguos se siguen mostrando, pero el form no lo ofrece más.
+    SIGN_BY_TYPE = {
+        'FALTANTE': -1,
+        'SOBRANTE': +1,
+        'DANADO':   -1,
+        'CRUCE':    -1,
+    }
 
     def validate(self, data):
-        """Auto-calcular diferencia basada en cantidad esperada vs real"""
-        expected = data.get('expected_quantity', 0)
+        """Auto-calcular diferencia basada en el tipo de inconsistencia."""
         actual = data.get('actual_quantity', 0)
-        data['difference'] = actual - expected
+        inc_type = data.get('inconsistency_type')
+        sign = self.SIGN_BY_TYPE.get(inc_type, -1)
+        data['expected_quantity'] = 0
+        data['difference'] = sign * actual
         return data
 
     def get_reported_by_name(self, obj):
