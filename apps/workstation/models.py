@@ -31,11 +31,13 @@ class Workstation(BaseModel):
     ROLE_PICKER = 'PICKER'
     ROLE_COUNTER = 'COUNTER'
     ROLE_YARD = 'YARD'
+    ROLE_REPACK = 'REPACK'
     ROLE_CHOICES = [
         (ROLE_PICKING, 'Picking (legacy)'),
         (ROLE_PICKER, 'Picker'),
         (ROLE_COUNTER, 'Contador'),
         (ROLE_YARD, 'Chofer de Patio'),
+        (ROLE_REPACK, 'Reempaque'),
     ]
 
     distributor_center = models.ForeignKey(

@@ -59,6 +59,15 @@ ROLE_CONFIG = {
         'red_desc':       'Comunicar a torre de control · liberar bahía manualmente',
         'metric_hints':   ['yard', 'patio', 'bahia', 'estacionamiento', 'movimiento'],
     },
+    Workstation.ROLE_REPACK: {
+        'triggers_title': 'Disparadores Reempaque',
+        'sic_title':      'SIC · Reempaque',
+        'plans_title':    'Planes de Reacción · Reempaque',
+        'plans_kpi_label': 'Cajas reempacadas / hora',
+        'yellow_desc':    'Verificar lote · revisar criterio de reempaque · documentar',
+        'red_desc':       'Detener línea · escalar a calidad y supervisor de bodega',
+        'metric_hints':   ['repack', 'reempaque', 'auditoria', 'calidad'],
+    },
 }
 
 
