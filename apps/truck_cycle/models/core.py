@@ -82,6 +82,8 @@ class PautaModel(BaseModel):
         ('PENDING_COUNT', 'Pendiente de Conteo'),
         ('COUNTING', 'Contando'),
         ('COUNTED', 'Contado'),
+        ('MOVING_TO_PARKING', 'Moviéndose a Estacionamiento'),
+        ('PARKED', 'Estacionado'),
         ('PENDING_CHECKOUT', 'Pendiente de Checkout'),
         ('CHECKOUT_SECURITY', 'Checkout Seguridad'),
         ('CHECKOUT_OPS', 'Checkout Operaciones'),

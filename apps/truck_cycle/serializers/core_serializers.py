@@ -60,6 +60,7 @@ class PautaListSerializer(serializers.ModelSerializer):
     inconsistencies_count = serializers.SerializerMethodField()
     photos_count = serializers.SerializerMethodField()
     assembled_fractions = serializers.IntegerField(read_only=True)
+    dispatched_without_security = serializers.SerializerMethodField()
 
     class Meta:
         model = PautaModel
@@ -91,7 +92,12 @@ class PautaListSerializer(serializers.ModelSerializer):
             'photos_count',
             'bay_code',
             'bay_id',
+            'dispatched_without_security',
         ]
+
+    def get_dispatched_without_security(self, obj):
+        checkout = getattr(obj, 'checkout_validation', None)
+        return bool(checkout and checkout.dispatched_without_security)
 
     def get_roles(self, obj):
         """Mapa role → {name, since} con la última asignación activa por rol."""
@@ -131,6 +137,8 @@ class PautaListSerializer(serializers.ModelSerializer):
             'IN_BAY':              'T1B_YARD_END',
             'COUNTING':            'T5_COUNT_START',
             'COUNTED':             'T6_COUNT_END',
+            'MOVING_TO_PARKING':   'T8A_YARD_RETURN_START',
+            'PARKED':              'T8B_YARD_RETURN_END',
             'CHECKOUT_SECURITY':   'T7_CHECKOUT_SECURITY',
             'CHECKOUT_OPS':        'T8_CHECKOUT_OPS',
             'DISPATCHED':          'T9_DISPATCH',
@@ -177,6 +185,7 @@ class PautaListSerializer(serializers.ModelSerializer):
             'MOVING_TO_BAY': 'YARD_DRIVER',
             'IN_BAY': 'YARD_DRIVER',
             'PENDING_COUNT': 'COUNTER', 'COUNTING': 'COUNTER', 'COUNTED': 'COUNTER',
+            'MOVING_TO_PARKING': 'YARD_DRIVER', 'PARKED': 'YARD_DRIVER',
         }
         preferred_role = STATUS_ROLE_MAP.get(obj.status)
         if preferred_role:

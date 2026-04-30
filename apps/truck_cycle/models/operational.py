@@ -323,6 +323,10 @@ class CheckoutValidationModel(models.Model):
         "Pase de Salida de Consumibles",
         default=False,
     )
+    dispatched_without_security = models.BooleanField(
+        "Despachado sin Validación de Seguridad",
+        default=False,
+    )
     notes = models.TextField(
         "Notas",
         blank=True,
