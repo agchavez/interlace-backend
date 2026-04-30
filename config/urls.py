@@ -16,6 +16,7 @@ from apps.imported.url import router as imported_router
 from apps.personnel.url import router as personnel_router
 from apps.truck_cycle.url import router as truck_cycle_router
 from apps.tv.urls import router as tv_router
+from apps.workstation.urls import router as workstation_router, extra_urlpatterns as workstation_extra
 from config import settings
 
 router = DefaultRouter()
@@ -31,12 +32,14 @@ router.registry.extend(imported_router.registry)
 router.registry.extend(personnel_router.registry)
 router.registry.extend(truck_cycle_router.registry)
 router.registry.extend(tv_router.registry)
+router.registry.extend(workstation_router.registry)
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api/', include(user_urlpatterns)),
+    path('api/', include(workstation_extra)),
     path('api/tokens/', include('apps.tokens.urls')),
 ]
 

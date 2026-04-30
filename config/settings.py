@@ -41,6 +41,7 @@ LOCAL_APPS = [
     'apps.tokens',
     'apps.truck_cycle',
     'apps.tv',
+    'apps.workstation',
 ]
 
 INSTALLED_APPS = [
