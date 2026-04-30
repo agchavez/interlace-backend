@@ -210,7 +210,11 @@ class TvSessionViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['get'])
     def workstation(self, request):
-        """Datos del dashboard Workstation — scoped al CD de la sesión."""
+        """Datos del dashboard Workstation — scoped al CD de la sesión.
+
+        Incluye `workstation_config` con riesgos/prohibiciones/triggers/planes/
+        documentos resueltos por (CD, role-derivado-del-dashboard).
+        """
         session: TvSession = request.tv_session
         dc_id = session.distributor_center_id
 
@@ -230,6 +234,14 @@ class TvSessionViewSet(viewsets.GenericViewSet):
 
         reload_queue = list(qs.filter(status='IN_RELOAD_QUEUE').order_by('created_at'))
         shift_info = _shift_info(dc_id) if dc_id else {'current': None, 'today': [], 'day_code': None}
+
+        # Config del Workstation (riesgos, prohibiciones, planes, SOPs/OPLs).
+        # Importación local para evitar ciclo de imports en el setup de la app.
+        from apps.workstation.views import get_workstation_for_tv
+        from apps.workstation.serializers import WorkstationSerializer
+        ws = get_workstation_for_tv(session.dashboard, dc_id)
+        workstation_config = WorkstationSerializer(ws).data if ws else None
+
         return Response({
             'operational_date': operational_date,
             'workstation': grouped,
@@ -240,6 +252,7 @@ class TvSessionViewSet(viewsets.GenericViewSet):
             'current_shift': shift_info['current'],
             'shifts_today': shift_info['today'],
             'day_code': shift_info['day_code'],
+            'workstation_config': workstation_config,
         })
 
     # ---------- helpers ----------

@@ -73,6 +73,13 @@ class TvPairingConsumer(AsyncWebsocketConsumer):
     async def session_revoked(self, event):
         await self.send(text_data=json.dumps({'type': 'session.revoked'}))
 
+    async def workstation_config_updated(self, event):
+        """Disparado cuando un admin edita el workstation config del CD pareado."""
+        await self.send(text_data=json.dumps({
+            'type': 'workstation.config.updated',
+            **event.get('data', {}),
+        }))
+
     @database_sync_to_async
     def _get_session(self, code):
         try:
