@@ -1026,3 +1026,30 @@ class DetailGroupViewSet(mixins.RetrieveModelMixin,
         filter_backends = (SearchFilter, OrderingFilter)
         search_fields = ('group__name')
         ordering_fields = ('group__name')
+
+        @action(methods=['get'], detail=False, permission_classes=[IsAuthenticated], url_path='permissions-by-name')
+        def permissions_by_name(self, request):
+            """Devuelve permisos de un grupo por su `name`. Usado por el dev role
+            switcher para impersonar grupos arbitrarios.
+
+            Query params:
+              name: nombre exacto del grupo (ej. 'SUPERADMIN', 'MANAGING').
+
+            Respuesta: { "name": "...", "is_superadmin": bool, "permissions": ["app.codename", ...] }
+            """
+            name = request.query_params.get('name')
+            if not name:
+                return Response({'error': 'name es requerido.'}, status=400)
+            try:
+                group = Group.objects.get(name=name)
+            except Group.DoesNotExist:
+                return Response({'error': f'Grupo "{name}" no existe.'}, status=404)
+            perms = list(
+                group.permissions.select_related('content_type')
+                .values_list('content_type__app_label', 'codename')
+            )
+            return Response({
+                'name': name,
+                'is_superadmin': name == 'SUPERADMIN',
+                'permissions': [f'{app}.{code}' for app, code in perms],
+            })
