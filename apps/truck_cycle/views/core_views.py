@@ -93,18 +93,28 @@ STATUS_TRANSITIONS = {
         'to': 'COUNTED',
         'event': 'T6_COUNT_END',
     },
-    'checkout_security': {
+    'move_to_parking': {
         'from': ['COUNTED', 'PENDING_CHECKOUT'],
+        'to': 'MOVING_TO_PARKING',
+        'event': 'T8A_YARD_RETURN_START',
+    },
+    'confirm_parked': {
+        'from': ['MOVING_TO_PARKING'],
+        'to': 'PARKED',
+        'event': 'T8B_YARD_RETURN_END',
+    },
+    'checkout_security': {
+        'from': ['PARKED'],
         'to': 'CHECKOUT_SECURITY',
         'event': 'T7_CHECKOUT_SECURITY',
     },
     'checkout_ops': {
-        'from': ['CHECKOUT_SECURITY'],
+        'from': ['PARKED', 'CHECKOUT_SECURITY'],
         'to': 'CHECKOUT_OPS',
         'event': 'T8_CHECKOUT_OPS',
     },
     'dispatch': {
-        'from': ['CHECKOUT_SECURITY', 'CHECKOUT_OPS'],
+        'from': ['PARKED', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS'],
         'to': 'DISPATCHED',
         'event': 'T9_DISPATCH',
     },
@@ -168,7 +178,7 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             ('SKUs', 12),
             ('Pallets Completos', 18),
             ('Fracciones Armadas', 20),
-            ('Complejidad', 15),
+            ('Complejidad %', 15),
         ]
 
         header_font = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
@@ -182,10 +192,13 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             cell.alignment = header_alignment
             ws.column_dimensions[get_column_letter(col_idx)].width = width
 
-        # Ejemplo de fila
+        # Ejemplo de fila — complejidad como porcentaje (0-100). La placa
+        # se resuelve desde el catálogo a partir del código del camión.
         example = [1, '4000825134', 'HN-1264', 'R-TGU-01', 775, 55, 1, 3, 7.52]
         for col_idx, val in enumerate(example, 1):
-            ws.cell(row=2, column=col_idx, value=val)
+            cell = ws.cell(row=2, column=col_idx, value=val)
+            if col_idx == 9:
+                cell.number_format = '0.00"%"'
 
         ws.freeze_panes = 'A2'
 
@@ -204,7 +217,8 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
     def preview(self, request):
         """
         Subir archivo Excel con pautas a nivel resumen (1 fila = 1 pauta).
-        Columnas: Viaje, Transporte, Camión, Ruta, Cajas, SKUs, Pallets Completos, Complejidad
+        Columnas: Viaje, Transporte, Camión, Ruta, Cajas, SKUs,
+                  Pallets Completos, Fracciones Armadas, Complejidad %
         Valida:
          - Camión debe existir en el catálogo del CD (no se crea on-the-fly).
          - (Transporte, Camión, Ruta) único por operational_date.
@@ -252,7 +266,7 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             viaje = str(row[0] or '').strip()
             transporte = str(row[1] or '').strip()
             camion = str(row[2] or '').strip()
-            ruta = str(row[3] or '').strip()
+            ruta = str(row[3] or '').strip() if len(row) > 3 else ''
 
             if not transporte:
                 errors.append(f"Fila {row_idx}: Transporte es requerido.")
@@ -265,9 +279,9 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
                 continue
 
             try:
-                cajas = int(float(row[4])) if row[4] else 0
+                cajas = int(float(row[4])) if len(row) > 4 and row[4] else 0
             except (ValueError, TypeError):
-                errors.append(f"Fila {row_idx}: Cajas inválido '{row[4]}'.")
+                errors.append(f"Fila {row_idx}: Cajas inválido '{row[4] if len(row) > 4 else ''}'.")
                 continue
 
             try:
@@ -285,12 +299,17 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 fracciones = 0
 
+            # Complejidad ahora es porcentaje (0-100). Aceptamos también valores
+            # legacy < 1 (por si alguien sube un archivo viejo) y los convertimos.
             try:
-                complejidad = round(float(row[8]), 2) if len(row) > 8 and row[8] else 0
+                raw_complex = float(row[8]) if len(row) > 8 and row[8] is not None and row[8] != '' else 0
+                if 0 < raw_complex <= 1:
+                    raw_complex = raw_complex * 100
+                complejidad = round(raw_complex, 2)
             except (ValueError, TypeError):
                 complejidad = 0
 
-            # Validar existencia del camión en el catálogo del CD
+            # Validar existencia del camión en el catálogo del CD.
             truck = TruckModel.objects.filter(
                 code=camion, distributor_center=dc, is_active=True,
             ).first()
@@ -368,7 +387,10 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
         Valida:
          - Camión debe existir en el catálogo del CD.
          - (Transporte, Camión, Ruta) único por operational_date (vs archivo y vs BD).
-        Si hay cualquier error la carga se aborta sin crear pautas.
+
+        Body opcional:
+         - skip_invalid (bool): si True, omite las filas con error y crea
+           solo las válidas (en lugar de abortar toda la carga).
         """
         upload = self.get_object()
 
@@ -411,14 +433,14 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
             viaje = str(row[0] or '').strip()
             transporte = str(row[1] or '').strip()
             camion_code = str(row[2] or '').strip()
-            ruta = str(row[3] or '').strip()
+            ruta = str(row[3] or '').strip() if len(row) > 3 else ''
 
             if not transporte or not viaje or not camion_code:
                 errors.append(f"Fila {row_idx}: Transporte, Viaje y Camión son requeridos.")
                 continue
 
             try:
-                cajas = int(float(row[4])) if row[4] else 0
+                cajas = int(float(row[4])) if len(row) > 4 and row[4] else 0
             except (ValueError, TypeError):
                 errors.append(f"Fila {row_idx}: Cajas inválido.")
                 continue
@@ -439,7 +461,10 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
                 fracciones = 0
 
             try:
-                complejidad = round(float(row[8]), 2) if len(row) > 8 and row[8] else 0
+                raw_complex = float(row[8]) if len(row) > 8 and row[8] is not None and row[8] != '' else 0
+                if 0 < raw_complex <= 1:
+                    raw_complex = raw_complex * 100
+                complejidad = round(raw_complex, 2)
             except (ValueError, TypeError):
                 complejidad = 0
 
@@ -488,10 +513,22 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
                 'is_reload': str(viaje).strip() != '1',
             })
 
-        if errors:
+        skip_invalid = bool(request.data.get('skip_invalid'))
+
+        if errors and not skip_invalid:
             return Response(
                 {
-                    'error': 'La carga tiene errores. Corrija y vuelva a subir el archivo.',
+                    'error': 'La carga tiene errores. Corrija y vuelva a subir el archivo, o reintente omitiendo filas inválidas.',
+                    'errors': errors,
+                    'missing_trucks': sorted(missing_trucks),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if skip_invalid and not to_create:
+            return Response(
+                {
+                    'error': 'Ninguna fila es válida — no hay pautas para crear.',
                     'errors': errors,
                     'missing_trucks': sorted(missing_trucks),
                 },
@@ -513,9 +550,14 @@ class PalletComplexUploadViewSet(viewsets.ModelViewSet):
         upload.save(update_fields=['status'])
 
         return Response({
-            'message': f'Se crearon {len(created_pautas)} pautas exitosamente.',
+            'message': (
+                f'Se crearon {len(created_pautas)} pautas'
+                + (f' (se omitieron {len(errors)} filas inválidas)' if errors else '')
+                + '.'
+            ),
             'upload_id': upload.id,
             'pauta_ids': created_pautas,
+            'skipped_errors': errors if skip_invalid else [],
         })
 
 
@@ -546,6 +588,91 @@ class PautaViewSet(viewsets.ModelViewSet):
             .annotate(_trip_len=Length('trip_number'))
             .order_by('-operational_date', '_trip_len', 'trip_number', 'transport_number', 'created_at')
         )
+
+    @action(detail=False, methods=['post'], url_path='manual-create')
+    def manual_create(self, request):
+        """Carga emergente: crear una sola pauta manualmente sin Excel.
+
+        Body:
+          trip_number, transport_number, truck_code (o truck_id), route_code,
+          total_boxes, total_skus, total_pallets, assembled_fractions,
+          complexity_score (en %), operational_date (opcional, default hoy).
+        """
+        dc = get_user_distributor_center(request)
+        if not dc:
+            return Response(
+                {'error': 'Usuario sin centro de distribución asignado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        truck_id = request.data.get('truck_id')
+        truck_code = (request.data.get('truck_code') or '').strip()
+        truck = None
+        if truck_id:
+            truck = TruckModel.objects.filter(id=truck_id, distributor_center=dc, is_active=True).first()
+        if not truck and truck_code:
+            truck = TruckModel.objects.filter(code=truck_code, distributor_center=dc, is_active=True).first()
+        if not truck:
+            return Response(
+                {'error': 'Camión no encontrado o no pertenece al centro de distribución.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        transporte = (request.data.get('transport_number') or '').strip()
+        viaje = str(request.data.get('trip_number') or '').strip()
+        ruta = (request.data.get('route_code') or '').strip()
+        if not transporte or not viaje:
+            return Response(
+                {'error': 'Transporte y Viaje son requeridos.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        operational_date = request.data.get('operational_date') or timezone.localdate()
+
+        if PautaModel.objects.filter(
+            transport_number=transporte,
+            truck=truck,
+            route_code=ruta,
+            operational_date=operational_date,
+            distributor_center=dc,
+        ).exists():
+            return Response(
+                {'error': f'Ya existe una pauta para {operational_date} con esos datos.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        def _int(name, default=0):
+            try:
+                return int(float(request.data.get(name) or 0))
+            except (TypeError, ValueError):
+                return default
+
+        try:
+            raw_complex = float(request.data.get('complexity_score') or 0)
+            if 0 < raw_complex <= 1:
+                raw_complex = raw_complex * 100
+            complejidad = round(raw_complex, 2)
+        except (TypeError, ValueError):
+            complejidad = 0
+
+        pauta = PautaModel.objects.create(
+            status='PENDING_PICKING',
+            operational_date=operational_date,
+            distributor_center=dc,
+            truck=truck,
+            transport_number=transporte,
+            trip_number=viaje,
+            route_code=ruta,
+            total_boxes=_int('total_boxes'),
+            total_skus=_int('total_skus'),
+            total_pallets=_int('total_pallets'),
+            assembled_fractions=_int('assembled_fractions'),
+            complexity_score=complejidad,
+            is_reload=viaje != '1',
+            notes=request.data.get('notes', '') or 'Carga emergente (manual)',
+        )
+
+        return Response(PautaDetailSerializer(pauta).data, status=status.HTTP_201_CREATED)
 
     def _do_transition(self, request, pk, action_name):
         """Ejecutar una transición de estado"""
@@ -630,7 +757,8 @@ class PautaViewSet(viewsets.ModelViewSet):
         # Pautas donde este profile fue picker y ya pasó de picking.
         done_statuses = [
             'PICKING_DONE', 'MOVING_TO_BAY', 'IN_BAY', 'PENDING_COUNT', 'COUNTING',
-            'COUNTED', 'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
+            'COUNTED', 'MOVING_TO_PARKING', 'PARKED',
+            'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
             'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
             'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
         ]
@@ -796,7 +924,7 @@ class PautaViewSet(viewsets.ModelViewSet):
     def take_as_security(self, request, pk=None):
         """
         Auto-validación: el guardia autenticado toma y valida seguridad en
-        una pauta (COUNTED/PENDING_CHECKOUT → CHECKOUT_SECURITY).
+        una pauta (PARKED → CHECKOUT_SECURITY). Es un paso opcional.
         """
         from apps.truck_cycle.models.operational import CheckoutValidationModel
         try:
@@ -807,9 +935,9 @@ class PautaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         pauta = self.get_object()
-        if pauta.status not in ('COUNTED', 'PENDING_CHECKOUT'):
+        if pauta.status != 'PARKED':
             return Response(
-                {'error': f'La pauta está en estado "{pauta.get_status_display()}" — no se puede validar en seguridad.'},
+                {'error': f'La pauta está en estado "{pauta.get_status_display()}" — solo se puede validar seguridad cuando está estacionada.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         pauta.status = 'CHECKOUT_SECURITY'
@@ -847,7 +975,7 @@ class PautaViewSet(viewsets.ModelViewSet):
 
         operational_date = request.query_params.get('operational_date') or timezone.localdate()
 
-        # Pautas validadas por este profile (pasaron de COUNTED → CHECKOUT_SECURITY).
+        # Pautas validadas por este profile (pasaron de PARKED → CHECKOUT_SECURITY).
         done_statuses = [
             'CHECKOUT_SECURITY', 'CHECKOUT_OPS', 'DISPATCHED',
             'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
@@ -863,7 +991,7 @@ class PautaViewSet(viewsets.ModelViewSet):
         total_boxes = 0
         total_minutes = 0.0
         for p in pautas_done:
-            t0 = p.timestamps.filter(event_type='T6_COUNT_END').order_by('timestamp').first()
+            t0 = p.timestamps.filter(event_type='T8B_YARD_RETURN_END').order_by('timestamp').first()
             t1 = p.timestamps.filter(event_type='T7_CHECKOUT_SECURITY').order_by('timestamp').first()
             if t0 and t1:
                 delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
@@ -887,7 +1015,7 @@ class PautaViewSet(viewsets.ModelViewSet):
     def take_as_ops(self, request, pk=None):
         """
         Auto-validación: el validador de operaciones toma y valida ops en
-        una pauta (CHECKOUT_SECURITY → CHECKOUT_OPS). Opcional.
+        una pauta (PARKED o CHECKOUT_SECURITY → CHECKOUT_OPS). Opcional.
         """
         from apps.truck_cycle.models.operational import CheckoutValidationModel
         try:
@@ -895,7 +1023,7 @@ class PautaViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response({'error': 'Sin perfil.'}, status=status.HTTP_400_BAD_REQUEST)
         pauta = self.get_object()
-        if pauta.status != 'CHECKOUT_SECURITY':
+        if pauta.status not in ('PARKED', 'CHECKOUT_SECURITY'):
             return Response(
                 {'error': f'La pauta está en estado "{pauta.get_status_display()}" — no se puede validar operaciones.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -946,7 +1074,10 @@ class PautaViewSet(viewsets.ModelViewSet):
         total_boxes = 0
         total_minutes = 0.0
         for p in pautas_done:
-            t0 = p.timestamps.filter(event_type='T7_CHECKOUT_SECURITY').order_by('timestamp').first()
+            # Inicio = T7 si seguridad validó, si no T8B (estacionado).
+            t_security = p.timestamps.filter(event_type='T7_CHECKOUT_SECURITY').order_by('timestamp').first()
+            t_parked = p.timestamps.filter(event_type='T8B_YARD_RETURN_END').order_by('timestamp').first()
+            t0 = t_security or t_parked
             t1 = p.timestamps.filter(event_type='T8_CHECKOUT_OPS').order_by('timestamp').first()
             if t0 and t1:
                 delta = (t1.timestamp - t0.timestamp).total_seconds() / 60
@@ -1099,10 +1230,9 @@ class PautaViewSet(viewsets.ModelViewSet):
     def take_bay_for_return(self, request, pk=None):
         """Yard driver toma un camión desde la bahía para llevarlo al estacionamiento.
 
-        Emite T8A_YARD_RETURN_START. NO cambia el status de la pauta — el
-        flujo de despacho/recarga sigue siendo el mismo; este evento solo
-        sirve para medir el tiempo de movimiento bahía→estacionamiento.
-        Libera bay_assignment (released_at) si sigue abierta.
+        COUNTED/PENDING_CHECKOUT → MOVING_TO_PARKING. Emite T8A_YARD_RETURN_START
+        y deja la asignación de YARD_DRIVER. La bay_assignment se libera al
+        confirmar estacionamiento (park_truck).
         """
         try:
             profile = request.user.personnel_profile
@@ -1112,9 +1242,9 @@ class PautaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         pauta = self.get_object()
-        if pauta.status in ('CANCELLED',):
+        if pauta.status not in ('COUNTED', 'PENDING_CHECKOUT'):
             return Response(
-                {'error': f'La pauta está en "{pauta.get_status_display()}" — no se puede mover.'},
+                {'error': f'La pauta está en "{pauta.get_status_display()}" — solo se puede mover a estacionamiento desde Contado.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if pauta.timestamps.filter(event_type='T8A_YARD_RETURN_START').exists():
@@ -1122,6 +1252,8 @@ class PautaViewSet(viewsets.ModelViewSet):
                 {'error': 'Ya se registró el inicio del movimiento Bahía→Estacionamiento.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        pauta.status = 'MOVING_TO_PARKING'
+        pauta.save(update_fields=['status'])
         PautaAssignmentModel.objects.create(
             role='YARD_DRIVER',
             pauta=pauta,
@@ -1139,13 +1271,13 @@ class PautaViewSet(viewsets.ModelViewSet):
     def park_truck(self, request, pk=None):
         """Yard driver confirma que el camión quedó estacionado.
 
-        Emite T8B_YARD_RETURN_END. Requiere T8A previo. Libera la bay
-        assignment abierta. No cambia el status de la pauta.
+        MOVING_TO_PARKING → PARKED. Emite T8B_YARD_RETURN_END y libera la
+        bay_assignment abierta.
         """
         pauta = self.get_object()
-        if not pauta.timestamps.filter(event_type='T8A_YARD_RETURN_START').exists():
+        if pauta.status != 'MOVING_TO_PARKING':
             return Response(
-                {'error': 'Primero debe registrarse el inicio del movimiento (T8A).'},
+                {'error': f'La pauta está en "{pauta.get_status_display()}" — solo se puede confirmar estacionado mientras se mueve a estacionamiento.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if pauta.timestamps.filter(event_type='T8B_YARD_RETURN_END').exists():
@@ -1153,6 +1285,8 @@ class PautaViewSet(viewsets.ModelViewSet):
                 {'error': 'El camión ya fue estacionado (T8B registrado).'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        pauta.status = 'PARKED'
+        pauta.save(update_fields=['status'])
         PautaTimestampModel.objects.create(
             event_type='T8B_YARD_RETURN_END',
             pauta=pauta,
@@ -1191,6 +1325,7 @@ class PautaViewSet(viewsets.ModelViewSet):
 
         done_statuses = [
             'IN_BAY', 'PENDING_COUNT', 'COUNTING', 'COUNTED',
+            'MOVING_TO_PARKING', 'PARKED',
             'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
             'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
             'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
@@ -1272,7 +1407,8 @@ class PautaViewSet(viewsets.ModelViewSet):
         operational_date = request.query_params.get('operational_date') or timezone.localdate()
 
         done_statuses = [
-            'COUNTED', 'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
+            'COUNTED', 'MOVING_TO_PARKING', 'PARKED',
+            'PENDING_CHECKOUT', 'CHECKOUT_SECURITY', 'CHECKOUT_OPS',
             'DISPATCHED', 'IN_RELOAD_QUEUE', 'PENDING_RETURN', 'RETURN_PROCESSED',
             'IN_AUDIT', 'AUDIT_COMPLETE', 'CLOSED',
         ]
@@ -1604,6 +1740,7 @@ class PautaViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        previous_status = pauta.status
         response = self._do_transition(request, pk, 'dispatch')
         if response.status_code == 200:
             pauta = self.get_object()
@@ -1618,6 +1755,12 @@ class PautaViewSet(viewsets.ModelViewSet):
             if bay_assignment and not bay_assignment.released_at:
                 bay_assignment.released_at = timezone.now()
                 bay_assignment.save(update_fields=['released_at'])
+            if previous_status == 'PARKED':
+                from apps.truck_cycle.models.operational import CheckoutValidationModel
+                checkout, _ = CheckoutValidationModel.objects.get_or_create(pauta=pauta)
+                if not checkout.security_validated:
+                    checkout.dispatched_without_security = True
+                    checkout.save(update_fields=['dispatched_without_security'])
         return response
 
     @action(detail=True, methods=['post'])
