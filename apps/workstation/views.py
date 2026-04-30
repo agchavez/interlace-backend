@@ -94,6 +94,103 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         ws = serializer.save()
         apply_default_template(ws)
 
+    @action(detail=True, methods=['get'], url_path='performers')
+    def performers(self, request, pk=None):
+        """Top y Bottom performers del workstation según un KPI configurable.
+
+        Query params:
+          metric_code     code de PerformanceMetricType para rankear (requerido).
+          top_count       cuántos top mostrar (default 3, max 10).
+          bottom_count    cuántos bottom mostrar (default 3, max 10).
+          period          'today' (default) | 'week' (últimos 7 días).
+
+        Respuesta:
+          { metric: {code, name, unit, direction}, top: [...], bottom: [...] }
+        """
+        from datetime import date as _date, timedelta
+        from decimal import Decimal
+        from django.db.models import Avg
+        from apps.personnel.models.metric_sample import PersonnelMetricSample
+        from apps.personnel.models.performance_new import PerformanceMetricType
+        from apps.truck_cycle.models.catalogs import KPITargetModel
+
+        ws = self.get_object()
+        metric_code = (request.query_params.get('metric_code') or '').strip()
+        top_count = max(1, min(int(request.query_params.get('top_count') or 3), 10))
+        bottom_count = max(1, min(int(request.query_params.get('bottom_count') or 3), 10))
+        period = (request.query_params.get('period') or 'today').strip()
+
+        today = _date.today()
+        date_from = today - timedelta(days=6) if period == 'week' else today
+        date_to = today
+
+        if not metric_code:
+            return Response({'metric': None, 'top': [], 'bottom': [], 'error': 'metric_code requerido'})
+
+        try:
+            metric = PerformanceMetricType.objects.get(code=metric_code)
+        except PerformanceMetricType.DoesNotExist:
+            return Response({'metric': None, 'top': [], 'bottom': [], 'error': 'Métrica no existe'})
+
+        # Dirección: HIGHER_IS_BETTER → top=desc; LOWER_IS_BETTER → top=asc.
+        kpi_target = (
+            KPITargetModel.objects
+            .filter(distributor_center_id=ws.distributor_center_id, metric_type=metric)
+            .order_by('-effective_from').first()
+        )
+        direction = kpi_target.direction if kpi_target else 'HIGHER_IS_BETTER'
+
+        agg = (
+            PersonnelMetricSample.objects
+            .filter(
+                metric_type=metric,
+                operational_date__range=(date_from, date_to),
+                personnel__primary_distributor_center_id=ws.distributor_center_id,
+            )
+            .values('personnel_id')
+            .annotate(value=Avg('numeric_value'))
+            .order_by('-value' if direction == 'HIGHER_IS_BETTER' else 'value')
+        )
+        all_rows = list(agg)
+        if not all_rows:
+            return Response({
+                'metric': {
+                    'code': metric.code, 'name': metric.name,
+                    'unit': metric.unit or '', 'direction': direction,
+                },
+                'top': [], 'bottom': [], 'period': period,
+            })
+
+        top_rows = all_rows[:top_count]
+        bottom_rows = all_rows[-bottom_count:][::-1]
+
+        from apps.personnel.models.personnel import PersonnelProfile
+        people = {
+            p.id: p for p in PersonnelProfile.objects.filter(
+                id__in=set([r['personnel_id'] for r in top_rows + bottom_rows])
+            )
+        }
+
+        def _serialize(row):
+            p = people.get(row['personnel_id'])
+            value = row['value']
+            return {
+                'personnel_id': row['personnel_id'],
+                'name': p.full_name if p else f"#{row['personnel_id']}",
+                'photo_url': getattr(p, 'photo_url', None) if p else None,
+                'value': float(value) if isinstance(value, Decimal) else value,
+            }
+
+        return Response({
+            'metric': {
+                'code': metric.code, 'name': metric.name,
+                'unit': metric.unit or '', 'direction': direction,
+            },
+            'top': [_serialize(r) for r in top_rows],
+            'bottom': [_serialize(r) for r in bottom_rows],
+            'period': period,
+        })
+
     @action(detail=False, methods=['post'], url_path='ensure-for-role')
     def ensure_for_role(self, request):
         """Devuelve (o crea si no existe) la Workstation para un (CD, role).

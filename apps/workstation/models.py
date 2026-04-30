@@ -195,6 +195,7 @@ class WorkstationBlock(BaseModel):
     TYPE_TRIGGERS = 'TRIGGERS'
     TYPE_SIC_CHART = 'SIC_CHART'
     TYPE_REACTION_PLANS = 'REACTION_PLANS'
+    TYPE_PERFORMERS = 'PERFORMERS'
     TYPE_QR_DOCUMENT = 'QR_DOCUMENT'
     TYPE_QR_EXTERNAL = 'QR_EXTERNAL'
     TYPE_IMAGE = 'IMAGE'
@@ -208,6 +209,7 @@ class WorkstationBlock(BaseModel):
         (TYPE_TRIGGERS,      'Disparador resolución de problemas'),
         (TYPE_SIC_CHART,     'SIC / Pi Crítico'),
         (TYPE_REACTION_PLANS,'Planes de Reacción'),
+        (TYPE_PERFORMERS,    'Top / Bottom Performers'),
         (TYPE_QR_DOCUMENT,   'QR · Documento PDF'),
         (TYPE_QR_EXTERNAL,   'QR · Link externo'),
         (TYPE_IMAGE,         'Imagen'),
