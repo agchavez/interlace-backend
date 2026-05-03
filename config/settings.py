@@ -42,6 +42,7 @@ LOCAL_APPS = [
     'apps.truck_cycle',
     'apps.tv',
     'apps.workstation',
+    'apps.repack',
 ]
 
 INSTALLED_APPS = [
