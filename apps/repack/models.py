@@ -113,8 +113,13 @@ class RepackEntry(BaseModel):
     )
     material_code = models.CharField('Código de material', max_length=40)
     product_name = models.CharField('Nombre del producto', max_length=200, blank=True, default='')
-    box_count = models.PositiveIntegerField('Cantidad de cajas')
-    expiration_date = models.DateField('Fecha de vencimiento')
+    # IntegerField (no Positive) para permitir ajustes negativos: el operario
+    # puede apretar `-` y se crea un entry con box_count<0, registrando el
+    # momento exacto del ajuste. La hora se respeta en el agregado por hora.
+    box_count = models.IntegerField('Cantidad de cajas')
+    # Nullable: los ajustes negativos no tienen un lote físico asociado, así
+    # que pueden no traer fecha de vencimiento.
+    expiration_date = models.DateField('Fecha de vencimiento', null=True, blank=True)
     notes = models.CharField('Notas', max_length=200, blank=True, default='')
 
     class Meta:

@@ -3,24 +3,27 @@ Endpoints del módulo Reempaque.
 
 Flujo principal:
   1. POST /api/repack-session/start/        → crea sesión (operario inicia)
-  2. POST /api/repack-entry/                → digita lotes mientras trabaja
-  3. POST /api/repack-session/<id>/finish/  → cierra sesión y emite métrica
+  2. POST /api/repack-entry/                → digita lotes (`box_count>0`) o
+                                              ajustes (`box_count<0`) — la
+                                              métrica por hora se actualiza
+                                              en vivo al guardar.
+  3. POST /api/repack-session/<id>/finish/  → cierra sesión y emite el
+                                              sample agregado del turno.
 
 Lecturas:
   GET /api/repack-session/active/           → sesión activa del usuario actual
   GET /api/repack-session/?...              → historial filtrable
   GET /api/repack-session/<id>/             → detalle con entries
 """
-from datetime import timedelta
-from decimal import Decimal
-
 from django.db import transaction
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from .metrics import on_entry_changed, on_session_finished
 from .models import RepackEntry, RepackSession
 from .serializers import (
     RepackEntrySerializer,
@@ -120,7 +123,12 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def finish(self, request, pk=None):
-        """Cierra la sesión y emite la métrica `repack_boxes_per_hour`."""
+        """Cierra la sesión y emite el sample agregado del turno.
+
+        Los samples por hora (`repack_boxes_per_hour`) ya se mantienen al día
+        por los hooks de entry. Acá solo asegura el estado final + emite
+        `repack_total_boxes_shift` y notifica a los suscriptores WS.
+        """
         session = self.get_object()
         if session.status != RepackSession.STATUS_ACTIVE:
             return Response(
@@ -133,7 +141,7 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
             session.status = RepackSession.STATUS_COMPLETED
             session.save(update_fields=['ended_at', 'status'])
 
-            _emit_metric_sample(session)
+        on_session_finished(session)
 
         return Response(RepackSessionDetailSerializer(session).data)
 
@@ -154,7 +162,13 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
 
 
 class RepackEntryViewSet(viewsets.ModelViewSet):
-    """CRUD de entries de una sesión. La sesión debe estar ACTIVA."""
+    """CRUD de entries de una sesión. La sesión debe estar ACTIVA.
+
+    Permisos: solo el dueño de la sesión (`session.personnel.user`) o un
+    admin pueden crear/editar/borrar entries. Cada cambio dispara
+    recompute de los samples por hora + WS broadcast — el SIC se
+    actualiza en vivo.
+    """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = RepackEntrySerializer
     filter_backends = [DjangoFilterBackend]
@@ -167,59 +181,60 @@ class RepackEntryViewSet(viewsets.ModelViewSet):
             qs = qs.filter(session__distributor_center=dc)
         return qs
 
+    def _check_owner_or_admin(self, session):
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            raise PermissionDenied('Autenticación requerida.')
+        if user.is_staff or user.is_superuser:
+            return
+        owner_user_id = getattr(session.personnel, 'user_id', None)
+        if owner_user_id and owner_user_id == user.id:
+            return
+        raise PermissionDenied('Solo el operario dueño de la sesión o un admin pueden modificar entries.')
+
     def perform_create(self, serializer):
-        from rest_framework.exceptions import ValidationError
-
         session = serializer.validated_data.get('session')
-        if session and session.status != RepackSession.STATUS_ACTIVE:
+        if not session:
+            raise ValidationError({'session': 'Sesión requerida.'})
+        if session.status != RepackSession.STATUS_ACTIVE:
             raise ValidationError({'session': 'La sesión no está activa.'})
+        self._check_owner_or_admin(session)
 
-        # Producto del catálogo es OBLIGATORIO — la métrica de productividad
-        # depende de poder identificar SKU. Si no viene, rechazar.
         product = serializer.validated_data.get('product')
-        if not product:
-            raise ValidationError({
-                'product': 'Seleccioná un producto del catálogo. La trazabilidad por SKU es obligatoria.',
-            })
+        box_count = serializer.validated_data.get('box_count', 0)
 
-        # Auto-rellenar material_code (sap_code) y product_name desde el catálogo.
-        serializer.validated_data['material_code'] = product.sap_code or str(product.id)
-        serializer.validated_data['product_name'] = product.name
+        if box_count == 0:
+            raise ValidationError({'box_count': 'box_count no puede ser 0.'})
 
-        serializer.save()
+        # Producto opcional para los ajustes rápidos del botón +/- (caso
+        # típico: el operario arregla la cuenta sin re-elegir SKU). Cuando
+        # SÍ viene producto auto-rellenamos los descriptivos.
+        if product:
+            serializer.validated_data['material_code'] = product.sap_code or str(product.id)
+            serializer.validated_data['product_name'] = product.name
+        else:
+            serializer.validated_data.setdefault('material_code', 'AJUSTE')
+            serializer.validated_data.setdefault('product_name', 'Ajuste manual')
+
+        instance = serializer.save()
+        on_entry_changed(instance.session)
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        self._check_owner_or_admin(instance.session)
+        if instance.session.status != RepackSession.STATUS_ACTIVE and not (
+            self.request.user.is_staff or self.request.user.is_superuser
+        ):
+            raise ValidationError({'session': 'La sesión no está activa.'})
+        if serializer.validated_data.get('box_count', instance.box_count) == 0:
+            raise ValidationError({'box_count': 'box_count no puede ser 0.'})
+        updated = serializer.save()
+        on_entry_changed(updated.session)
+
+    def perform_destroy(self, instance):
+        self._check_owner_or_admin(instance.session)
+        session = instance.session
+        instance.delete()
+        on_entry_changed(session)
 
 
-def _emit_metric_sample(session: RepackSession) -> None:
-    """Crea un PersonnelMetricSample con `repack_boxes_per_hour` basado en
-    los totales de la sesión recién cerrada. No falla si la métrica no
-    existe — solo loguea silenciosamente.
-    """
-    try:
-        from apps.personnel.models.metric_sample import PersonnelMetricSample
-        from apps.personnel.models.performance_new import PerformanceMetricType
-    except Exception:
-        return
-
-    try:
-        metric = PerformanceMetricType.objects.get(code='repack_boxes_per_hour')
-    except PerformanceMetricType.DoesNotExist:
-        return
-
-    bph = session.boxes_per_hour
-    if bph <= 0:
-        return
-
-    PersonnelMetricSample.objects.create(
-        personnel=session.personnel,
-        metric_type=metric,
-        operational_date=session.operational_date,
-        numeric_value=Decimal(str(bph)),
-        source=PersonnelMetricSample.SOURCE_AUTO,
-        context={
-            'repack_session_id': session.id,
-            'total_boxes': session.total_boxes,
-            'duration_seconds': session.duration_seconds,
-            'started_at': session.started_at.isoformat(),
-            'ended_at': session.ended_at.isoformat() if session.ended_at else None,
-        },
-    )

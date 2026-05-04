@@ -3,13 +3,22 @@ Crea los grupos de Django para los roles del Ciclo del Camión, les asigna
 permisos personalizados y opcionalmente inscribe a los usuarios con perfil de
 personal en el grupo que corresponda según su position_type.
 
-Grupos:
+Grupos individuales (1 permiso cada uno):
     Picker              — acceso a /work/picker
     Contador            — acceso a /work/counter
     Seguridad Ciclo     — acceso a /work/security
     Operaciones Ciclo   — acceso a /work/ops
     Chofer de Patio     — acceso a /work/yard
     Chofer Vendedor     — acceso a /work/vendor
+
+Grupos combinados (varios permisos — para roles polivalentes):
+    Ayudante            — picker + counter + repack (operario que rota
+                          entre digitar pautas, contar y reempacar)
+
+Permisos sueltos (no tienen grupo dedicado):
+    access_work_repack  — acceso a /work/repack. Se asigna al grupo
+                          `Ayudante` y queda disponible para futuras
+                          combinaciones.
 
 Ejecutar:
     python manage.py setup_work_groups              # crea grupos e inscribe usuarios
@@ -58,6 +67,26 @@ WORK_GROUPS = [
     },
 ]
 
+# Permisos que existen pero no tienen grupo dedicado. Se crean igual para
+# poder asignarlos a grupos combinados o para usos futuros.
+EXTRA_PERMISSIONS = [
+    ('access_work_repack', 'Puede acceder a la pantalla de trabajo de Reempaque'),
+]
+
+# Grupos polivalentes — combinan permisos de varios roles operativos. Sirven
+# para operarios que rotan entre tareas durante el turno.
+COMBINED_GROUPS = [
+    {
+        'name': 'Ayudante',
+        'permissions': [
+            'access_work_picker',
+            'access_work_counter',
+            'access_work_repack',
+        ],
+        'home': '/work/repack',  # landing por defecto si entra sin path
+    },
+]
+
 # Migración: nombres viejos → nombres nuevos. Si existe un grupo con el nombre
 # viejo se renombra (preservando miembros) en vez de crear uno nuevo.
 GROUP_RENAMES = {
@@ -75,7 +104,9 @@ POSITION_TYPE_TO_GROUP = {
     'PICKER':              'Picker',
     'LOADER':              'Picker',
     'COUNTER':             'Contador',
-    'WAREHOUSE_ASSISTANT': 'Contador',
+    # WAREHOUSE_ASSISTANT rota entre picker/contador/reempaque — va al
+    # grupo combinado `Ayudante` (acceso a las 3 pantallas).
+    'WAREHOUSE_ASSISTANT': 'Ayudante',
     'SECURITY_GUARD':      'Seguridad Ciclo',
     'YARD_DRIVER':         'Chofer de Patio',
     'DELIVERY_DRIVER':     'Chofer Vendedor',
@@ -135,28 +166,66 @@ class Command(BaseCommand):
     def _setup_groups(self, dry: bool) -> None:
         ct = ContentType.objects.get_for_model(PautaAssignmentModel)
 
-        self.stdout.write(self.style.MIGRATE_HEADING('\nGrupos y permisos:'))
-        for spec in WORK_GROUPS:
-            codename, label = spec['permission']
+        # Cache de permisos creados/encontrados por codename — los grupos
+        # combinados los agarran de acá.
+        perm_by_code: dict[str, Permission] = {}
+
+        def _ensure_permission(codename: str, label: str) -> Permission:
             perm, p_created = Permission.objects.get_or_create(
                 codename=codename, content_type=ct, defaults={'name': label},
             )
             if not p_created and perm.name != label:
                 perm.name = label
                 perm.save(update_fields=['name'])
+            perm_by_code[codename] = perm
+            return perm
 
+        self.stdout.write(self.style.MIGRATE_HEADING('\nGrupos individuales:'))
+        for spec in WORK_GROUPS:
+            codename, label = spec['permission']
+            perm = _ensure_permission(codename, label)
             group, g_created = Group.objects.get_or_create(name=spec['name'])
             group.permissions.add(perm)
-            # DetailGroup es el wrapper que el frontend muestra en /user/register.
-            # Sin él, el grupo no aparece en el select de "Grupo" al crear un usuario.
             DetailGroup.objects.get_or_create(
                 group=group,
                 defaults={'requiered_access': True},
             )
-
             self.stdout.write(self.style.SUCCESS(
                 f"  {'+' if g_created else '='} {spec['name']:<22}  perm={codename}  home={spec['home']}"
             ))
+
+        # Permisos sueltos que se usan en grupos combinados o quedan
+        # disponibles para futuras asignaciones manuales.
+        if EXTRA_PERMISSIONS:
+            self.stdout.write(self.style.MIGRATE_HEADING('\nPermisos sueltos:'))
+            for codename, label in EXTRA_PERMISSIONS:
+                _ensure_permission(codename, label)
+                self.stdout.write(self.style.SUCCESS(f"  + {codename}"))
+
+        if COMBINED_GROUPS:
+            self.stdout.write(self.style.MIGRATE_HEADING('\nGrupos polivalentes:'))
+            for spec in COMBINED_GROUPS:
+                group, g_created = Group.objects.get_or_create(name=spec['name'])
+                missing = []
+                for code in spec['permissions']:
+                    p = perm_by_code.get(code)
+                    if not p:
+                        missing.append(code)
+                        continue
+                    group.permissions.add(p)
+                DetailGroup.objects.get_or_create(
+                    group=group,
+                    defaults={'requiered_access': True},
+                )
+                marker = '+' if g_created else '='
+                perms_str = ', '.join(spec['permissions'])
+                self.stdout.write(self.style.SUCCESS(
+                    f"  {marker} {spec['name']:<22}  perms=[{perms_str}]"
+                ))
+                if missing:
+                    self.stdout.write(self.style.WARNING(
+                        f"    ⚠ permisos no encontrados: {missing}"
+                    ))
 
     def _enroll_users(self, dry: bool) -> None:
         from apps.personnel.models.personnel import PersonnelProfile
