@@ -19,6 +19,9 @@ from .models import (
     WorkstationImage,
 )
 from .permissions import IsAdmin, IsAdminOrCDChief
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from apps.tv.auth import TvTokenAuthentication
+from apps.tv.permissions import IsAuthenticatedOrTv
 from .serializers import (
     ProhibitionCatalogSerializer,
     RiskCatalogSerializer,
@@ -61,13 +64,25 @@ def get_workstation_for_tv(dashboard: str, distributor_center_id: int | None) ->
 class RiskCatalogViewSet(viewsets.ModelViewSet):
     queryset = RiskCatalog.objects.all()
     serializer_class = RiskCatalogSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdmin]
+    # Las TVs leen el catálogo para resolver `catalog_ids` → nombres/íconos.
+    # Escritura sigue siendo solo admin.
+    authentication_classes = [JWTAuthentication, TvTokenAuthentication]
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticatedOrTv()]
+        return [permissions.IsAuthenticated(), IsAdmin()]
 
 
 class ProhibitionCatalogViewSet(viewsets.ModelViewSet):
     queryset = ProhibitionCatalog.objects.all()
     serializer_class = ProhibitionCatalogSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdmin]
+    authentication_classes = [JWTAuthentication, TvTokenAuthentication]
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticatedOrTv()]
+        return [permissions.IsAuthenticated(), IsAdmin()]
 
 
 # ────────── Workstation ──────────
@@ -79,10 +94,19 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         .prefetch_related('blocks', 'documents', 'images')
         .all()
     )
+    authentication_classes = [JWTAuthentication, TvTokenAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsAdminOrCDChief]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['distributor_center', 'role', 'is_active']
     search_fields = ['name', 'distributor_center__name']
+
+    def get_permissions(self):
+        # `performers` es lectura agregada — las TVs la consumen para los
+        # bloques rosados (top/bottom). Las demás acciones siguen requiriendo
+        # admin/CD-chief humano.
+        if self.action == 'performers':
+            return [IsAuthenticatedOrTv()]
+        return [p() for p in self.permission_classes]
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -107,9 +131,11 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         Respuesta:
           { metric: {code, name, unit, direction}, top: [...], bottom: [...] }
         """
-        from datetime import date as _date, timedelta
+        from datetime import timedelta
         from decimal import Decimal
+        from zoneinfo import ZoneInfo
         from django.db.models import Avg
+        from django.utils import timezone
         from apps.personnel.models.metric_sample import PersonnelMetricSample
         from apps.personnel.models.performance_new import PerformanceMetricType
         from apps.truck_cycle.models.catalogs import KPITargetModel
@@ -120,7 +146,9 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         bottom_count = max(1, min(int(request.query_params.get('bottom_count') or 3), 10))
         period = (request.query_params.get('period') or 'today').strip()
 
-        today = _date.today()
+        # `operational_date` se almacena en HN — comparar con la fecha local del CD,
+        # no con la del server (UTC) que podría adelantarse 6h.
+        today = timezone.localtime(timezone.now(), ZoneInfo('America/Tegucigalpa')).date()
         date_from = today - timedelta(days=6) if period == 'week' else today
         date_to = today
 

@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.personnel.models.metric_sample import PersonnelMetricSample
@@ -16,6 +17,8 @@ from apps.personnel.serializers.metric_sample_serializers import (
     PersonnelMetricSampleSerializer,
 )
 from apps.personnel.utils.bands import band_for
+from apps.tv.auth import TvTokenAuthentication
+from apps.tv.permissions import IsAuthenticatedOrTv
 
 
 HN_TZ = ZoneInfo('America/Tegucigalpa')
@@ -83,7 +86,11 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
     ?operational_date_after=, ?operational_date_before=, ?source=.
     """
     serializer_class = PersonnelMetricSampleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Lectura pura (ReadOnlyModelViewSet) — las TVs consumen `live`/`hourly`/
+    # `workstation` para sus bloques. JWTAuthentication sigue habilitada para
+    # los usuarios humanos.
+    authentication_classes = [JWTAuthentication, TvTokenAuthentication]
+    permission_classes = [IsAuthenticatedOrTv]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = {
         'personnel': ['exact'],
@@ -256,10 +263,72 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             result['trigger'] = _round(result['trigger'])
             return result
 
+        # ----- Módulos dinámicos -----
+        # Generación automática de KPIs por módulo (prefijo del metric code).
+        # Cuando se agrega un PerformanceMetricType nuevo, aparece acá sin
+        # tocar código. Para módulos "especiales" (picker/counter/yard) que
+        # tienen lógica de negocio en bloques fijos, los excluimos del
+        # listado dinámico para no duplicar.
+        FIXED_MODULES = {'picker', 'counter', 'yard'}
+
+        all_metric_types = list(
+            PerformanceMetricType.objects.filter(is_active=True)
+            .values('id', 'code', 'name', 'unit')
+        )
+
+        # Agrupar por prefijo del code (substring antes del primer "_").
+        from collections import defaultdict
+        modules_map = defaultdict(list)
+        for mt in all_metric_types:
+            code = mt['code']
+            if '_' not in code:
+                continue
+            module = code.split('_', 1)[0].lower()
+            if module in FIXED_MODULES:
+                continue
+            modules_map[module].append(mt)
+
+        dynamic_modules = []
+        for module_code, mt_list in sorted(modules_map.items()):
+            kpis = []
+            any_has_value = False
+            for mt in mt_list:
+                avg_val = _avg(mt['code'])
+                if avg_val is None:
+                    continue  # no hay sample → omitir esta KPI
+                any_has_value = True
+                value_with_band = _metric(mt['code'], avg_val)
+                value_with_band['code'] = mt['code']
+                value_with_band['label'] = mt['name']
+                kpis.append(value_with_band)
+            if not any_has_value:
+                continue  # módulo sin data del día → no incluir
+            dynamic_modules.append({
+                'code': module_code,
+                'label': module_code.capitalize(),
+                'kpis': kpis,
+            })
+
+        # ---------- Dict plano por metric_code ----------
+        # Para que cualquier consumidor (TriggersBlock / SicChartBlock /
+        # PerformersBlock / TVs) pueda obtener el valor actual de cualquier
+        # KPI sin tener que hardcodear la ruta picker/counter/yard/etc.
+        metrics_by_code = {}
+        for mt in all_metric_types:
+            avg_val = _avg(mt['code'])
+            if avg_val is None:
+                continue  # no hay sample del día → omitir
+            mw = _metric(mt['code'], avg_val)
+            mw['code'] = mt['code']
+            mw['label'] = mt['name']
+            metrics_by_code[mt['code']] = mw
+
         return Response({
             'date': str(op_date),
             'personnel_id': int(personnel_id) if personnel_id else None,
             'distributor_center': band_dc_id,
+            'dynamic_modules': dynamic_modules,
+            'metrics_by_code': metrics_by_code,
             'picker': {
                 'pallets_per_hour':        _metric('picker_pallets_per_hour', pallets_per_hour_picker),
                 'loads_assembled':         _metric('picker_loads_assembled', loads_assembled),
@@ -338,7 +407,7 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(personnel_id=personnel_id)
 
         agg = (
-            qs.annotate(h=Extract('created_at', 'hour'))
+            qs.annotate(h=Extract('created_at', 'hour', tzinfo=HN_TZ))
             .values('h')
             .annotate(avg=Avg('numeric_value'), n=Count('id'))
             .order_by('h')
@@ -477,9 +546,19 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
                     'yard_time_bay_to_park', 'yard_time_total_move',
                 ],
             },
+            'repack': {
+                # Reempaque no usa pauta_assignments — los operarios se relacionan
+                # vía RepackSession. Lo manejamos como caso especial abajo.
+                'assignment_role': None,
+                'position_types': ['WAREHOUSE_ASSISTANT', 'LOADER'],
+                'metrics': [
+                    'repack_boxes_per_hour', 'repack_total_boxes_shift',
+                    'repack_skus_per_session',
+                ],
+            },
         }
         if role not in role_map:
-            return Response({'error': 'role requerido: picker|counter|yard'}, status=400)
+            return Response({'error': 'role requerido: picker|counter|yard|repack'}, status=400)
         spec = role_map[role]
 
         op_date_str = request.query_params.get('operational_date')
@@ -501,14 +580,25 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         # Personnel que participaron hoy: por assignment de pauta OR por sample
         # del día. Los samples solos (sin pauta) cubren el caso de demos/backfill
         # o métricas manuales futuras.
-        assignments = PautaAssignmentModel.objects.filter(
-            role=spec['assignment_role'],
-            pauta__operational_date=op_date,
-        )
-        if dc_id:
-            assignments = assignments.filter(pauta__distributor_center_id=dc_id)
-
-        assignment_personnel = set(assignments.values_list('personnel_id', flat=True))
+        # Para repack no hay PautaAssignment; los operarios vienen de RepackSession.
+        assignment_personnel = set()
+        if spec['assignment_role']:
+            assignments = PautaAssignmentModel.objects.filter(
+                role=spec['assignment_role'],
+                pauta__operational_date=op_date,
+            )
+            if dc_id:
+                assignments = assignments.filter(pauta__distributor_center_id=dc_id)
+            assignment_personnel = set(assignments.values_list('personnel_id', flat=True))
+        elif role == 'repack':
+            try:
+                from apps.repack.models import RepackSession
+                rs_qs = RepackSession.objects.filter(operational_date=op_date)
+                if dc_id:
+                    rs_qs = rs_qs.filter(distributor_center_id=dc_id)
+                assignment_personnel = set(rs_qs.values_list('personnel_id', flat=True))
+            except Exception:
+                assignment_personnel = set()
 
         shift_range = _resolve_active_shift(dc_id)
         sample_personnel_qs = PersonnelMetricSample.objects.filter(

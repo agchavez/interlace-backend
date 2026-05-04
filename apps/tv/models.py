@@ -40,6 +40,7 @@ class TvSession(models.Model):
         ('WORKSTATION_PICKER',  'Workstation Picker · KPIs por turno'),
         ('WORKSTATION_COUNTER', 'Workstation Contador · KPIs por turno'),
         ('WORKSTATION_YARD',    'Workstation Chofer de Patio · KPIs por turno'),
+        ('WORKSTATION_REPACK',  'Workstation Reempaque · KPIs por turno'),
     ]
 
     code = models.CharField('Código', max_length=9, unique=True, db_index=True, default=_gen_code)
