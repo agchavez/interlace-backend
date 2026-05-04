@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from utils.BaseModel import BaseModel
 from apps.personnel.models.personnel import PersonnelProfile
 from apps.maintenance.models.distributor_center import DistributorCenter
-from apps.truck_cycle.models.catalogs import ProductCatalogModel
+from apps.maintenance.models.product import ProductModel
 
 
 User = get_user_model()
@@ -105,7 +105,7 @@ class RepackEntry(BaseModel):
         verbose_name='Sesión',
     )
     product = models.ForeignKey(
-        ProductCatalogModel,
+        ProductModel,
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='repack_entries',

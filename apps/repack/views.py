@@ -168,17 +168,23 @@ class RepackEntryViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+
         session = serializer.validated_data.get('session')
         if session and session.status != RepackSession.STATUS_ACTIVE:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError({'session': 'La sesión no está activa.'})
 
-        # Si vino el FK a producto, completar material_code y product_name.
+        # Producto del catálogo es OBLIGATORIO — la métrica de productividad
+        # depende de poder identificar SKU. Si no viene, rechazar.
         product = serializer.validated_data.get('product')
-        if product:
-            serializer.validated_data.setdefault('material_code', product.material_code)
-            if not serializer.validated_data.get('product_name'):
-                serializer.validated_data['product_name'] = product.name
+        if not product:
+            raise ValidationError({
+                'product': 'Seleccioná un producto del catálogo. La trazabilidad por SKU es obligatoria.',
+            })
+
+        # Auto-rellenar material_code (sap_code) y product_name desde el catálogo.
+        serializer.validated_data['material_code'] = product.sap_code or str(product.id)
+        serializer.validated_data['product_name'] = product.name
 
         serializer.save()
 
