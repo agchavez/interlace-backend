@@ -10,6 +10,8 @@ Eventos:
 Cada TV pareada al CD afectado recibe el evento por su canal `tv_session_<code>`.
 La TV refetcha el endpoint `/api/tv/sessions/workstation/` y se actualiza.
 """
+import logging
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db.models.signals import post_save, post_delete
@@ -17,9 +19,16 @@ from django.dispatch import receiver
 
 from .models import WorkstationBlock, WorkstationDocument, WorkstationImage
 
+logger = logging.getLogger(__name__)
+
 
 def _broadcast_to_cd(distributor_center_id: int | None, payload: dict) -> None:
-    """Notifica a todas las TVs PAIRED del CD indicado."""
+    """Notifica a todas las TVs PAIRED del CD indicado.
+
+    Si Redis está caído o no responde, **no bloquea** la operación de BD —
+    solo loguea el warning y sigue. Esto evita que un Redis inaccesible
+    haga colgar transacciones (signals corren dentro del DELETE/UPDATE).
+    """
     if not distributor_center_id:
         return
     # Import local para evitar ciclos al cargar la app
@@ -29,16 +38,25 @@ def _broadcast_to_cd(distributor_center_id: int | None, payload: dict) -> None:
     if not layer:
         return
 
-    codes = TvSession.objects.filter(
-        distributor_center_id=distributor_center_id,
-        status='PAIRED',
-    ).values_list('code', flat=True)
+    try:
+        codes = list(TvSession.objects.filter(
+            distributor_center_id=distributor_center_id,
+            status='PAIRED',
+        ).values_list('code', flat=True))
+    except Exception as e:
+        logger.warning('No se pudieron leer TvSessions para broadcast: %s', e)
+        return
 
     for code in codes:
-        async_to_sync(layer.group_send)(
-            f'tv_session_{code}',
-            {'type': 'workstation.config.updated', 'data': payload},
-        )
+        try:
+            async_to_sync(layer.group_send)(
+                f'tv_session_{code}',
+                {'type': 'workstation.config.updated', 'data': payload},
+            )
+        except Exception as e:
+            # Redis caído / timeout → no bloquear la transacción de BD.
+            logger.warning('Broadcast a tv_session_%s falló (Redis?): %s', code, e)
+            return  # si el primero falló, los demás también — abort silencioso
 
 
 def _cd_for(instance) -> int | None:

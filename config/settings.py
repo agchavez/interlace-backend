@@ -201,12 +201,18 @@ CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Configuracion de canales
+# Configuracion de canales — acepta REDIS_URL (con auth) o REDIS_HOST/PORT.
+_REDIS_URL = os.getenv('REDIS_URL', '').strip()
+_CHANNEL_HOSTS = (
+    [_REDIS_URL]
+    if _REDIS_URL
+    else [(os.getenv('REDIS_HOST', 'localhost'), int(os.getenv('REDIS_PORT', '6379')))]
+)
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(os.getenv('REDIS_HOST', 'localhost'), int(os.getenv('REDIS_PORT', '6379')))],
+            "hosts": _CHANNEL_HOSTS,
         },
     },
 }
