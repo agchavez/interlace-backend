@@ -13,10 +13,18 @@ class RepackEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at']
 
 
+class RepackHelperMiniSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+    employee_code = serializers.CharField(read_only=True)
+
+
 class RepackSessionListSerializer(serializers.ModelSerializer):
     personnel_name = serializers.CharField(source='personnel.full_name', read_only=True)
     distributor_center_name = serializers.CharField(source='distributor_center.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    supervisor_name = serializers.CharField(source='supervisor.full_name', read_only=True, default=None)
+    helpers_detail = RepackHelperMiniSerializer(source='helpers', many=True, read_only=True)
     total_boxes = serializers.IntegerField(read_only=True)
     duration_seconds = serializers.IntegerField(read_only=True)
     boxes_per_hour = serializers.FloatField(read_only=True)
@@ -29,6 +37,8 @@ class RepackSessionListSerializer(serializers.ModelSerializer):
             'distributor_center', 'distributor_center_name',
             'operational_date', 'started_at', 'ended_at',
             'status', 'status_display', 'notes',
+            'supervisor', 'supervisor_name',
+            'helpers', 'helpers_detail',
             'total_boxes', 'duration_seconds', 'boxes_per_hour',
             'entries_count', 'created_at',
         ]

@@ -98,14 +98,44 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        session = RepackSession.objects.create(
-            personnel=personnel,
-            distributor_center=dc,
-            operational_date=request.data.get('operational_date') or timezone.localdate(),
-            status=RepackSession.STATUS_ACTIVE,
-            notes=request.data.get('notes', ''),
-            started_by=request.user,
-        )
+        from apps.personnel.models.personnel import PersonnelProfile
+
+        supervisor = None
+        supervisor_id = request.data.get('supervisor_id')
+        if supervisor_id:
+            try:
+                supervisor = PersonnelProfile.objects.get(pk=supervisor_id, is_active=True)
+            except PersonnelProfile.DoesNotExist:
+                return Response(
+                    {'error': 'Supervisor no encontrado.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        helper_ids = request.data.get('helper_ids') or []
+        if helper_ids and not isinstance(helper_ids, list):
+            return Response(
+                {'error': 'helper_ids debe ser una lista.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        helpers_qs = PersonnelProfile.objects.filter(pk__in=helper_ids, is_active=True) if helper_ids else None
+        if helper_ids and helpers_qs.count() != len(set(helper_ids)):
+            return Response(
+                {'error': 'Algún ayudante no existe o está inactivo.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            session = RepackSession.objects.create(
+                personnel=personnel,
+                distributor_center=dc,
+                operational_date=request.data.get('operational_date') or timezone.localdate(),
+                status=RepackSession.STATUS_ACTIVE,
+                notes=request.data.get('notes', ''),
+                started_by=request.user,
+                supervisor=supervisor,
+            )
+            if helpers_qs is not None:
+                session.helpers.set(helpers_qs)
         return Response(RepackSessionDetailSerializer(session).data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['get'])

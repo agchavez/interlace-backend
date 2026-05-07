@@ -201,7 +201,8 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
 
         hierarchy_level = request.query_params.get('hierarchy_level')
         if hierarchy_level:
-            qs = qs.filter(hierarchy_level=hierarchy_level)
+            values = [v.strip() for v in hierarchy_level.split(',') if v.strip()]
+            qs = qs.filter(hierarchy_level__in=values) if len(values) > 1 else qs.filter(hierarchy_level=values[0])
 
         dc_id = request.query_params.get('primary_distributor_center')
         if dc_id:

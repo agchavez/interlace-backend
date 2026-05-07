@@ -58,6 +58,19 @@ class RepackSession(BaseModel):
         related_name='repack_sessions_started',
         verbose_name='Iniciada por',
     )
+    supervisor = models.ForeignKey(
+        PersonnelProfile,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='repack_sessions_supervised',
+        verbose_name='Supervisor del turno',
+    )
+    helpers = models.ManyToManyField(
+        PersonnelProfile,
+        blank=True,
+        related_name='repack_sessions_helped',
+        verbose_name='Ayudantes del turno',
+    )
 
     class Meta:
         db_table = 'repack_session'
