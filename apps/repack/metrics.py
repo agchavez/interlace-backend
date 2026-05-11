@@ -79,6 +79,12 @@ def recompute_repack_hourly_samples(session: RepackSession) -> int:
         context__repack_session_id=session.id,
     ).delete()
 
+    # Si la sesión fue cancelada, NO recrear samples — los borramos arriba
+    # y debe quedarse sin métricas.
+    from .models import RepackSession
+    if session.status == RepackSession.STATUS_CANCELLED:
+        return 0
+
     # Agrupar entries por hora HN. Extract con tzinfo da la hora local del CD.
     by_hour = (
         session.entries

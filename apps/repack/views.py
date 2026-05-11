@@ -60,6 +60,11 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
         qs = RepackSession.objects.select_related('personnel', 'distributor_center').prefetch_related('entries')
         if dc:
             qs = qs.filter(distributor_center=dc)
+        # Por default ocultamos las canceladas — el listado debe mostrar solo
+        # sesiones activas o finalizadas. Si alguien quiere ver canceladas,
+        # debe pasar `?status=CANCELLED` explícito.
+        if not self.request.query_params.get('status'):
+            qs = qs.exclude(status=RepackSession.STATUS_CANCELLED)
         return qs
 
     @action(detail=False, methods=['post'])
@@ -177,13 +182,29 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
-        """Cancela la sesión sin emitir métricas."""
+        """Cancela la sesión y borra los samples emitidos durante ella.
+
+        Los samples `repack_boxes_per_hour` se van escribiendo a medida que
+        se agregan entries. Si la sesión se cancela, esos samples deben
+        desaparecer para que no contaminen el SIC ni los agregados del
+        workstation.
+        """
         session = self.get_object()
         if session.status != RepackSession.STATUS_ACTIVE:
             return Response(
                 {'error': f'La sesión ya no está activa.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Limpiar samples asociados antes de cambiar el status.
+        try:
+            from apps.personnel.models.metric_sample import PersonnelMetricSample
+            PersonnelMetricSample.objects.filter(
+                personnel=session.personnel,
+                context__repack_session_id=session.id,
+            ).delete()
+        except Exception:
+            pass
+
         session.ended_at = timezone.now()
         session.status = RepackSession.STATUS_CANCELLED
         session.notes = (session.notes + ' [cancelada]').strip()
