@@ -959,7 +959,7 @@ class PersonnelProfileViewSet(viewsets.ModelViewSet):
 
             # Asignar centros de distribución adicionales
             if 'distributions_centers' in user_data and user_data['distributions_centers']:
-                user.distributor_centers.set(user_data['distributions_centers'])
+                user.distributions_centers.set(user_data['distributions_centers'])
 
             user.save()
 
