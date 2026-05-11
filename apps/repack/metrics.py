@@ -107,19 +107,26 @@ def recompute_repack_hourly_samples(session: RepackSession) -> int:
         # horas 0..5 que el turno cubre suelen ser del día siguiente del
         # operational_date. Si la sesión arrancó tras medianoche del mismo
         # día (caso TA/TB) NO ajustamos.
+        # Resolver el día calendario al que corresponde la hora `hour`:
+        # - Si la sesión tiene entries CON timestamps reales, usamos el día
+        #   del entry que cae en esa hora HN.
+        # - Si no, fallback al operational_date.
+        # Esto cubre turnos que cruzan medianoche (TC 20:30→06:00) donde las
+        # horas 0..5 corresponden al día siguiente del operational_date.
         ref_day = op_date
-        if session.started_at:
+        try:
             from django.utils import timezone
-            started_hn = timezone.localtime(session.started_at, HN_TZ)
-            # Si la sesión arrancó después de la hora `hour` del started_at o
-            # cruza medianoche, asumimos que el sample corresponde al día
-            # siguiente del op_date.
-            if started_hn.date() != op_date and started_hn.hour > hour:
-                ref_day = started_hn.date()
-            elif started_hn.hour > hour and hour < 12:
-                # Cruza medianoche: started a 22h, sample en hora 3
-                from datetime import timedelta as _td
-                ref_day = op_date + _td(days=1)
+            from .models import RepackEntry
+            ent = (
+                session.entries
+                .annotate(_h=Extract('created_at', 'hour', tzinfo=HN_TZ))
+                .filter(_h=hour)
+                .first()
+            )
+            if ent:
+                ref_day = timezone.localtime(ent.created_at, HN_TZ).date()
+        except Exception:
+            pass
         anchor = datetime.combine(ref_day, time(hour, 0, 0), tzinfo=HN_TZ)
         s = PersonnelMetricSample.objects.create(
             personnel=session.personnel,
