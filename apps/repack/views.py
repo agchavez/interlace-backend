@@ -209,6 +209,19 @@ class RepackSessionViewSet(viewsets.ModelViewSet):
         session.status = RepackSession.STATUS_CANCELLED
         session.notes = (session.notes + ' [cancelada]').strip()
         session.save(update_fields=['ended_at', 'status', 'notes'])
+
+        # WS broadcast — para que el SIC/Performers de los workstations conectados
+        # invaliden cache y dejen de mostrar la data de esta sesión cancelada.
+        try:
+            from .metrics import _broadcast_metrics_updated
+            _broadcast_metrics_updated(
+                session.distributor_center_id,
+                session.personnel_id,
+                'repack_boxes_per_hour',
+            )
+        except Exception:
+            pass
+
         return Response(RepackSessionDetailSerializer(session).data)
 
 

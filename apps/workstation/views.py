@@ -204,20 +204,32 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         if not all_rows:
             return Response({'metric': metric_info, 'top': [], 'bottom': [], 'period': period})
 
-        top_rows = all_rows[:top_count]
-
-        # Bottom: SOLO los que están peor que la meta. Si no hay target, fallback
-        # al comportamiento legacy (últimos N del ranking).
+        # Top y Bottom son mutuamente excluyentes:
+        # - Top: SOLO los que están en o sobre la meta (lado bueno).
+        # - Bottom: SOLO los que están debajo de la meta (lado malo).
+        # Si una persona está debajo de la meta, no aparece en Top aunque sea
+        # la "menos peor". Si nadie cumple un lado, ese lado queda vacío.
+        # Si no hay target, fallback al comportamiento legacy (rankear todo).
         if target_value is not None:
-            def below_target(row):
+            def is_above_or_meets(row):
+                v = float(row['value']) if row['value'] is not None else None
+                if v is None:
+                    return False
+                return v >= target_value if direction == 'HIGHER_IS_BETTER' else v <= target_value
+
+            def is_below(row):
                 v = float(row['value']) if row['value'] is not None else None
                 if v is None:
                     return False
                 return v < target_value if direction == 'HIGHER_IS_BETTER' else v > target_value
-            below = [r for r in all_rows if below_target(r)]
+
+            above = [r for r in all_rows if is_above_or_meets(r)]
+            below = [r for r in all_rows if is_below(r)]
+            top_rows = above[:top_count]
             # Los "peores" están al final del ranking (ya ordenado por mejor→peor)
             bottom_rows = below[-bottom_count:][::-1]
         else:
+            top_rows = all_rows[:top_count]
             bottom_rows = all_rows[-bottom_count:][::-1]
 
         from apps.personnel.models.personnel import PersonnelProfile
