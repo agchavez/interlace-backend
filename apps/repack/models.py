@@ -96,11 +96,33 @@ class RepackSession(BaseModel):
         return int((self.ended_at - self.started_at).total_seconds())
 
     @property
-    def boxes_per_hour(self) -> float:
-        secs = self.duration_seconds
-        if secs <= 0:
-            return 0.0
-        return round(self.total_boxes * 3600 / secs, 2)
+    def boxes_per_hour(self) -> int:
+        """Cajas registradas dentro de la HORA actual del reloj (HN).
+
+        No extrapola — devuelve la SUMA de box_count de los entries cuyo
+        timestamp cae en la misma hora HN que el momento de referencia
+        (now si la sesión sigue activa, ended_at si ya cerró).
+
+        Ejemplo: si la jornada arrancó 22:36 y ahora son 22:54 con 31 cajas
+        registradas en esa misma hora, devuelve 31. Al pasar a las 23:00,
+        si no hay nuevos entries, devuelve 0 hasta que se sume al menos un
+        entry en la hora 23.
+        """
+        from zoneinfo import ZoneInfo
+        from django.utils import timezone
+
+        hn = ZoneInfo('America/Tegucigalpa')
+        reference = self.ended_at or timezone.now()
+        ref_hn = timezone.localtime(reference, hn)
+        ref_hour = ref_hn.replace(minute=0, second=0, microsecond=0)
+
+        total = 0
+        for e in self.entries.all():
+            entry_hn = timezone.localtime(e.created_at, hn)
+            entry_hour = entry_hn.replace(minute=0, second=0, microsecond=0)
+            if entry_hour == ref_hour:
+                total += e.box_count
+        return total
 
 
 class RepackEntry(BaseModel):

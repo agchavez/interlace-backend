@@ -25,7 +25,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.utils import timezone
 
-from apps.maintenance.models.distributor_center import DistributorCenter
+from apps.maintenance.models.distributor_center import DistributorCenter, DCShiftModel
 from apps.truck_cycle.models.catalogs import TruckModel
 from apps.truck_cycle.models.core import PautaModel
 from apps.truck_cycle.models.operational import PautaAssignmentModel, InconsistencyModel
@@ -35,6 +35,7 @@ from apps.personnel.models.performance_new import PerformanceMetricType
 
 
 HN_TZ = ZoneInfo('America/Tegucigalpa')
+DAY_MAP = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
 # ── Counters reales del Excel de errores ───────────────────────────────────
 # Pool de contadores que asignamos por rotación al `role=COUNTER` de cada pauta.
@@ -193,8 +194,11 @@ class Command(BaseCommand):
         parser.add_argument('--date', type=str, required=True, help='YYYY-MM-DD.')
         parser.add_argument('--replace', action='store_true',
                             help='Borra pautas/samples previos del día/CD.')
-        parser.add_argument('--shift-start', type=str, default='10:00',
-                            help='Hora a la que arranca la tanda 1 (default 10:00 — turno TB).')
+        parser.add_argument('--shift', type=str, default='TC',
+                            help='Turno donde caen las pautas: TA, TB o TC '
+                                 '(default: TC). Las horas del Excel se alinean '
+                                 'a la "hora 0" del turno (TC=medianoche del día '
+                                 'siguiente, TB=10:00, TA=06:00 del op_date).')
 
     def handle(self, *args, **options):
         try:
@@ -205,13 +209,32 @@ class Command(BaseCommand):
             dc = DistributorCenter.objects.get(pk=options['dc'])
         except DistributorCenter.DoesNotExist:
             raise CommandError(f'CD {options["dc"]} no existe')
+        # Resolver el turno objetivo + la "hora 0" del Excel dentro de ese turno.
+        # El Excel arranca a las "00:00:02" como referencia (tanda 1). Para TC,
+        # esa hora 0 coincide con la medianoche real del día siguiente al
+        # operational_date (turno TC arranca 20:30 y termina 06:00 del día sig).
+        # Para TB/TA, hora 0 = start_time del turno (no hay cruce de medianoche).
+        dow = DAY_MAP[op_date.weekday()]
+        shift_name = options['shift'].upper().strip()
         try:
-            base_h, base_m = map(int, options['shift_start'].split(':'))
-            shift_base = datetime.combine(op_date, dt_time(base_h, base_m), tzinfo=HN_TZ)
-        except ValueError:
-            raise CommandError('shift-start debe ser HH:MM')
+            shift = DCShiftModel.objects.get(
+                distributor_center_id=dc.id, day_of_week=dow,
+                is_active=True, shift_name=shift_name,
+            )
+        except DCShiftModel.DoesNotExist:
+            raise CommandError(f'No existe turno {shift_name} activo el {dow} en {dc.name}.')
 
-        self.stdout.write(self.style.WARNING(f'=== {dc.name} ({op_date}) — turno arranca {options["shift_start"]} ==='))
+        if shift_name == 'TC':
+            # Excel comienza a las 00:00 del día siguiente.
+            shift_base = datetime.combine(op_date + timedelta(days=1), dt_time(0, 0), tzinfo=HN_TZ)
+        else:
+            shift_base = datetime.combine(op_date, shift.start_time, tzinfo=HN_TZ)
+
+        self.stdout.write(self.style.WARNING(
+            f'=== {dc.name} ({op_date}) — turno {shift.shift_name} '
+            f'{shift.start_time.strftime("%H:%M")}-{shift.end_time.strftime("%H:%M")} · '
+            f'Excel hora-0 = {shift_base.strftime("%Y-%m-%d %H:%M")} ==='
+        ))
 
         # 1) Personal: pickers por nombre. El Excel real tiene "ayudantes" que
         # operan como pickers — por eso buscamos en WAREHOUSE_ASSISTANT/LOADER/PICKER.
@@ -308,9 +331,9 @@ class Command(BaseCommand):
                 ).delete()[0]
                 self.stdout.write(f'  · borrados {d1} samples y {d2} pautas previas')
 
-        # 4) Crear pautas a partir del Excel
+        # 4) Crear pautas a partir del Excel (un solo turno)
         pautas = []
-        pauta_meta = []  # (picker_id, total_pallets, start_dt, end_dt, fractions)
+        pauta_meta = []  # (picker, total_plt, start_dt, end_dt, full_plt, picking_plt, total_ca)
         for name, viaje, total_ca, full_plt, picking_plt, tanda, hh_ini, hh_fin in EXCEL_ROWS:
             picker = matched.get(name)
             if not picker:

@@ -123,15 +123,22 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         """Top y Bottom performers del workstation según un KPI configurable.
 
         Query params:
-          metric_code     code de PerformanceMetricType para rankear (requerido).
-          top_count       cuántos top mostrar (default 3, max 10).
-          bottom_count    cuántos bottom mostrar (default 3, max 10).
-          period          'today' (default) | 'week' (últimos 7 días).
+          metric_code        code de PerformanceMetricType para rankear (requerido).
+          top_count          cuántos top mostrar (default 3, max 10).
+          bottom_count       cuántos bottom mostrar (default 3, max 10).
+          period             'today' (default) | 'week' (últimos 7 días).
+          operational_date   YYYY-MM-DD (default: hoy HN). Si se pasa, period
+                             se ignora y se filtra por ese día (o el rango de 7
+                             días terminando ese día si period='week').
+
+        Bottom: solo incluye personal cuyo promedio está peor que el target
+        del KPI (por debajo si HIGHER_IS_BETTER, por encima si LOWER_IS_BETTER).
+        Si nadie está debajo de la meta, devuelve lista vacía.
 
         Respuesta:
-          { metric: {code, name, unit, direction}, top: [...], bottom: [...] }
+          { metric: {code, name, unit, direction, target}, top: [...], bottom: [...] }
         """
-        from datetime import timedelta
+        from datetime import timedelta, datetime
         from decimal import Decimal
         from zoneinfo import ZoneInfo
         from django.db.models import Avg
@@ -145,12 +152,19 @@ class WorkstationViewSet(viewsets.ModelViewSet):
         top_count = max(1, min(int(request.query_params.get('top_count') or 3), 10))
         bottom_count = max(1, min(int(request.query_params.get('bottom_count') or 3), 10))
         period = (request.query_params.get('period') or 'today').strip()
+        op_date_str = request.query_params.get('operational_date')
 
         # `operational_date` se almacena en HN — comparar con la fecha local del CD,
         # no con la del server (UTC) que podría adelantarse 6h.
-        today = timezone.localtime(timezone.now(), ZoneInfo('America/Tegucigalpa')).date()
-        date_from = today - timedelta(days=6) if period == 'week' else today
-        date_to = today
+        tz_hn = ZoneInfo('America/Tegucigalpa')
+        if op_date_str:
+            try:
+                date_to = datetime.fromisoformat(op_date_str).date()
+            except (TypeError, ValueError):
+                date_to = timezone.localtime(timezone.now(), tz_hn).date()
+        else:
+            date_to = timezone.localtime(timezone.now(), tz_hn).date()
+        date_from = date_to - timedelta(days=6) if period == 'week' else date_to
 
         if not metric_code:
             return Response({'metric': None, 'top': [], 'bottom': [], 'error': 'metric_code requerido'})
@@ -167,30 +181,44 @@ class WorkstationViewSet(viewsets.ModelViewSet):
             .order_by('-effective_from').first()
         )
         direction = kpi_target.direction if kpi_target else 'HIGHER_IS_BETTER'
+        target_value = float(kpi_target.target_value) if kpi_target else None
 
         agg = (
             PersonnelMetricSample.objects
             .filter(
                 metric_type=metric,
                 operational_date__range=(date_from, date_to),
-                personnel__primary_distributor_center_id=ws.distributor_center_id,
+                personnel__distributor_centers__id=ws.distributor_center_id,
             )
             .values('personnel_id')
             .annotate(value=Avg('numeric_value'))
             .order_by('-value' if direction == 'HIGHER_IS_BETTER' else 'value')
+            .distinct()
         )
         all_rows = list(agg)
+        metric_info = {
+            'code': metric.code, 'name': metric.name,
+            'unit': metric.unit or '', 'direction': direction,
+            'target': target_value,
+        }
         if not all_rows:
-            return Response({
-                'metric': {
-                    'code': metric.code, 'name': metric.name,
-                    'unit': metric.unit or '', 'direction': direction,
-                },
-                'top': [], 'bottom': [], 'period': period,
-            })
+            return Response({'metric': metric_info, 'top': [], 'bottom': [], 'period': period})
 
         top_rows = all_rows[:top_count]
-        bottom_rows = all_rows[-bottom_count:][::-1]
+
+        # Bottom: SOLO los que están peor que la meta. Si no hay target, fallback
+        # al comportamiento legacy (últimos N del ranking).
+        if target_value is not None:
+            def below_target(row):
+                v = float(row['value']) if row['value'] is not None else None
+                if v is None:
+                    return False
+                return v < target_value if direction == 'HIGHER_IS_BETTER' else v > target_value
+            below = [r for r in all_rows if below_target(r)]
+            # Los "peores" están al final del ranking (ya ordenado por mejor→peor)
+            bottom_rows = below[-bottom_count:][::-1]
+        else:
+            bottom_rows = all_rows[-bottom_count:][::-1]
 
         from apps.personnel.models.personnel import PersonnelProfile
         people = {
@@ -210,10 +238,7 @@ class WorkstationViewSet(viewsets.ModelViewSet):
             }
 
         return Response({
-            'metric': {
-                'code': metric.code, 'name': metric.name,
-                'unit': metric.unit or '', 'direction': direction,
-            },
+            'metric': metric_info,
             'top': [_serialize(r) for r in top_rows],
             'bottom': [_serialize(r) for r in bottom_rows],
             'period': period,
