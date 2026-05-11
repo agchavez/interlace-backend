@@ -179,9 +179,24 @@ class DCShiftFilter(django_filters.FilterSet):
 
 
 class DCShiftViewSet(viewsets.ModelViewSet):
-    """Gestión de turnos por Centro de Distribución"""
+    """Gestión de turnos por Centro de Distribución.
+
+    Permite que las TVs lean turnos (lectura) sin autenticación JWT — usan
+    su propio TvTokenAuthentication. Operaciones de escritura siguen
+    requiriendo usuario logueado.
+    """
     queryset = DCShiftModel.objects.all()
     serializer_class = DCShiftSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = DCShiftFilter
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        from apps.tv.permissions import IsAuthenticatedOrTv
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticatedOrTv()]
+        return [IsAuthenticated()]
+
+    def get_authenticators(self):
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        from apps.tv.auth import TvTokenAuthentication
+        return [JWTAuthentication(), TvTokenAuthentication()]
