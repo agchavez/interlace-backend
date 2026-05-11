@@ -79,6 +79,62 @@ def _filter_by_shift(qs, shift_range):
     return qs.filter(created_at__gte=start_dt, created_at__lte=end_dt)
 
 
+def _resolve_shift_for_date(shift_id, op_date):
+    """Devuelve (shift, start_dt, end_dt) de un DCShiftModel para una fecha dada.
+
+    Maneja turnos que cruzan medianoche. Si no se puede resolver, devuelve None.
+    """
+    if not shift_id:
+        return None
+    try:
+        from apps.maintenance.models.distributor_center import DCShiftModel
+        s = DCShiftModel.objects.filter(pk=shift_id, is_active=True).first()
+        if not s:
+            return None
+        start_dt = datetime.combine(op_date, s.start_time, tzinfo=HN_TZ)
+        if s.end_time > s.start_time:
+            end_dt = datetime.combine(op_date, s.end_time, tzinfo=HN_TZ)
+        else:
+            # Cruza medianoche
+            end_dt = datetime.combine(op_date + timedelta(days=1), s.end_time, tzinfo=HN_TZ)
+        return (s, start_dt, end_dt)
+    except Exception:
+        return None
+
+
+def _resolve_shift(dc_id, shift_id, op_date, is_today):
+    """Resuelve el rango del turno a aplicar.
+
+    - Si `shift_id` viene: usa ese turno para `op_date`.
+    - Si no y es hoy: usa el turno activo del CD (comportamiento legacy).
+    - Si no y es fecha pasada: None → filtrar por día completo.
+    """
+    if shift_id:
+        return _resolve_shift_for_date(shift_id, op_date)
+    if is_today and dc_id:
+        return _resolve_active_shift(dc_id)
+    return None
+
+
+def _parse_id_list(request, key):
+    """Parsea un query param CSV o repetido en lista de ints. Devuelve [] si vacío."""
+    raw = request.query_params.getlist(key)
+    if not raw:
+        single = request.query_params.get(key)
+        raw = [single] if single else []
+    out = []
+    for item in raw:
+        for token in str(item).split(','):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                out.append(int(token))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
 class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
     """Samples históricos (una fila por evento medido).
 
@@ -135,18 +191,21 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         except (TypeError, ValueError):
             op_date = timezone.localdate()
 
-        personnel_id = request.query_params.get('personnel_id')
+        personnel_ids = _parse_id_list(request, 'personnel_ids')
+        if not personnel_ids:
+            personnel_ids = _parse_id_list(request, 'personnel_id')
         dc_id = request.query_params.get('distributor_center')
+        shift_id = request.query_params.get('shift_id')
 
-        # Filtro por turno vigente del CD (si existe). Si no, fallback al día.
-        shift_range = _resolve_active_shift(dc_id) if dc_id else None
+        is_today = op_date == timezone.localdate()
+        shift_range = _resolve_shift(dc_id, shift_id, op_date, is_today)
         if shift_range:
             samples_qs = PersonnelMetricSample.objects.all()
             samples_qs = _filter_by_shift(samples_qs, shift_range)
         else:
             samples_qs = PersonnelMetricSample.objects.filter(operational_date=op_date)
-        if personnel_id:
-            samples_qs = samples_qs.filter(personnel_id=personnel_id)
+        if personnel_ids:
+            samples_qs = samples_qs.filter(personnel_id__in=personnel_ids)
 
         def _avg(code):
             row = samples_qs.filter(metric_type__code=code).aggregate(avg=Avg('numeric_value'))
@@ -168,8 +227,8 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
 
         # ----- Picker -----
         picker_pauta_filter = Q(assignments__role='PICKER')
-        if personnel_id:
-            picker_pauta_filter &= Q(assignments__personnel_id=personnel_id)
+        if personnel_ids:
+            picker_pauta_filter &= Q(assignments__personnel_id__in=personnel_ids)
         picker_pautas = pauta_qs.filter(picker_pauta_filter).distinct()
 
         fractions_sum = picker_pautas.aggregate(total=Sum('assembled_fractions'))['total'] or 0
@@ -199,8 +258,8 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
 
         # ----- Counter -----
         counter_pauta_filter = Q(assignments__role='COUNTER')
-        if personnel_id:
-            counter_pauta_filter &= Q(assignments__personnel_id=personnel_id)
+        if personnel_ids:
+            counter_pauta_filter &= Q(assignments__personnel_id__in=personnel_ids)
         counter_pautas = pauta_qs.filter(counter_pauta_filter).distinct()
 
         avg_time_per_truck = _avg('counter_time_per_truck')
@@ -231,16 +290,16 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         trucks_moved_count = PautaAssignmentModel.objects.filter(
             role='YARD_DRIVER',
             pauta__operational_date=op_date,
-            **({'personnel_id': personnel_id} if personnel_id else {}),
+            **({'personnel_id__in': personnel_ids} if personnel_ids else {}),
             **({'pauta__distributor_center_id': dc_id} if dc_id else {}),
         ).values('pauta_id').distinct().count()
 
-        # Resolver DC para el join con KPITargetModel. Si viene personnel_id,
+        # Resolver DC para el join con KPITargetModel. Si viene un solo personnel,
         # se usa su primary_distributor_center; si no, el dc_id del query.
         band_dc_id = dc_id
-        if personnel_id and not band_dc_id:
+        if len(personnel_ids) == 1 and not band_dc_id:
             from apps.personnel.models.personnel import PersonnelProfile
-            p = PersonnelProfile.objects.filter(pk=personnel_id).values_list(
+            p = PersonnelProfile.objects.filter(pk=personnel_ids[0]).values_list(
                 'primary_distributor_center_id', flat=True,
             ).first()
             band_dc_id = p
@@ -325,7 +384,8 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response({
             'date': str(op_date),
-            'personnel_id': int(personnel_id) if personnel_id else None,
+            'personnel_id': personnel_ids[0] if len(personnel_ids) == 1 else None,
+            'personnel_ids': personnel_ids or None,
             'distributor_center': band_dc_id,
             'dynamic_modules': dynamic_modules,
             'metrics_by_code': metrics_by_code,
@@ -385,15 +445,18 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             op_date = timezone.localdate()
 
         dc_id = request.query_params.get('distributor_center')
-        personnel_id = request.query_params.get('personnel_id')
+        shift_id = request.query_params.get('shift_id')
+        personnel_ids = _parse_id_list(request, 'personnel_ids')
+        if not personnel_ids:
+            personnel_ids = _parse_id_list(request, 'personnel_id')
 
         try:
             mt = PerformanceMetricType.objects.get(code=metric_code)
         except PerformanceMetricType.DoesNotExist:
             return Response({'error': f'metric {metric_code} no existe'}, status=404)
 
-        # Filtro por turno vigente (rango de horas reales) en lugar de día.
-        shift_range = _resolve_active_shift(dc_id) if dc_id else None
+        is_today = op_date == timezone.localdate()
+        shift_range = _resolve_shift(dc_id, shift_id, op_date, is_today)
         if shift_range:
             qs = PersonnelMetricSample.objects.filter(metric_type=mt)
             qs = _filter_by_shift(qs, shift_range)
@@ -403,8 +466,8 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             )
         if dc_id:
             qs = qs.filter(personnel__primary_distributor_center_id=dc_id)
-        if personnel_id:
-            qs = qs.filter(personnel_id=personnel_id)
+        if personnel_ids:
+            qs = qs.filter(personnel_id__in=personnel_ids)
 
         agg = (
             qs.annotate(h=Extract('created_at', 'hour', tzinfo=HN_TZ))
@@ -577,6 +640,11 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             except Exception:
                 dc_id = None
 
+        shift_id = request.query_params.get('shift_id')
+        filter_personnel_ids = _parse_id_list(request, 'personnel_ids')
+        if not filter_personnel_ids:
+            filter_personnel_ids = _parse_id_list(request, 'personnel_id')
+
         # Personnel que participaron hoy: por assignment de pauta OR por sample
         # del día. Los samples solos (sin pauta) cubren el caso de demos/backfill
         # o métricas manuales futuras.
@@ -600,7 +668,8 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
             except Exception:
                 assignment_personnel = set()
 
-        shift_range = _resolve_active_shift(dc_id)
+        is_today = op_date == timezone.localdate()
+        shift_range = _resolve_shift(dc_id, shift_id, op_date, is_today)
         sample_personnel_qs = PersonnelMetricSample.objects.filter(
             metric_type__code__in=spec['metrics'],
         )
@@ -615,6 +684,9 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         sample_personnel = set(sample_personnel_qs.values_list('personnel_id', flat=True))
 
         personnel_ids = list(assignment_personnel | sample_personnel)
+        if filter_personnel_ids:
+            filter_set = set(filter_personnel_ids)
+            personnel_ids = [pid for pid in personnel_ids if pid in filter_set]
         personnel_qs = PersonnelProfile.objects.filter(
             pk__in=personnel_ids,
         ).only('id', 'first_name', 'last_name', 'employee_code', 'position_type')

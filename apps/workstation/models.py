@@ -173,7 +173,7 @@ class WorkstationBlock(BaseModel):
         config = {
           "title": str?, "kpi_label": str,
           "yellow": {"title": str, "description": str, "qr_url"?: str, "qr_label"?: str},
-          "red":    {"title": str, "description": str},
+          "red":    {"title": str, "description": str, "qr_url"?: str, "qr_label"?: str},
         }
       - QR_DOCUMENT: QR a un PDF subido (referencia WorkstationDocument).
         config = { "document_id": int, "title": str?, "show_label": bool? }
