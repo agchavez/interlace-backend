@@ -465,7 +465,11 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
                 operational_date=op_date, metric_type=mt,
             )
         if dc_id:
-            qs = qs.filter(personnel__primary_distributor_center_id=dc_id)
+            # Filtramos por la relación M2M `distributor_centers` (en lugar de
+            # `primary_distributor_center` estricto) para no excluir personal
+            # asignado al CD pero cuyo "primary" sea otro CD. `.distinct()`
+            # evita duplicados por el JOIN.
+            qs = qs.filter(personnel__distributor_centers__id=dc_id).distinct()
         if personnel_ids:
             qs = qs.filter(personnel_id__in=personnel_ids)
 
@@ -688,9 +692,11 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             sample_personnel_qs = sample_personnel_qs.filter(operational_date=op_date)
         if dc_id:
+            # M2M en lugar de primary_distributor_center estricto — incluye
+            # personal asignado al CD aunque su "primary" sea otro.
             sample_personnel_qs = sample_personnel_qs.filter(
-                personnel__primary_distributor_center_id=dc_id,
-            )
+                personnel__distributor_centers__id=dc_id,
+            ).distinct()
         sample_personnel = set(sample_personnel_qs.values_list('personnel_id', flat=True))
 
         personnel_ids = list(assignment_personnel | sample_personnel)

@@ -1021,11 +1021,14 @@ class LogEntryViewSet(mixins.RetrieveModelMixin,
 class DetailGroupViewSet(mixins.RetrieveModelMixin,
                             mixins.ListModelMixin,
                             viewsets.GenericViewSet):
-        queryset = DetailGroup.objects.all()
+        queryset = DetailGroup.objects.select_related('group').prefetch_related(
+            'group__permissions',
+            'group__permissions__content_type',
+        )
         serializer_class = DetailGroupSerializer
         filter_backends = (SearchFilter, OrderingFilter)
-        search_fields = ('group__name')
-        ordering_fields = ('group__name')
+        search_fields = ('group__name',)
+        ordering_fields = ('group__name',)
 
         @action(methods=['get'], detail=False, permission_classes=[IsAuthenticated], url_path='permissions-by-name')
         def permissions_by_name(self, request):

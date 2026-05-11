@@ -96,29 +96,61 @@ def recompute_repack_hourly_samples(session: RepackSession) -> int:
 
     op_date = session.operational_date
     written = 0
+    created_ids_anchors = []  # (sample_id, anchor) — para forzar created_at
     for row in by_hour:
         hour = int(row['h'])
         total = row['total']
         if total is None:
             continue
-        # Si la hora quedó en 0 (ajustes que se cancelan), igual creamos
-        # el sample con valor 0 — refleja "el operario hizo movimientos
-        # esa hora pero el neto fue 0". Saltamos sólo None.
-        anchor = datetime.combine(op_date, time(hour, 0, 0), tzinfo=HN_TZ)
-        PersonnelMetricSample.objects.create(
+        # Si la hora cayó en el día siguiente (turnos que cruzan medianoche,
+        # ej. TC 20:30–06:00), el anchor debe usar op_date+1 día. Aproximación:
+        # horas 0..5 que el turno cubre suelen ser del día siguiente del
+        # operational_date. Si la sesión arrancó tras medianoche del mismo
+        # día (caso TA/TB) NO ajustamos.
+        ref_day = op_date
+        if session.started_at:
+            from django.utils import timezone
+            started_hn = timezone.localtime(session.started_at, HN_TZ)
+            # Si la sesión arrancó después de la hora `hour` del started_at o
+            # cruza medianoche, asumimos que el sample corresponde al día
+            # siguiente del op_date.
+            if started_hn.date() != op_date and started_hn.hour > hour:
+                ref_day = started_hn.date()
+            elif started_hn.hour > hour and hour < 12:
+                # Cruza medianoche: started a 22h, sample en hora 3
+                from datetime import timedelta as _td
+                ref_day = op_date + _td(days=1)
+        anchor = datetime.combine(ref_day, time(hour, 0, 0), tzinfo=HN_TZ)
+        s = PersonnelMetricSample.objects.create(
             personnel=session.personnel,
             metric_type=metric,
             operational_date=op_date,
             numeric_value=Decimal(str(total)),
             source=PersonnelMetricSample.SOURCE_AUTO,
-            created_at=anchor,
             context={
                 'repack_session_id': session.id,
                 'hour_hn': hour,
                 'boxes_in_hour': int(total),
             },
         )
+        created_ids_anchors.append((s.id, anchor))
         written += 1
+
+    # `created_at` tiene auto_now_add=True → `.create()` lo setea a now().
+    # Forzamos el anchor de la hora HN con un UPDATE FROM VALUES (Postgres)
+    # para que `Extract('created_at', 'hour', tzinfo=HN_TZ)` en el endpoint
+    # hourly lo mapee a la columna correcta del SIC.
+    if created_ids_anchors:
+        from django.db import connection
+        table = PersonnelMetricSample._meta.db_table
+        placeholders = ','.join(['(%s, %s::timestamptz)'] * len(created_ids_anchors))
+        params = [v for pair in created_ids_anchors for v in pair]
+        with connection.cursor() as cur:
+            cur.execute(
+                f'UPDATE "{table}" AS t SET created_at = v.ts '
+                f'FROM (VALUES {placeholders}) AS v(id, ts) WHERE t.id = v.id',
+                params,
+            )
     return written
 
 

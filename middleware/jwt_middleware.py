@@ -38,32 +38,30 @@ class JwtAuthMiddleware(BaseMiddleware):
         # Close old database connections to prevent usage of timed out connections
         close_old_connections()
 
-        if "token" not in parse_qs(scope["query_string"].decode("utf8")):
+        path = scope.get('path', '?')
+        qs_raw = scope["query_string"].decode("utf8")
+        qs = parse_qs(qs_raw)
+        print(f'[JwtAuth] path={path} qs_keys={list(qs.keys())} qs_raw_len={len(qs_raw)}')
+
+        if "token" not in qs:
             return await self.inner(scope, receive, send)
-        # Get the token
-        token = parse_qs(scope["query_string"].decode("utf8"))["token"][0]
-        # Try to authenticate the user
+        token = qs["token"][0]
         try:
-            # This will automatically validate the token and raise an error if token is invalid
             UntypedToken(token)
         except (InvalidToken, TokenError) as e:
-            # Token is invalid
+            print(f'[JwtAuth] token inválido para {path}: {e}')
             return None
         else:
-            #  Then token is valid, decode it
             decoded_data = jwt_decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-            # Will return a dictionary like -
-            # {
-            #     "token_type": "access",
-            #     "exp": 1568770772,
-            #     "jti": "5c15e80d65b04c20ad34d77b6703251b",
-            #     "user_id": 6
-            # }
-
-            # Get the user using ID
             scope["user"] = await get_user(validated_token=decoded_data)
+            print(f'[JwtAuth] user seteado en scope para {path}: {scope["user"]!r}')
         return await super().__call__(scope, receive, send)
 
 
 def JwtAuthMiddlewareStack(inner):
-    return JwtAuthMiddleware(AuthMiddlewareStack(inner))
+    # Orden importa: AuthMiddlewareStack corre primero (setea AnonymousUser por
+    # default si no hay sesión Django), y luego JwtAuthMiddleware sobreescribe
+    # `scope["user"]` con el user del JWT cuando viene `?token=` en el query.
+    # Si invertimos, AuthMiddlewareStack pisa el user que el JWT ya seteó
+    # y el consumer ve AnonymousUser → cierra el WebSocket con REJECT.
+    return AuthMiddlewareStack(JwtAuthMiddleware(inner))

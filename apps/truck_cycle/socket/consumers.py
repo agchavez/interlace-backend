@@ -1,5 +1,8 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
+
+logger = logging.getLogger(__name__)
 
 
 class TruckCycleConsumer(AsyncWebsocketConsumer):
@@ -14,11 +17,19 @@ class TruckCycleConsumer(AsyncWebsocketConsumer):
 
         user = self.scope.get('user')
         if not user or user.is_anonymous:
+            print(f'[truck-cycle WS] REJECT dc={self.dc_id}: user={user!r} anonymous={getattr(user, "is_anonymous", "?")}')
             await self.close()
             return
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+        except Exception as e:
+            print(f'[truck-cycle WS] REJECT dc={self.dc_id} group_add failed: {e!r}')
+            await self.close()
+            return
+
         await self.accept()
+        print(f'[truck-cycle WS] CONNECT dc={self.dc_id} user={user}')
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
