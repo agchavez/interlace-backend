@@ -469,10 +469,20 @@ class PersonnelMetricSampleViewSet(viewsets.ReadOnlyModelViewSet):
         if personnel_ids:
             qs = qs.filter(personnel_id__in=personnel_ids)
 
+        # Métricas tipo "count" (suma de eventos por hora) vs métricas tipo
+        # "rate/time" (promedio). Para SUM_METRICS retornamos la suma por
+        # hora en el campo `avg` (manteniendo el contrato con el frontend).
+        SUM_METRICS = {
+            'picker_loads_assembled',
+            'yard_trucks_moved',
+            'repack_boxes_per_hour',
+            'repack_total_boxes_shift',
+        }
+        aggregator = Sum if metric_code in SUM_METRICS else Avg
         agg = (
             qs.annotate(h=Extract('created_at', 'hour', tzinfo=HN_TZ))
             .values('h')
-            .annotate(avg=Avg('numeric_value'), n=Count('id'))
+            .annotate(avg=aggregator('numeric_value'), n=Count('id'))
             .order_by('h')
         )
         by_hour = {row['h']: row for row in agg}

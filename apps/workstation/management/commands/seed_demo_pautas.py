@@ -346,9 +346,10 @@ class Command(BaseCommand):
         metric_id = {
             m.code: m.id for m in PerformanceMetricType.objects.filter(
                 code__in=[
-                    'picker_pallets_per_hour', 'picker_time_per_pauta',
-                    'picker_load_error_rate', 'counter_time_per_truck',
-                    'counter_pallets_per_hour', 'counter_error_rate',
+                    'picker_pallets_per_hour', 'picker_loads_assembled',
+                    'picker_time_per_pauta', 'picker_load_error_rate',
+                    'counter_time_per_truck', 'counter_pallets_per_hour',
+                    'counter_error_rate',
                     'yard_time_park_to_bay', 'yard_time_bay_to_park',
                     'yard_time_total_move', 'yard_trucks_moved',
                 ],
@@ -414,6 +415,12 @@ class Command(BaseCommand):
             if 'picker_time_per_pauta' in metric_id:
                 sample_rows.append((picker.id, metric_id['picker_time_per_pauta'],
                                     op_date, Decimal(str(round(dur_min, 2))),
+                                    PersonnelMetricSample.SOURCE_AUTO, mid_ts))
+            # picker_loads_assembled: 1 sample por pauta con valor=1 (es métrica
+            # tipo count — el endpoint hourly suma por hora).
+            if 'picker_loads_assembled' in metric_id:
+                sample_rows.append((picker.id, metric_id['picker_loads_assembled'],
+                                    op_date, Decimal('1'),
                                     PersonnelMetricSample.SOURCE_AUTO, mid_ts))
             # picker_pallets_per_hour = PLT/Hr derivado
             if 'picker_pallets_per_hour' in metric_id and dur_min > 0:
